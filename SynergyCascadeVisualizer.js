@@ -110,6 +110,16 @@ export class SynergyCascadeVisualizer {
       rippleHaloOpacity: 0.16,                 // Base halo opacity for expanded ripple
       rippleCoreScale: 0.84,                   // Brighter inner ring nested inside the main ripple
       rippleCoreOpacity: 0.32,                 // Base opacity for the inner ripple core
+      rippleEchoShellScale: 1.14,              // Dim trailing shell behind the main filament
+      rippleEchoShellOpacity: 0.10,            // Soft echo shell opacity
+      rippleFringeScale: 1.04,                 // Chromatic fringe expansion scale
+      rippleFringeOpacity: 0.11,               // Base chromatic fringe opacity
+      rippleBreathStrength: 0.055,             // Soft spectral breathing for ripple shells
+      rippleIrregularityStrength: 0.045,       // Slight liquid wobble without geometry churn
+      spectralRippleWarmTint: new THREE.Color(0xffc885),
+      spectralRippleFringeCyan: new THREE.Color(0x7ffcff),
+      spectralRippleFringeViolet: new THREE.Color(0xd79cff),
+      spectralRippleFringeGold: new THREE.Color(0xffe2a2),
       particleGlowSizeBoost: 1.12,             // Particle size boost for more luminous trails
       burstGlowSoftness: 0.82,                 // Softness of burst particle glow
       burstGlowMultiplier: 1.25,               // Strength multiplier for burst particle glow
@@ -2911,9 +2921,16 @@ export class SynergyCascadeVisualizer {
       intensity: intensity * Math.max(0.1, Number(options.intensityScale ?? 1.0) || 1.0),
       haloScale: this.config.rippleHaloScale,
       coreScale: this.config.rippleCoreScale,
+      echoShellScale: this.config.rippleEchoShellScale,
+      fringeScale: this.config.rippleFringeScale,
+      wobbleSeed: Math.random() * Math.PI * 2,
+      baseColor: rippleColor.clone(),
+      geometry: null,
       mesh: null,
       coreMesh: null,
-      haloMesh: null
+      haloMesh: null,
+      echoShellMesh: null,
+      fringeMeshes: []
     };
     
     // Create ripple geometry (expanding ring)
@@ -2940,6 +2957,8 @@ export class SynergyCascadeVisualizer {
       depthTest: false
     });
     
+    ripple.geometry = ringGeometry;
+
     const rippleLine = new THREE.Line(ringGeometry, rippleMaterial);
     rippleLine.position.copy(position);
     rippleLine.position.y += Number(options.verticalOffset ?? 0) || 0;
@@ -2987,8 +3006,72 @@ export class SynergyCascadeVisualizer {
     ripple.haloMesh = haloLine;
     this.scene.add(haloLine);
     this._createdObjects.push(haloLine);
+
+    const echoShellMaterial = new THREE.LineBasicMaterial({
+      color: rippleColor.clone().lerp(this.config.spectralRippleWarmTint, 0.35),
+      linewidth: 1,
+      transparent: true,
+      opacity: Math.min(0.16, this.config.rippleEchoShellOpacity + (intensity * 0.08)),
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: false
+    });
+    const echoShellLine = new THREE.Line(ringGeometry, echoShellMaterial);
+    echoShellLine.position.copy(position);
+    echoShellLine.position.y += (Number(options.verticalOffset ?? 0) || 0) - 0.0025;
+    echoShellLine.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_CASCADE');
+    echoShellLine.frustumCulled = false;
+    ripple.echoShellMesh = echoShellLine;
+    this.scene.add(echoShellLine);
+    this._createdObjects.push(echoShellLine);
+
+    const fringeProfiles = [
+      { color: this.config.spectralRippleFringeCyan, offset: new THREE.Vector3(-0.0045, 0.0015, 0.0), scale: 0.985 },
+      { color: this.config.spectralRippleFringeViolet, offset: new THREE.Vector3(0.004, -0.001, 0.0035), scale: 1.015 },
+      { color: this.config.spectralRippleFringeGold, offset: new THREE.Vector3(0.0, 0.0025, -0.0035), scale: 1.045 }
+    ];
+    for (const profile of fringeProfiles) {
+      const fringeMaterial = new THREE.LineBasicMaterial({
+        color: rippleColor.clone().lerp(profile.color, 0.88),
+        linewidth: 1,
+        transparent: true,
+        opacity: Math.min(0.16, this.config.rippleFringeOpacity + (intensity * 0.06)),
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false
+      });
+      const fringeLine = new THREE.Line(ringGeometry, fringeMaterial);
+      fringeLine.position.copy(position).add(profile.offset);
+      fringeLine.position.y += Number(options.verticalOffset ?? 0) || 0;
+      fringeLine.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_CASCADE') + 1;
+      fringeLine.frustumCulled = false;
+      fringeLine.userData.fringeScale = profile.scale;
+      fringeLine.userData.fringeTargetColor = profile.color.clone();
+      ripple.fringeMeshes.push(fringeLine);
+      this.scene.add(fringeLine);
+      this._createdObjects.push(fringeLine);
+    }
     
     this.ripples.push(ripple);
+  }
+
+  _disposeRippleVisual(ripple) {
+    if (!ripple) return;
+    const disposeLine = (line) => {
+      if (!line) return;
+      this.scene.remove(line);
+      if (line.material) line.material.dispose();
+    };
+    disposeLine(ripple.mesh);
+    disposeLine(ripple.coreMesh);
+    disposeLine(ripple.haloMesh);
+    disposeLine(ripple.echoShellMesh);
+    if (Array.isArray(ripple.fringeMeshes)) {
+      ripple.fringeMeshes.forEach(disposeLine);
+    }
+    if (ripple.geometry) {
+      ripple.geometry.dispose();
+    }
   }
   
   /**
@@ -3002,21 +3085,7 @@ export class SynergyCascadeVisualizer {
       const fadeRatio = 1.0 - (ripple.age / ripple.lifetime);
       
       if (fadeRatio <= 0) {
-        if (ripple.mesh) {
-          this.scene.remove(ripple.mesh);
-          ripple.mesh.geometry.dispose();
-          ripple.mesh.material.dispose();
-        }
-        if (ripple.coreMesh) {
-          this.scene.remove(ripple.coreMesh);
-          ripple.coreMesh.geometry.dispose();
-          ripple.coreMesh.material.dispose();
-        }
-        if (ripple.haloMesh) {
-          this.scene.remove(ripple.haloMesh);
-          ripple.haloMesh.geometry.dispose();
-          ripple.haloMesh.material.dispose();
-        }
+        this._disposeRippleVisual(ripple);
         this.ripples.splice(i, 1);
         continue;
       }
@@ -3025,18 +3094,50 @@ export class SynergyCascadeVisualizer {
       const radius = ripple.startRadius + (ripple.maxRadius * (1.0 - fadeRatio));
       const progress = 1.0 - fadeRatio;
       const corePulse = 0.88 + 0.12 * Math.sin((progress * 12.0) + (ripple.intensity * 4.0));
+      const breath = 1.0 + Math.sin((progress * 10.5) + ripple.wobbleSeed) * this.config.rippleBreathStrength;
+      const wobbleStrength = this.config.rippleIrregularityStrength * (1.0 - progress * 0.45);
+      const wobbleX = 1.0 + Math.sin((progress * 8.0) + ripple.wobbleSeed) * wobbleStrength;
+      const wobbleZ = 1.0 + Math.cos((progress * 9.3) + ripple.wobbleSeed * 1.27) * wobbleStrength * 0.82;
+      const crest = 1.0 + Math.exp(-Math.pow((progress - 0.18) / 0.16, 2.0)) * 0.32;
+      const shellFade = Math.max(0.0, 1.0 - progress * 0.92);
+      const filamentColor = ripple.baseColor.clone()
+        .lerp(this.config.waveColor, Math.min(0.35, progress * 0.42))
+        .lerp(this.config.shimmerAccentColor, Math.max(0.0, progress - 0.25) * 0.18);
       
       if (ripple.mesh) {
-        ripple.mesh.scale.setScalar(radius / 0.01);
-        ripple.mesh.material.opacity = Math.min(1.0, 0.10 + fadeRatio * ripple.intensity * 0.58 + Math.max(0, 0.18 - progress * 0.12));
+        const baseScale = (radius / 0.01) * breath * crest;
+        ripple.mesh.scale.set(baseScale * wobbleX, baseScale, baseScale * wobbleZ);
+        ripple.mesh.material.opacity = Math.min(1.0, 0.14 + fadeRatio * ripple.intensity * 0.60 + Math.max(0, 0.16 - progress * 0.10));
+        ripple.mesh.material.color.copy(filamentColor);
       }
       if (ripple.coreMesh) {
-        ripple.coreMesh.scale.setScalar((radius * ripple.coreScale) / 0.01);
+        const coreScale = ((radius * ripple.coreScale) / 0.01) * (1.0 + Math.sin((progress * 13.5) + ripple.wobbleSeed) * 0.025);
+        ripple.coreMesh.scale.set(coreScale * wobbleX * 0.98, coreScale, coreScale * wobbleZ * 0.98);
         ripple.coreMesh.material.opacity = Math.max(0, Math.min(0.72, fadeRatio * fadeRatio * ripple.intensity * 0.92 * corePulse));
+        ripple.coreMesh.material.color.copy(filamentColor.clone().lerp(this.config.spectralRippleWarmTint, 0.24));
       }
       if (ripple.haloMesh) {
-        ripple.haloMesh.scale.setScalar((radius * ripple.haloScale) / 0.01);
-        ripple.haloMesh.material.opacity = Math.max(0, Math.min(0.26, (fadeRatio * ripple.intensity * 0.44) + Math.max(0, 0.06 - progress * 0.04)));
+        const haloScale = ((radius * ripple.haloScale) / 0.01) * (1.0 + Math.sin((progress * 6.0) + ripple.wobbleSeed * 0.5) * 0.03);
+        ripple.haloMesh.scale.set(haloScale * wobbleX * 1.02, haloScale, haloScale * wobbleZ * 1.02);
+        ripple.haloMesh.material.opacity = Math.max(0, Math.min(0.26, (fadeRatio * ripple.intensity * 0.44 * breath) + Math.max(0, 0.06 - progress * 0.04)));
+        ripple.haloMesh.material.color.copy(ripple.baseColor.clone().lerp(this.config.spectralRippleWarmTint, 0.55));
+      }
+      if (ripple.echoShellMesh) {
+        const echoScale = ((radius * ripple.echoShellScale) / 0.01) * (1.0 + progress * 0.08);
+        ripple.echoShellMesh.scale.set(echoScale * wobbleX * 1.04, echoScale, echoScale * wobbleZ * 1.04);
+        ripple.echoShellMesh.material.opacity = Math.max(0, Math.min(0.18, shellFade * fadeRatio * ripple.intensity * 0.24));
+        ripple.echoShellMesh.material.color.copy(ripple.baseColor.clone().lerp(this.config.spectralRippleWarmTint, 0.78));
+      }
+      if (Array.isArray(ripple.fringeMeshes)) {
+        for (let fringeIndex = 0; fringeIndex < ripple.fringeMeshes.length; fringeIndex += 1) {
+          const fringeMesh = ripple.fringeMeshes[fringeIndex];
+          if (!fringeMesh) continue;
+          const fringeScale = ((radius * ripple.fringeScale * (fringeMesh.userData.fringeScale || 1.0)) / 0.01) * (1.0 + progress * 0.04);
+          fringeMesh.scale.set(fringeScale * wobbleX, fringeScale, fringeScale * wobbleZ);
+          fringeMesh.material.opacity = Math.max(0, Math.min(0.16, fadeRatio * ripple.intensity * (0.11 - fringeIndex * 0.012) * breath));
+          const fringeColor = ripple.baseColor.clone().lerp(fringeMesh.userData.fringeTargetColor, 0.84).lerp(this.config.waveColor, progress * 0.18);
+          fringeMesh.material.color.copy(fringeColor);
+        }
       }
     }
   }
@@ -3213,11 +3314,7 @@ export class SynergyCascadeVisualizer {
     
     // Clean up ripples
     for (const ripple of this.ripples) {
-      if (ripple.mesh) {
-        this.scene.remove(ripple.mesh);
-        ripple.mesh.geometry.dispose();
-        ripple.mesh.material.dispose();
-      }
+      this._disposeRippleVisual(ripple);
     }
     this.ripples = [];
     this.stats.activeCascades = 0;

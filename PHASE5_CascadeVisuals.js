@@ -88,6 +88,16 @@ export class PHASE5_CascadePropagationVisuals {
       rippleCoreScale: config.rippleCoreScale ?? 0.82,       // NEW: inner ring core scale
       rippleCoreOpacity: config.rippleCoreOpacity ?? 0.26,   // NEW: inner ring core opacity
       rippleColorEvolution: config.rippleColorEvolution ?? true,       // NEW: color shift over lifetime
+      rippleHaloScale: config.rippleHaloScale ?? 1.18,
+      rippleHaloOpacity: config.rippleHaloOpacity ?? 0.14,
+      rippleFringeScale: config.rippleFringeScale ?? 1.04,
+      rippleFringeOpacity: config.rippleFringeOpacity ?? 0.10,
+      rippleBreathStrength: config.rippleBreathStrength ?? 0.05,
+      rippleIrregularityStrength: config.rippleIrregularityStrength ?? 0.04,
+      spectralWarmTint: new THREE.Color(config.spectralWarmTint ?? 0xffd6a8),
+      spectralCyanTint: new THREE.Color(config.spectralCyanTint ?? 0x88f6ff),
+      spectralVioletTint: new THREE.Color(config.spectralVioletTint ?? 0xd79cff),
+      spectralGoldTint: new THREE.Color(config.spectralGoldTint ?? 0xffedb0),
       
       // Activation safety gate
       cascadeActivationThreshold: config.cascadeActivationThreshold ?? 0.3,
@@ -202,7 +212,8 @@ export class PHASE5_CascadePropagationVisuals {
           sourcePosition,
           cascadeType,
           normalizedStrength,
-          depth
+          depth,
+          sourceNodeId
         );
         if (this.config.rippleEnabled) {
           this.createRipple(sourcePosition, normalizedStrength, {
@@ -228,7 +239,8 @@ export class PHASE5_CascadePropagationVisuals {
                 node.position,
                 cascadeType,
                 depthStrength,
-                depth + index + 1
+                depth + index + 1,
+                node?.userData?.id ?? node?.id ?? null
               );
               if (this.config.rippleEnabled) {
                 this.createRipple(node.position, depthStrength, {
@@ -300,7 +312,8 @@ export class PHASE5_CascadePropagationVisuals {
         echoIndex: Number.isFinite(options.echoIndex) ? options.echoIndex : 0,
         elapsedTime: 0,
         startTime: Date.now(),
-        material: this.getRingMaterial(cascadeType)
+        material: this.getRingMaterial(cascadeType),
+        spectralChildren: ringMesh.userData?.spectralChildren ?? null
       };
       ringMesh.material = ringMesh.userData.material;
       ringMesh.scale.setScalar(ringMesh.userData.baseScale);
@@ -328,7 +341,7 @@ export class PHASE5_CascadePropagationVisuals {
    * Create a light support echo ring.
    * The stronger visible echo burst now lives in SynergyCascadeVisualizer.
    */
-  createRingEchoTriplet(position, cascadeType = 'corruption', strength = 1.0, depth = 0) {
+  createRingEchoTriplet(position, cascadeType = 'corruption', strength = 1.0, depth = 0, sourceNodeId = null) {
     const ringCount = 1;
     const spacing = Math.max(0.02, Number(this.config.echoRingSpacing) || 0.12);
     const opacityFalloff = Math.max(0, Math.min(0.8, Number(this.config.echoRingOpacityFalloff) || 0.18));
@@ -402,6 +415,38 @@ export class PHASE5_CascadePropagationVisuals {
     const ring = new THREE.LineLoop(geometry, material);
     ring.name = 'CascadeRing';
     ring.userData = {};
+
+    const haloMaterial = new THREE.LineBasicMaterial({
+      color: 0xfff0cf,
+      transparent: true,
+      opacity: this.config.baseOpacity * 0.42,
+      linewidth: this.config.ringThickness,
+      fog: false,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+    const haloLine = new THREE.LineLoop(geometry, haloMaterial);
+    haloLine.scale.setScalar(1.05);
+    haloLine.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE) - 1;
+    haloLine.frustumCulled = false;
+    ring.add(haloLine);
+
+    const fringeMaterial = new THREE.LineBasicMaterial({
+      color: 0x88f6ff,
+      transparent: true,
+      opacity: this.config.baseOpacity * 0.28,
+      linewidth: Math.max(1, this.config.ringThickness),
+      fog: false,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+    const fringeLine = new THREE.LineLoop(geometry, fringeMaterial);
+    fringeLine.scale.setScalar(1.025);
+    fringeLine.position.y = 0.0025;
+    fringeLine.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE) + 1;
+    fringeLine.frustumCulled = false;
+    ring.add(fringeLine);
+    ring.userData.spectralChildren = { halo: haloLine, fringe: fringeLine };
     
     return ring;
   }
@@ -419,20 +464,24 @@ export class PHASE5_CascadePropagationVisuals {
     this._markRippleCooldown(rippleCooldownKey);
 
     const colorOption = options.color ?? this.config.rippleColor;
+    const ringGeometry = this._getRippleGeometry();
     const ripple = {
       center: position.clone(),
       age: 0,
       lifetime: this.config.rippleLifetime * (Number(options.lifetimeScale) || 1.0),
       intensity: Math.max(0, Math.min(1, Number(intensity) || 0.1)),
       mesh: null,
+      haloMesh: null,
+      coreMesh: null,
+      fringeMeshes: [],
       trailMesh: null,       // NEW: ghost trail line
       trailSpawned: false,
+      wobbleSeed: Math.random() * Math.PI * 2,
       baseColor: new THREE.Color(colorOption),
+      geometry: ringGeometry,
       nodeId: options.nodeId ?? null,
       kind: options.kind ?? 'default'
     };
-
-    const ringGeometry = this._getRippleGeometry();
 
     const rippleMaterial = new THREE.LineBasicMaterial({
       color: colorOption,
@@ -451,6 +500,21 @@ export class PHASE5_CascadePropagationVisuals {
 
     ripple.mesh = rippleLine;
     this.scene.add(rippleLine);
+
+    const haloMaterial = new THREE.LineBasicMaterial({
+      color: ripple.baseColor.clone().lerp(this.config.spectralWarmTint, 0.42),
+      transparent: true,
+      opacity: Math.min(0.18, this.config.rippleHaloOpacity + (ripple.intensity * 0.12)),
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const haloLine = new THREE.Line(ringGeometry, haloMaterial);
+    haloLine.position.copy(position);
+    haloLine.position.y += Number(options.verticalOffset || 0) - 0.0015;
+    haloLine.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE) - 1;
+    haloLine.frustumCulled = false;
+    ripple.haloMesh = haloLine;
+    this.scene.add(haloLine);
 
     // ── NEW: Ghost trail line (delayed, dimmer copy) ──
     if (this.config.rippleTrailEnabled) {
@@ -489,8 +553,51 @@ export class PHASE5_CascadePropagationVisuals {
     coreLine.frustumCulled = false;
     ripple.coreMesh = coreLine;
     this.scene.add(coreLine);
+
+    const fringeProfiles = [
+      { color: this.config.spectralCyanTint, offset: new THREE.Vector3(-0.0035, 0.0015, 0.0), scale: 0.985 },
+      { color: this.config.spectralVioletTint, offset: new THREE.Vector3(0.0035, -0.001, 0.0035), scale: 1.015 },
+      { color: this.config.spectralGoldTint, offset: new THREE.Vector3(0.0, 0.0025, -0.0035), scale: 1.042 }
+    ];
+    for (const profile of fringeProfiles) {
+      const fringeMaterial = new THREE.LineBasicMaterial({
+        color: ripple.baseColor.clone().lerp(profile.color, 0.86),
+        transparent: true,
+        opacity: Math.min(0.15, this.config.rippleFringeOpacity + (ripple.intensity * 0.05)),
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      const fringeLine = new THREE.Line(ringGeometry, fringeMaterial);
+      fringeLine.position.copy(position).add(profile.offset);
+      fringeLine.position.y += Number(options.verticalOffset || 0);
+      fringeLine.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE) + 1;
+      fringeLine.frustumCulled = false;
+      fringeLine.userData.fringeScale = profile.scale;
+      fringeLine.userData.fringeTargetColor = profile.color.clone();
+      ripple.fringeMeshes.push(fringeLine);
+      this.scene.add(fringeLine);
+    }
     
     this.ripples.push(ripple);
+  }
+
+  _disposeRippleMeshes(ripple, disposeGeometry = true) {
+    if (!ripple) return;
+    const removeLine = (line) => {
+      if (!line) return;
+      this.scene.remove(line);
+      if (line.material) line.material.dispose();
+    };
+    removeLine(ripple.mesh);
+    removeLine(ripple.haloMesh);
+    removeLine(ripple.trailMesh);
+    removeLine(ripple.coreMesh);
+    if (Array.isArray(ripple.fringeMeshes)) {
+      ripple.fringeMeshes.forEach(removeLine);
+    }
+    if (disposeGeometry && ripple.geometry) {
+      ripple.geometry.dispose();
+    }
   }
 
   /**
@@ -503,18 +610,7 @@ export class PHASE5_CascadePropagationVisuals {
       const fadeRatio = 1.0 - (ripple.age / ripple.lifetime);
 
       if (fadeRatio <= 0) {
-        if (ripple.mesh) {
-          this.scene.remove(ripple.mesh);
-          ripple.mesh.material.dispose();
-        }
-        if (ripple.trailMesh) {
-          this.scene.remove(ripple.trailMesh);
-          ripple.trailMesh.material.dispose();
-        }
-        if (ripple.coreMesh) {
-          this.scene.remove(ripple.coreMesh);
-          ripple.coreMesh.material.dispose();
-        }
+        this._disposeRippleMeshes(ripple, false);
         // Decrement stability active count
         if (ripple.nodeId) {
           const key = String(ripple.nodeId);
@@ -528,23 +624,53 @@ export class PHASE5_CascadePropagationVisuals {
 
       const radius = this.config.rippleBaseRadius + (this.config.rippleBaseRadius * this.config.rippleMaxRadiusScale * (1.0 - fadeRatio) * 8.0);
       const progress = 1.0 - fadeRatio;
+      const breath = 1.0 + Math.sin((progress * 9.5) + ripple.wobbleSeed) * this.config.rippleBreathStrength;
+      const wobbleStrength = this.config.rippleIrregularityStrength * (1.0 - progress * 0.4);
+      const wobbleX = 1.0 + Math.sin((progress * 7.5) + ripple.wobbleSeed) * wobbleStrength;
+      const wobbleZ = 1.0 + Math.cos((progress * 8.6) + ripple.wobbleSeed * 1.23) * wobbleStrength * 0.82;
+      const crest = 1.0 + Math.exp(-Math.pow((progress - 0.16) / 0.17, 2.0)) * 0.28;
+      const evolvedFilamentColor = ripple.baseColor.clone()
+        .lerp(this.config.spectralCyanTint, progress * 0.18)
+        .lerp(this.config.spectralWarmTint, Math.max(0, progress - 0.3) * 0.24);
 
       if (ripple.mesh) {
-        ripple.mesh.scale.setScalar(radius / this.config.rippleBaseRadius);
-        ripple.mesh.material.opacity = Math.max(0.05, this.config.rippleOpacity * fadeRatio * ripple.intensity * (0.88 + progress * 0.12));
+        const baseScale = (radius / this.config.rippleBaseRadius) * breath * crest;
+        ripple.mesh.scale.set(baseScale * wobbleX, baseScale, baseScale * wobbleZ);
+        ripple.mesh.material.opacity = Math.max(0.05, this.config.rippleOpacity * fadeRatio * ripple.intensity * (0.9 + progress * 0.16));
 
         // ── Color evolution: warm → cool shift over lifetime ──
         if (this.config.rippleColorEvolution && ripple.baseColor) {
-          const evolvedColor = ripple.baseColor.clone();
-          const coolTarget = new THREE.Color(0x4488ff);
-          evolvedColor.lerp(coolTarget, progress * 0.45);
-          ripple.mesh.material.color.copy(evolvedColor);
+          ripple.mesh.material.color.copy(evolvedFilamentColor);
         }
       }
 
+      if (ripple.haloMesh) {
+        const haloScale = ((radius * this.config.rippleHaloScale) / this.config.rippleBaseRadius) * (1.0 + progress * 0.06);
+        ripple.haloMesh.scale.set(haloScale * wobbleX * 1.02, haloScale, haloScale * wobbleZ * 1.02);
+        ripple.haloMesh.material.opacity = Math.max(0.02, this.config.rippleHaloOpacity * fadeRatio * ripple.intensity * breath);
+        ripple.haloMesh.material.color.copy(ripple.baseColor.clone().lerp(this.config.spectralWarmTint, 0.62));
+      }
+
       if (ripple.coreMesh) {
-        ripple.coreMesh.scale.setScalar((radius * this.config.rippleCoreScale) / this.config.rippleBaseRadius);
+        const coreScale = ((radius * this.config.rippleCoreScale) / this.config.rippleBaseRadius) * (1.0 + Math.sin((progress * 11.0) + ripple.wobbleSeed) * 0.025);
+        ripple.coreMesh.scale.set(coreScale * wobbleX * 0.98, coreScale, coreScale * wobbleZ * 0.98);
         ripple.coreMesh.material.opacity = Math.max(0.08, (this.config.rippleCoreOpacity * fadeRatio * ripple.intensity) * (0.92 + progress * 0.18));
+        ripple.coreMesh.material.color.copy(evolvedFilamentColor.clone().lerp(this.config.spectralGoldTint, 0.22));
+      }
+
+      if (Array.isArray(ripple.fringeMeshes)) {
+        for (let fringeIndex = 0; fringeIndex < ripple.fringeMeshes.length; fringeIndex += 1) {
+          const fringeMesh = ripple.fringeMeshes[fringeIndex];
+          if (!fringeMesh) continue;
+          const fringeScale = ((radius * this.config.rippleFringeScale * (fringeMesh.userData.fringeScale || 1.0)) / this.config.rippleBaseRadius) * (1.0 + progress * 0.05);
+          fringeMesh.scale.set(fringeScale * wobbleX, fringeScale, fringeScale * wobbleZ);
+          fringeMesh.material.opacity = Math.max(0.015, fadeRatio * ripple.intensity * (this.config.rippleFringeOpacity - fringeIndex * 0.012) * breath);
+          fringeMesh.material.color.copy(
+            ripple.baseColor.clone()
+              .lerp(fringeMesh.userData.fringeTargetColor, 0.86)
+              .lerp(this.config.spectralWarmTint, Math.max(0, progress - 0.42) * 0.18)
+          );
+        }
       }
 
       // ── Trail: spawn after delay, then expand behind ──
@@ -558,11 +684,12 @@ export class PHASE5_CascadePropagationVisuals {
           const trailAge = ripple.age - trailDelay;
           const trailFadeRatio = Math.max(0, 1.0 - (trailAge / (ripple.lifetime - trailDelay)));
           const trailRadius = this.config.rippleBaseRadius + (this.config.rippleBaseRadius * this.config.rippleMaxRadiusScale * (1.0 - trailFadeRatio) * 6.5);
-          ripple.trailMesh.scale.setScalar(trailRadius / this.config.rippleBaseRadius);
+          const trailScale = trailRadius / this.config.rippleBaseRadius;
+          ripple.trailMesh.scale.set(trailScale * wobbleX, trailScale, trailScale * wobbleZ);
           const trailOpacityScale = this.config.rippleTrailOpacityScale ?? 0.35;
           ripple.trailMesh.material.opacity = Math.max(0.02, this.config.rippleOpacity * trailFadeRatio * ripple.intensity * trailOpacityScale * (0.82 + progress * 0.18));
           if (ripple.trailMesh.material.color) {
-            const trailColor = ripple.baseColor.clone().lerp(new THREE.Color(0xffffff), 0.32);
+            const trailColor = ripple.baseColor.clone().lerp(this.config.spectralCyanTint, 0.28).lerp(new THREE.Color(0xffffff), 0.18);
             ripple.trailMesh.material.color.copy(trailColor);
           }
         }
@@ -654,11 +781,43 @@ export class PHASE5_CascadePropagationVisuals {
       opacityMultiplier *= ringMesh.userData.opacityMultiplier ?? 1.0;
       
       ringMesh.material.opacity = this.config.baseOpacity * strength * opacityMultiplier;
+      this._updateRingSpectralChildren(ringMesh, opacityMultiplier, 1.0);
       
     } catch (err) {
       if (this.config.enableDebug) {
         console.warn('[PHASE5_CascadePropagationVisuals] Ring appearance error:', err);
       }
+    }
+  }
+
+  _updateRingSpectralChildren(ringMesh, fadeMultiplier = 1.0, glowPulse = 1.0) {
+    const spectralChildren = ringMesh?.userData?.spectralChildren;
+    if (!spectralChildren) return;
+    const strength = ringMesh.userData?.strength ?? 1.0;
+    const cascadeType = ringMesh.userData?.cascadeType ?? 'default';
+    let baseColor = new THREE.Color(0xffffff);
+    switch (cascadeType) {
+      case 'corruption':
+        baseColor = new THREE.Color(this.config.corruptionCascadeColor);
+        break;
+      case 'harmony':
+        baseColor = new THREE.Color(this.config.harmonyCascadeColor);
+        break;
+      case 'threat':
+        baseColor = new THREE.Color(this.config.threatCascadeColor);
+        break;
+      default:
+        break;
+    }
+    const haloOpacity = this.config.baseOpacity * strength * fadeMultiplier * glowPulse * 0.34;
+    const fringeOpacity = this.config.baseOpacity * strength * fadeMultiplier * glowPulse * 0.18;
+    if (spectralChildren.halo?.material) {
+      spectralChildren.halo.material.opacity = haloOpacity;
+      spectralChildren.halo.material.color.copy(baseColor.clone().lerp(this.config.spectralWarmTint, 0.58));
+    }
+    if (spectralChildren.fringe?.material) {
+      spectralChildren.fringe.material.opacity = fringeOpacity;
+      spectralChildren.fringe.material.color.copy(baseColor.clone().lerp(this.config.spectralCyanTint, 0.72));
     }
   }
   
@@ -697,6 +856,7 @@ export class PHASE5_CascadePropagationVisuals {
         const fadeMultiplier = Math.max(0, 1.0 - fadeProgress);
         const glowPulse = 0.82 + (this.config.ringGlowPulseStrength ?? 0.18) * Math.sin(ring.userData.elapsedTime * (this.config.ringGlowPulseFreq ?? 3.5) * Math.PI * 2);
         ring.material.opacity = this.config.baseOpacity * ring.userData.strength * fadeMultiplier * glowPulse;
+        this._updateRingSpectralChildren(ring, fadeMultiplier, glowPulse);
         
         // Check if ring should be removed
         const currentRadius = this.config.ringRadius * scale;
@@ -906,7 +1066,8 @@ export class PHASE5_CascadePropagationVisuals {
             node.position,
             'harmony',
             intensity,
-            0
+            0,
+            nodeId
           );
         } else if (eventName.endsWith?.('mid')) {
           // MID stability → ripple only (lighter visual)
@@ -1019,16 +1180,7 @@ export class PHASE5_CascadePropagationVisuals {
 
   clearRipples() {
     for (const ripple of this.ripples) {
-      if (ripple.mesh) {
-        this.scene.remove(ripple.mesh);
-        ripple.mesh.geometry.dispose();
-        ripple.mesh.material.dispose();
-      }
-      if (ripple.trailMesh) {
-        this.scene.remove(ripple.trailMesh);
-        ripple.trailMesh.geometry.dispose();
-        ripple.trailMesh.material.dispose();
-      }
+      this._disposeRippleMeshes(ripple, true);
     }
     this.ripples = [];
     this._stabActiveCounts.clear();
@@ -1081,7 +1233,7 @@ export class PHASE5_CascadePropagationVisuals {
         if (activeCount >= maxConcurrent) continue;
 
         const intensity = 0.6 + (stability - highThreshold) / (1.0 - highThreshold) * 0.35;
-        this.createRingEchoTriplet(node.position, 'harmony', intensity, 0);
+        this.createRingEchoTriplet(node.position, 'harmony', intensity, 0, key);
         this._stabActiveCounts.set(key, (this._stabActiveCounts.get(key) ?? 0) + 1);
         this._stabSpawnTimers.set(key, this._elapsedTime);
 

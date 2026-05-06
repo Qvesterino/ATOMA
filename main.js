@@ -5162,9 +5162,9 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => {
             const resonanceCascadeVisualization = this.resonanceCascadeVisualization || this.resonanceCascade;
             if (resonanceCascadeVisualization && resonanceCascadeVisualization.enabled !== false) {
-                const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
+                const activeLinkCount = Array.isArray(this.linkingSystem?.links)
                     ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                    : 0);
+                    : 0;
                 if (activeLinkCount === 0) return;
                 resonanceCascadeVisualization.update(dt, this.aiNodes?.nodes, this.linkingSystem?.links);
             }

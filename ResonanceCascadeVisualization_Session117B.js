@@ -51,6 +51,8 @@ const CASCADE_CONFIG = {
   RIPPLE_FREQUENCY: 2.0,                      // Hz for ripple oscillation
   LINK_BIRTH_DELAY_SECONDS: 0.5,
   LINK_BIRTH_COOLDOWN_SECONDS: 3.5,
+  LINK_BIRTH_MAX_RETRIES: 6,
+  LINK_BIRTH_RETRY_SECONDS: 0.15,
   
   // Intensity modulation
   NODE_GLOW_MULTIPLIER: 1.8,                  // How much cascade affects node glow
@@ -481,7 +483,7 @@ export class ResonanceCascadeVisualization_Session117B {
   }
 
   _resolveCascadeAnchor(event = {}) {
-    const anchor = this._asValidPosition(event?.anchor);
+    const anchor = this._asValidPosition(event?.anchor ?? event?.center ?? event?.position);
     if (anchor) return anchor;
 
     const sourcePos = this._asValidPosition(event?.sourceNode?.position);
@@ -504,8 +506,73 @@ export class ResonanceCascadeVisualization_Session117B {
       );
     }
 
-    // FIX: Return null instead of (0,0,0) so caller can retry with delay
+    const liveSourcePos = this._asValidPosition(
+      event?.link?.nodeA?.position ??
+      event?.link?.from?.position ??
+      event?.link?.source?.position ??
+      event?.link?.sourceNode?.position
+    );
+    const liveTargetPos = this._asValidPosition(
+      event?.link?.nodeB?.position ??
+      event?.link?.to?.position ??
+      event?.link?.target?.position ??
+      event?.link?.targetNode?.position
+    );
+    if (liveSourcePos && liveTargetPos) {
+      return new THREE.Vector3(
+        (liveSourcePos.x + liveTargetPos.x) * 0.5,
+        (liveSourcePos.y + liveTargetPos.y) * 0.5,
+        (liveSourcePos.z + liveTargetPos.z) * 0.5
+      );
+    }
+
+    return this._resolveWorldOriginFallback();
+  }
+
+  _resolveWorldOriginFallback() {
+    const world = this.world ?? this.linkingSystem?.world ?? globalThis?.game;
+    const roots = [
+      world?.nodesRoot,
+      world?.worldRoot,
+      world?.nodes?.[0],
+      world?.playerNode,
+      globalThis?.game?.playerNode
+    ];
+    for (const root of roots) {
+      const pos = this._asValidPosition(root?.position);
+      if (pos) return pos;
+    }
     return null;
+  }
+
+  _resolveBestLinkBirthAnchor(event = {}) {
+    const direct = this._asValidPosition(event?.anchor ?? event?.center ?? event?.position);
+    if (direct) return direct;
+
+    const sourcePos = this._asValidPosition(event?.sourceNode?.position);
+    const targetPos = this._asValidPosition(event?.targetNode?.position);
+    if (sourcePos && targetPos) {
+      return new THREE.Vector3(
+        (sourcePos.x + targetPos.x) * 0.5,
+        (sourcePos.y + targetPos.y) * 0.5,
+        (sourcePos.z + targetPos.z) * 0.5
+      );
+    }
+
+    const { sourcePos: linkSourcePos, targetPos: linkTargetPos } = this._getLinkEndpoints(
+      event?.link ?? event?.linkRef ?? null,
+      event?.sourceNode ?? null,
+      event?.targetNode ?? null
+    );
+    if (linkSourcePos && linkTargetPos) {
+      return new THREE.Vector3(
+        (linkSourcePos.x + linkTargetPos.x) * 0.5,
+        (linkSourcePos.y + linkTargetPos.y) * 0.5,
+        (linkSourcePos.z + linkTargetPos.z) * 0.5
+      );
+    }
+
+    return this._resolveWorldOriginFallback();
   }
 
   _getLinkEndpoints(linkOrId, sourceNode = null, targetNode = null) {
@@ -848,7 +915,8 @@ export class ResonanceCascadeVisualization_Session117B {
       linkKey,
       event: queuedPayload,
       intensity,
-      linkRef: queuedPayload.link ?? queuedPayload.linkRef ?? null
+      linkRef: queuedPayload.link ?? queuedPayload.linkRef ?? null,
+      retryCount: 0
     };
 
     if (existingIndex >= 0) {
@@ -896,14 +964,16 @@ export class ResonanceCascadeVisualization_Session117B {
         continue;
       }
 
-      const anchor = this._resolveCascadeAnchor(payload);
-      // FIX: _resolveCascadeAnchor always returns at least (0,0,0), so check for valid position
-      if (!anchor || (anchor.x === 0 && anchor.y === 0 && anchor.z === 0)) {
-        // Retry with delay in case nodes haven't been positioned yet
-        remaining.push({
-          ...pending,
-          dueAt: now + 0.15
-        });
+      const anchor = this._resolveBestLinkBirthAnchor(payload);
+      if (!anchor) {
+        const retryCount = Number(pending.retryCount || 0) + 1;
+        if (retryCount <= CASCADE_CONFIG.LINK_BIRTH_MAX_RETRIES) {
+          remaining.push({
+            ...pending,
+            retryCount,
+            dueAt: now + CASCADE_CONFIG.LINK_BIRTH_RETRY_SECONDS
+          });
+        }
         continue;
       }
 
@@ -928,10 +998,14 @@ export class ResonanceCascadeVisualization_Session117B {
         continue;
       }
 
-      remaining.push({
-        ...pending,
-        dueAt: now + 0.1
-      });
+      const retryCount = Number(pending.retryCount || 0) + 1;
+      if (retryCount <= CASCADE_CONFIG.LINK_BIRTH_MAX_RETRIES) {
+        remaining.push({
+          ...pending,
+          retryCount,
+          dueAt: now + 0.1
+        });
+      }
     }
 
     this._pendingLinkBirthCascades = remaining;

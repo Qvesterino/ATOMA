@@ -109,6 +109,8 @@ export class CascadeResonanceWaveVisualization_Session146 {
       wavefrontRingMinRadius: config.wavefrontRingMinRadius ?? 0.3,
       wavefrontRingSpeed: config.wavefrontRingSpeed ?? 2.0,
       wavefrontRingOpacity: config.wavefrontRingOpacity ?? 0.35,   // Amplified from 0.12
+      spectralRingCrestStrength: config.spectralRingCrestStrength ?? 0.32,
+      spectralRingEchoStrength: config.spectralRingEchoStrength ?? 0.20,
       
       // Phase 1: Aura tightening pulse
       auraTighteningPulseEnabled: config.auraTighteningPulseEnabled ?? true,
@@ -126,6 +128,8 @@ export class CascadeResonanceWaveVisualization_Session146 {
       echoTrailDuration: config.echoTrailDuration ?? 0.8,
       echoTrailOpacity: config.echoTrailOpacity ?? 0.12,           // Amplified from 0.03
       echoTrailThreshold: config.echoTrailThreshold ?? 0.15,       // Lowered from 0.2,
+      spectralBeamWrapStrength: config.spectralBeamWrapStrength ?? 0.34,
+      spectralBeamFringeStrength: config.spectralBeamFringeStrength ?? 0.22,
       
       // Phase 3: Particle movement + detail
       wavefrontParticlesEnabled: config.wavefrontParticlesEnabled ?? true,
@@ -352,7 +356,9 @@ export class CascadeResonanceWaveVisualization_Session146 {
         uLayerType: { value: 0 } // 0=core, 1=glow, 2=aura
         ,uBloomStrength: { value: 0.0 },
         uBloomThreshold: { value: 0.6 },
-        uChromaticShift: { value: 0.0 }
+        uChromaticShift: { value: 0.0 },
+        uWrapStrength: { value: this.config.spectralBeamWrapStrength },
+        uFringeStrength: { value: this.config.spectralBeamFringeStrength }
       },
       vertexShader: `
         varying vec2 vUv;
@@ -381,6 +387,8 @@ export class CascadeResonanceWaveVisualization_Session146 {
         uniform float uCorruption;
         uniform float uBeamLength;
         uniform float uLayerType;
+        uniform float uWrapStrength;
+        uniform float uFringeStrength;
         
         varying vec2 vUv;
         varying float vDistFromCenter;
@@ -404,6 +412,10 @@ export class CascadeResonanceWaveVisualization_Session146 {
           
           // Secondary outer glow: exp(-dist²×2) — soft
           float outerGlow = exp(-pow(vDistFromCenter, 2.0) * 2.0) * 0.4 * (glowIntensity + auraIntensity);
+          float filament = exp(-pow(vDistFromCenter, 2.0) * 28.0) * (0.45 + coreIntensity * 0.55);
+          float atmosphericWrap = exp(-pow(max(vDistFromCenter - 0.22, 0.0), 2.0) * 6.0) * uWrapStrength * (glowIntensity + auraIntensity * 1.1);
+          float cyanFringe = exp(-pow(vDistFromCenter - 0.42, 2.0) * 24.0) * uFringeStrength;
+          float violetFringe = exp(-pow(vDistFromCenter - 0.62, 2.0) * 18.0) * uFringeStrength * 0.72;
           
           // Energy pulse traveling: bright pulse moves along the beam
           float pulsePos = (uPulsePhase + vUv.y) * 3.14159;
@@ -412,7 +424,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
           travelingPulse *= (coreIntensity + glowIntensity * 0.7);
           
           // Combine all glow layers
-          float glow = hotCore + primaryGlow + outerGlow + travelingPulse;
+          float glow = hotCore + primaryGlow + outerGlow + filament + atmosphericWrap + travelingPulse + cyanFringe * 0.35 + violetFringe * 0.24;
           
           // Harmony luminance boost: 0.85 + harmony × 0.20
           float harmonyBoost = 0.85 + uHarmony * 0.20;
@@ -434,6 +446,9 @@ export class CascadeResonanceWaveVisualization_Session146 {
           // Hot core whitening: white center with colored glow
           vec3 finalColor = mix(uColor, vec3(1.0), hotCore * 0.8);
           finalColor += vec3(travelingPulse) * 0.3;
+          finalColor += vec3(0.45, 0.98, 1.0) * cyanFringe * 0.28;
+          finalColor += vec3(0.82, 0.48, 1.0) * violetFringe * 0.24;
+          finalColor += vec3(1.0, 0.86, 0.62) * atmosphericWrap * 0.20;
 
           float bloomMask = smoothstep(uBloomThreshold, uBloomThreshold + 0.1, glow);
           float bloomGlow = bloomMask * uBloomStrength;
@@ -854,7 +869,9 @@ export class CascadeResonanceWaveVisualization_Session146 {
         uBloomStrength: { value: 0.0 },
         uBloomThreshold: { value: 0.6 },
         uChromaticShift: { value: 0.0 },
-        uDistortionStrength: { value: 0.0 }
+        uDistortionStrength: { value: 0.0 },
+        uCrestStrength: { value: this.config.spectralRingCrestStrength },
+        uEchoStrength: { value: this.config.spectralRingEchoStrength }
       },
       vertexShader: `
         varying vec2 vUv;
@@ -874,6 +891,8 @@ export class CascadeResonanceWaveVisualization_Session146 {
         uniform float uWavePhase;
         uniform float uIntensity;
         uniform float uInterference;
+        uniform float uCrestStrength;
+        uniform float uEchoStrength;
         
         varying vec2 vUv;
         varying float vDist;
@@ -887,6 +906,8 @@ export class CascadeResonanceWaveVisualization_Session146 {
           vec2 center = vUv - 0.5;
           float dist = length(center);
           float angle = atan(center.y, center.x);
+          float angular01 = fract((angle / 6.28318) + 1.0);
+          float crestPhase = fract(angular01 - uWavePhase + 1.0);
           
           // Circular ring with soft edges (expanded from simple ring)
           float ringBase = smoothstep(0.44, 0.465, dist) * (1.0 - smoothstep(0.465, 0.50, dist));
@@ -895,7 +916,10 @@ export class CascadeResonanceWaveVisualization_Session146 {
           float hotCore = exp(-pow(dist - 0.455, 2.0) * 12.0);
           float innerGlow = exp(-pow(dist - 0.455, 2.0) * 6.0) * 0.6;
           float softHalo = exp(-pow(dist - 0.455, 2.0) * 3.0) * 0.3;
-          float multiLobe = hotCore + innerGlow + softHalo;
+          float leadingCrest = exp(-pow(crestPhase - 0.12, 2.0) * 58.0) * uCrestStrength;
+          float trailingShell = exp(-pow(dist - 0.484, 2.0) * 4.2) * uEchoStrength;
+          float liquidBreath = sin(angle * 6.0 + uTime * 2.1 + dist * 18.0) * 0.5 + 0.5;
+          float multiLobe = hotCore + innerGlow + softHalo + leadingCrest * 0.55 + trailingShell * (0.55 + liquidBreath * 0.25);
           
           // Energy shimmer: radial sine pattern
           float shimmer = sin(angle * 8.0 + uTime * 3.0 + dist * 20.0) * 0.5 + 0.5;
@@ -920,6 +944,8 @@ export class CascadeResonanceWaveVisualization_Session146 {
           float hotCoreWhite = hotCore * uIntensity;
           vec3 finalColor = mix(iridescentColor, vec3(1.0), hotCoreWhite * 0.7);
           finalColor += shimmer * 0.15;
+          finalColor += vec3(1.0, 0.92, 0.72) * leadingCrest * 0.32;
+          finalColor += vec3(0.58, 0.95, 1.0) * trailingShell * 0.18;
           
           // Interference pattern: cross-ring interference for multiple waves
           float interferencePattern = sin(angle * 16.0 + uTime * 2.0) * 0.5 + 0.5;
@@ -942,7 +968,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
           // Distortion halo around outer ring
           float distortionHalo = smoothstep(0.48, 0.55, dist) * (1.0 - smoothstep(0.55, 0.62, dist)) * uDistortionStrength;
           finalColor += vec3(0.6, 0.8, 1.0) * distortionHalo * 0.25;
-          float alpha = (multiLobe + shimmer * 0.2 + sparkleFringe) * uOpacity * (1.0 + uInterference * 0.3) + distortionHalo * 0.18;
+          float alpha = (multiLobe + shimmer * 0.2 + sparkleFringe + leadingCrest * 0.35 + trailingShell * 0.22) * uOpacity * (1.0 + uInterference * 0.3) + distortionHalo * 0.18;
 
           // Chromatic shift pulse
           finalColor.r += uChromaticShift * 0.6;
@@ -1152,6 +1178,14 @@ export class CascadeResonanceWaveVisualization_Session146 {
       });
     };
 
+    const onNodeHarmonyMid = (event = {}) => {
+      this.handleNodeHarmonyEvent(event, 'mid');
+    };
+
+    const onNodeHarmonyHigh = (event = {}) => {
+      this.handleNodeHarmonyEvent(event, 'high');
+    };
+
     const register = (eventName, handler) => {
       const disposer = eventRegistrationRegistry.register(
         this._registryOwner,
@@ -1164,6 +1198,8 @@ export class CascadeResonanceWaveVisualization_Session146 {
 
     register('cascade.start', onCascadeStart);
     register('cascade.hop', onCascadeHop);
+    register('node.harmony.mid', onNodeHarmonyMid);
+    register('node.harmony.high', onNodeHarmonyHigh);
     this._semanticBusRef = bus;
     this._semanticSubscribed = true;
   }
@@ -1195,6 +1231,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
       this.camera = this.harmonicHubSystem?.world?.camera ?? this.camera;
     }
 
+    this._clearCascadeSubscriptions();
     this._subscribeCascadeEvents();
     return this;
   }
@@ -1228,8 +1265,27 @@ export class CascadeResonanceWaveVisualization_Session146 {
     return this._findNodeById(candidateId) || null;
   }
 
+  _resolveNodeWorldPosition(node) {
+    const resolvedNode = this._resolveCascadeEndpoint(node);
+    if (!resolvedNode) return null;
+
+    if (typeof resolvedNode.getWorldPosition === 'function') {
+      const pos = new THREE.Vector3();
+      resolvedNode.getWorldPosition(pos);
+      return pos;
+    }
+
+    return resolvedNode.position?.clone?.() ?? null;
+  }
+
   _clamp01(value) {
     return Math.max(0, Math.min(1, Number(value) || 0));
+  }
+
+  _resolveWaveDecayRate(influence = 0) {
+    const clampedInfluence = this._clamp01(influence);
+    const baseDecay = Number.isFinite(this.config?.waveDecayRate) ? this.config.waveDecayRate : 0.98;
+    return Math.max(0.9, Math.min(0.999, baseDecay + (clampedInfluence * 0.004)));
   }
 
   _computeCameraDistanceFade(position) {
@@ -1340,6 +1396,132 @@ export class CascadeResonanceWaveVisualization_Session146 {
     if (!state) return false;
     return state.corruption < this.config.minHubCorruptionThreshold &&
       state.stability > this.config.minHubStabilityThreshold;
+  }
+
+  _resolveEventNode(event = {}) {
+    const directNode = event?.node ?? event?.sourceNode ?? event?.targetNode ?? event?.source ?? event?.target ?? null;
+    if (directNode && typeof directNode === 'object') return directNode;
+    const directId = event?.nodeId ?? event?.sourceNodeId ?? event?.targetNodeId ?? event?.id ?? null;
+    if (directId == null) return null;
+    return this._findNodeById(directId);
+  }
+
+  _resolveHubFromNode(node) {
+    if (!node) return null;
+    if (node.nodes || node.primaryNode) return node;
+    const nodeId = this._resolveNodeId(node);
+    if (nodeId != null && this.harmonicHubSystem?.hubs?.has?.(nodeId)) {
+      return this.harmonicHubSystem.hubs.get(nodeId);
+    }
+    for (const hub of this.harmonicHubSystem?.hubs?.values?.() ?? []) {
+      if (!hub) continue;
+      if (hub.primaryNode === node) return hub;
+      if (Array.isArray(hub.nodes) && hub.nodes.includes(node)) return hub;
+      const primaryId = this._resolveNodeId(hub.primaryNode ?? hub.nodes?.[0] ?? hub);
+      if (primaryId != null && primaryId === nodeId) return hub;
+    }
+    return null;
+  }
+
+  _findNearestEligibleHarmonyPartner(sourceHub, sourceNode) {
+    const sourceHubPos = sourceHub ? this._resolveHubWorldPosition(sourceHub) : null;
+    const sourceNodePos = sourceNode ? this._resolveNodeWorldPosition(sourceNode) : null;
+    const sourcePos = sourceHubPos ?? sourceNodePos ?? null;
+    const sourceId = this._resolveNodeId(sourceHub?.primaryNode ?? sourceHub?.nodes?.[0] ?? sourceNode);
+    let bestEntry = null;
+    let bestDistance = Infinity;
+    for (const hub of this.harmonicHubSystem?.hubs?.values?.() ?? []) {
+      if (!hub || hub === sourceHub) continue;
+      const state = this._readHubWaveState(hub);
+      if (!this._isHubWaveEligible(state)) continue;
+      const candidateNode = state.primaryNode ?? hub.primaryNode ?? hub.nodes?.[0] ?? null;
+      const candidateId = this._resolveNodeId(candidateNode ?? hub);
+      if (!candidateId || candidateId === sourceId) continue;
+      const candidatePos = this._resolveHubWorldPosition(hub) ?? this._resolveNodeWorldPosition(candidateNode);
+      if (!candidatePos) continue;
+      const distance = sourcePos ? sourcePos.distanceTo(candidatePos) : 0;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestEntry = { hub, state, node: candidateNode };
+      }
+    }
+    return bestEntry;
+  }
+
+  _spawnSingleOriginHarmonyWave(node, intensity = 0.4) {
+    const resolvedNode = this._resolveCascadeEndpoint(node);
+    const nodeId = this._resolveNodeId(resolvedNode ?? node);
+    if (!nodeId) return false;
+    const waveKey = `${nodeId}-${nodeId}:harmony`;
+    const clampedIntensity = this._clamp01(intensity);
+    const resolvedInfluence = Math.max(this.config.waveInfluenceMin, Math.min(this.config.waveInfluenceMax, clampedIntensity));
+    this.activeWaves.set(waveKey, {
+      wavePhase: this.globalWaveTime % 1,
+      influence: resolvedInfluence,
+      hubAId: nodeId,
+      hubBId: nodeId,
+      localOnly: true,
+      createdAt: this.globalWaveTime,
+      decayRate: this._resolveWaveDecayRate(resolvedInfluence),
+      previousInfluence: 0,
+      targetInfluence: resolvedInfluence,
+      influenceTransitionProgress: 1.0
+    });
+    const pos = this._resolveNodeWorldPosition(resolvedNode) ?? this._resolveNodeWorldPosition(this._findNodeById(nodeId));
+    if (this.config.dynamicLightingEnabled) {
+      this._triggerWaveLightFlash(pos, resolvedInfluence);
+    }
+    if (this.config.visualPushEnabled) {
+      this._triggerVisualPush(pos, resolvedInfluence);
+    }
+    if (this.config.audioEnabled) {
+      this._triggerWaveAudio(resolvedInfluence, pos);
+    }
+    return true;
+  }
+
+  handleNodeHarmonyEvent(event = {}, tier = 'mid') {
+    const node = this._resolveEventNode(event);
+    if (!node) return;
+    const sourceHub = this._resolveHubFromNode(node);
+    const sourceState = sourceHub ? this._readHubWaveState(sourceHub) : null;
+    const harmonyValue = this._clamp01(
+      event?.value ??
+      event?.harmony ??
+      sourceState?.harmony ??
+      node?.userData?.metrics?.harmony ??
+      0
+    );
+    const baseIntensity = tier === 'high'
+      ? Math.max(0.48, harmonyValue * 0.95)
+      : Math.max(0.28, harmonyValue * 0.72);
+
+    let sourceNode = sourceState?.primaryNode ?? sourceHub?.primaryNode ?? sourceHub?.nodes?.[0] ?? node;
+    let targetNode = null;
+
+    if (sourceHub && sourceState && this._isHubWaveEligible(sourceState)) {
+      const partner = this._findNearestEligibleHarmonyPartner(sourceHub, sourceNode);
+      if (partner?.node) {
+        targetNode = partner.node;
+      }
+    }
+
+    if (!targetNode && tier === 'high') {
+      const partner = this._findNearestEligibleHarmonyPartner(null, sourceNode);
+      if (partner?.node) {
+        targetNode = partner.node;
+      }
+    }
+
+    if (sourceNode && targetNode) {
+      this.spawnCascadeResonanceWave(sourceNode, targetNode, baseIntensity, tier === 'high' ? 0 : 1);
+      if (tier === 'high') {
+        this.spawnCascadeResonanceWave(targetNode, sourceNode, Math.max(this.config.waveInfluenceMin, baseIntensity * 0.86), 1);
+      }
+      return;
+    }
+
+    this._spawnSingleOriginHarmonyWave(sourceNode ?? node, baseIntensity);
   }
 
   handleCascadeStart(event = {}) {
@@ -1465,6 +1647,10 @@ export class CascadeResonanceWaveVisualization_Session146 {
     if (!this.config.enabled) {
       this._decayAllWaves(deltaTime);
       return;
+    }
+
+    if (this.semanticBus && (!this._semanticSubscribed || this._semanticBusRef !== this.semanticBus)) {
+      this._subscribeCascadeEvents();
     }
     
     const startTime = performance.now();
@@ -2273,6 +2459,8 @@ export class CascadeResonanceWaveVisualization_Session146 {
       uniforms.uBloomThreshold.value = bloomParams.threshold;
       uniforms.uChromaticShift.value = this.config.chromaticAberrationEnabled ? THREE.MathUtils.lerp(this.config.chromaticAberrationMin, this.config.chromaticAberrationMax, activeRing.influence) * distanceFade * 0.5 : 0.0;
       uniforms.uDistortionStrength.value = this.config.distortionEnabled ? THREE.MathUtils.lerp(this.config.distortionStrengthMin, this.config.distortionStrengthMax, activeRing.influence) * distanceFade : 0.0;
+      uniforms.uCrestStrength.value = this.config.spectralRingCrestStrength * (0.7 + activeRing.influence * 0.5) * detailFactor;
+      uniforms.uEchoStrength.value = this.config.spectralRingEchoStrength * (0.75 + activeRing.influence * 0.45) * detailFactor;
     }
 
     // Spawn new rings for active waves - THREE TIERS for parallax
@@ -2423,6 +2611,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
     for (const waveData of this.activeWaves.values()) {
       if (usedBeamPairs >= maxBeamPairs) break;
       if (waveData.influence <= 0.15) continue;
+      if (waveData.localOnly === true) continue;
 
       const hubA = this.harmonicHubSystem.hubs?.get(waveData.hubAId);
       const hubB = this.harmonicHubSystem.hubs?.get(waveData.hubBId);
@@ -2443,10 +2632,11 @@ export class CascadeResonanceWaveVisualization_Session146 {
         const beamEntry = this._allocateBeam();
         if (!beamEntry) break;
         
-        // Position and orient the beam (CylinderGeometry)
-        const direction = new THREE.Vector3().subVectors(posB, posA);
-        const beamLength = direction.length();
-        beamEntry.line.scale.set(1, beamLength, 1);
+      // Position and orient the beam (CylinderGeometry)
+      const direction = new THREE.Vector3().subVectors(posB, posA);
+      const beamLength = direction.length();
+      if (beamLength <= 0.001) continue;
+      beamEntry.line.scale.set(1, beamLength, 1);
         
         // Position at midpoint
         const beamMidpoint = new THREE.Vector3().addVectors(posA, posB).multiplyScalar(0.5);
@@ -2487,6 +2677,8 @@ export class CascadeResonanceWaveVisualization_Session146 {
         uniforms.uBloomStrength.value = bloomParams.strength * distanceFade;
         uniforms.uBloomThreshold.value = bloomParams.threshold;
         uniforms.uChromaticShift.value = this.config.chromaticAberrationEnabled ? THREE.MathUtils.lerp(this.config.chromaticAberrationMin, this.config.chromaticAberrationMax, waveData.influence) * distanceFade : 0.0;
+        uniforms.uWrapStrength.value = this.config.spectralBeamWrapStrength * (0.7 + waveData.influence * 0.6) * distanceFade;
+        uniforms.uFringeStrength.value = this.config.spectralBeamFringeStrength * (0.7 + waveData.influence * 0.5) * distanceFade;
         
         // Harmony and corruption from hubs
         const hubAState = this._readHubWaveState(hubA);
