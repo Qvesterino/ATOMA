@@ -1,5 +1,11 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import {
+  canAccessMap,
+  getMenuMaps,
+  isMapPubliclyAvailable,
+  resolvePublicSelectedMapId
+} from '../MainMenu.js';
 import { VisualNetworkTimeElasticity_v1, SCORE_DIRECTION } from '../VisualNetworkTimeElasticity_v1.js';
 import { AtomaLeaderboard } from '../AtomaLeaderboard.js';
 import { LinkCollapseSystem } from '../LinkCollapseSystem.js';
@@ -71,6 +77,16 @@ function createAggregatorHarness({ nodes, links }) {
   });
 }
 
+function setEligibleScoreSnapshot(score, synergy, overrides = {}) {
+  score.setNetworkMetricsSnapshot({
+    networkSynergy: synergy,
+    nodeCount: 4,
+    linkCount: 3,
+    avgLinkQuality: 0.7,
+    ...overrides
+  });
+}
+
 test('Network Time rewinds after 5s of canonical global.synergy.high sustain', () => {
   const threshold = getDefaultMetricThresholds('synergy').high;
   const score = new VisualNetworkTimeElasticity_v1({
@@ -80,7 +96,7 @@ test('Network Time rewinds after 5s of canonical global.synergy.high sustain', (
     synergyQualityScale: 0
   });
 
-  score.setAverageSynergy(threshold);
+  setEligibleScoreSnapshot(score, threshold);
   for (let t = 1; t <= 5; t++) {
     score.update(1, t);
   }
@@ -99,12 +115,13 @@ test('Network Time stays forward below canonical global.synergy.high threshold',
     sustainDuration: 5
   });
 
-  score.setAverageSynergy(threshold - 0.01);
+  setEligibleScoreSnapshot(score, threshold - 0.01);
   for (let t = 1; t <= 10; t++) {
     score.update(1, t);
   }
 
   assert.strictEqual(score.getDirection(), SCORE_DIRECTION.FORWARD);
+  assert.strictEqual(score.getScoreState().rewindBlockReason, 'synergy-too-low');
 });
 
 test('Network Time sustain resets cleanly when synergy drops before 5s', () => {
@@ -116,18 +133,18 @@ test('Network Time sustain resets cleanly when synergy drops before 5s', () => {
     synergyQualityScale: 0
   });
 
-  score.setAverageSynergy(threshold);
+  setEligibleScoreSnapshot(score, threshold);
   for (let t = 1; t <= 4; t++) {
     score.update(1, t);
   }
   assert(score.getSustainProgress() > 0 && score.getSustainProgress() < 5);
 
-  score.setAverageSynergy(threshold - 0.05);
+  setEligibleScoreSnapshot(score, threshold - 0.05);
   score.update(1, 5);
   assert.strictEqual(score.getSustainProgress(), 0);
   assert.strictEqual(score.getDirection(), SCORE_DIRECTION.FORWARD);
 
-  score.setAverageSynergy(threshold);
+  setEligibleScoreSnapshot(score, threshold);
   for (let t = 6; t <= 9; t++) {
     score.update(1, t);
   }
@@ -150,7 +167,7 @@ test('Network Time win triggers exactly when counter reaches zero', () => {
   score._networkTimeCounter = 3;
   score._sustainedDuration = 5;
   score._highSynergyStartTime = 0;
-  score.setAverageSynergy(threshold);
+  setEligibleScoreSnapshot(score, threshold);
   score.update(1, 6);
 
   assert.strictEqual(score.isWon(), true);
@@ -168,25 +185,221 @@ test('Network Time keeps pressure escalation, combo, and drama zone behaviors', 
     dramaZoneThreshold: 20
   });
 
-  score.setAverageSynergy(threshold - 0.05);
+  setEligibleScoreSnapshot(score, threshold - 0.05);
   score._networkTimeCounter = 150;
   score.update(1, 1);
   assert(score._networkTimeCounter > 155, 'forward pressure should escalate as NT rises');
 
   score._networkTimeCounter = 10;
-  score.setAverageSynergy(threshold);
+  setEligibleScoreSnapshot(score, threshold);
   score.update(0.1, 2);
   score.update(0.1, 2.1);
   assert.strictEqual(score.getDirection(), SCORE_DIRECTION.REWIND);
   assert.strictEqual(score.getScoreState().combo, 1);
   assert.strictEqual(score.isInDramaZone(), true);
 
-  score.setAverageSynergy(threshold - 0.05);
+  setEligibleScoreSnapshot(score, threshold - 0.05);
   score.update(0.05, 3);
-  score.setAverageSynergy(threshold);
+  setEligibleScoreSnapshot(score, threshold);
   score.update(0.1, 4);
   score.update(0.1, 4.2);
   assert.strictEqual(score.getScoreState().combo, 2);
+});
+
+test('Two-node high-synergy network cannot accumulate rewind sustain', () => {
+  const threshold = getDefaultMetricThresholds('synergy').high;
+  const score = new VisualNetworkTimeElasticity_v1({
+    forwardSpeed: 5,
+    rewindSpeed: 3.5,
+    sustainDuration: 5,
+    synergyQualityScale: 0
+  });
+
+  score.setNetworkMetricsSnapshot({
+    networkSynergy: threshold + 0.3,
+    nodeCount: 2,
+    linkCount: 1,
+    avgLinkQuality: 0.96
+  });
+
+  for (let t = 1; t <= 8; t++) {
+    score.update(1, t);
+  }
+
+  assert.strictEqual(score.getSustainProgress(), 0);
+  assert.strictEqual(score.getDirection(), SCORE_DIRECTION.FORWARD);
+  assert.strictEqual(score.getScoreState().rewindEligible, false);
+  assert.strictEqual(score.getScoreState().rewindBlockReason, 'need-more-nodes');
+});
+
+test('Three-node network stays blocked below minimum topology gate', () => {
+  const threshold = getDefaultMetricThresholds('synergy').high;
+  const score = new VisualNetworkTimeElasticity_v1({
+    forwardSpeed: 5,
+    rewindSpeed: 3.5,
+    sustainDuration: 5,
+    synergyQualityScale: 0
+  });
+
+  score.setNetworkMetricsSnapshot({
+    networkSynergy: threshold + 0.1,
+    nodeCount: 3,
+    linkCount: 2,
+    avgLinkQuality: 0.82
+  });
+
+  for (let t = 1; t <= 8; t++) {
+    score.update(1, t);
+  }
+
+  assert.strictEqual(score.getDirection(), SCORE_DIRECTION.FORWARD);
+  assert.strictEqual(score.getSustainProgress(), 0);
+  assert.strictEqual(score.getScoreState().rewindBlockReason, 'need-more-nodes');
+});
+
+test('Dropping below the topology gate resets sustain progress', () => {
+  const threshold = getDefaultMetricThresholds('synergy').high;
+  const score = new VisualNetworkTimeElasticity_v1({
+    forwardSpeed: 5,
+    rewindSpeed: 3.5,
+    sustainDuration: 5,
+    synergyQualityScale: 0
+  });
+
+  setEligibleScoreSnapshot(score, threshold);
+  score.update(1, 1);
+  score.update(1, 2);
+  assert(score.getSustainProgress() > 0 && score.getSustainProgress() < 5);
+
+  setEligibleScoreSnapshot(score, threshold, { linkCount: 2 });
+  score.update(1, 3);
+  assert.strictEqual(score.getSustainProgress(), 0);
+  assert.strictEqual(score.getScoreState().rewindBlockReason, 'need-more-links');
+
+  setEligibleScoreSnapshot(score, threshold);
+  score.update(1, 4);
+  score.update(1, 5);
+  score.update(1, 6);
+  score.update(1, 7);
+  assert.strictEqual(score.getDirection(), SCORE_DIRECTION.FORWARD);
+  score.update(1, 8);
+  score.update(1, 9);
+  assert.strictEqual(score.getDirection(), SCORE_DIRECTION.REWIND);
+});
+
+test('Score state exposes rewind gate diagnostics from the raw network snapshot', () => {
+  const threshold = getDefaultMetricThresholds('synergy').high;
+  const score = new VisualNetworkTimeElasticity_v1();
+
+  score.setNetworkMetricsSnapshot({
+    networkSynergy: threshold + 0.05,
+    nodeCount: 5,
+    linkCount: 4,
+    avgLinkQuality: 0.52
+  });
+
+  const state = score.getScoreState();
+  assert.strictEqual(state.rewindEligible, false);
+  assert.strictEqual(state.rewindBlockReason, 'quality-too-low');
+  assert.strictEqual(state.connectedNodeCount, 5);
+  assert.strictEqual(state.activeLinkCount, 4);
+  assertNear(state.avgLinkQuality, 0.52);
+});
+
+test('main wires the full raw network snapshot into the score authority', () => {
+  const mainSource = fs.readFileSync(new URL('../main.js', import.meta.url), 'utf8');
+
+  assert(mainSource.includes('this.visualNetworkTimeElasticity.setNetworkMetricsSnapshot(rawNetworkMetrics || {});'));
+  assert(!mainSource.includes('this.visualNetworkTimeElasticity.setAverageSynergy(avgSynergy);'));
+});
+
+test('HUD exposes minimal rewind lock feedback strings', () => {
+  const hudSource = fs.readFileSync(new URL('../HUD/CoreMetricsHUD.js', import.meta.url), 'utf8');
+
+  assert(hudSource.includes('sustain-lock-reason'));
+  assert(hudSource.includes('NEED MORE NODES'));
+  assert(hudSource.includes('NEED MORE LINKS'));
+  assert(hudSource.includes('LINK QUALITY TOO LOW'));
+  assert(hudSource.includes('SYNERGY TOO LOW'));
+});
+
+test('Menu release metadata exposes only Quantum and Dream Desert publicly', () => {
+  const maps = getMenuMaps();
+  const publicMapIds = maps.filter((map) => isMapPubliclyAvailable(map.id)).map((map) => map.id);
+  const lockedMaps = maps.filter((map) => !isMapPubliclyAvailable(map.id));
+
+  assert.deepStrictEqual(publicMapIds, ['quantum', 'desert']);
+  assert.deepStrictEqual(lockedMaps.map((map) => map.id), ['memory', 'sigma', 'desert2', 'fractal']);
+  assert(lockedMaps.every((map) => map.releaseState === 'coming-soon'));
+  assert(lockedMaps.every((map) => map.releaseLabel === 'COMING SOON'));
+});
+
+test('Public map selection falls back to Quantum unless dev unlock is enabled', () => {
+  assert.strictEqual(canAccessMap('memory', { devUnlock: false }), false);
+  assert.strictEqual(canAccessMap('memory', { devUnlock: true }), true);
+  assert.strictEqual(resolvePublicSelectedMapId('memory', { devUnlock: false }), 'quantum');
+  assert.strictEqual(resolvePublicSelectedMapId('memory', { devUnlock: true }), 'memory');
+});
+
+test('Pause menu and boot controller both enforce public map locks', () => {
+  const pauseSource = fs.readFileSync(new URL('../PauseMenu.js', import.meta.url), 'utf8');
+  const bootSource = fs.readFileSync(new URL('../AtomaBoot.js', import.meta.url), 'utf8');
+
+  assert(pauseSource.includes("selectable: canAccessMap(map.id, { devUnlock })"));
+  assert(pauseSource.includes("releaseBadge.textContent = map.releaseLabel || 'COMING SOON';"));
+  assert(pauseSource.includes('const nextWorldId = resolvePublicSelectedMapId(entry.id);'));
+
+  assert(bootSource.includes('setMapDevUnlock: (enabled) => this.setMapDevUnlock(enabled),'));
+  assert(bootSource.includes('isMapDevUnlockEnabled: () => isMenuDevMapUnlockEnabled(),'));
+  assert(bootSource.includes('const sanitizedContinueSnapshot = continueSnapshot'));
+  assert(bootSource.includes('await this.game.switchWorld?.(nextSelection.worldId);'));
+});
+
+test('HUD registry defaults reflect the V1 first-launch layout intent', () => {
+  const registrySource = fs.readFileSync(new URL('../HUD/HUDRegistry.js', import.meta.url), 'utf8');
+
+  assert(registrySource.includes("defaultPosition: { left: 10, bottom: 20 }"));
+  assert(registrySource.includes("defaultPosition: { left: 10, top: 10 }"));
+  assert(registrySource.includes("defaultPosition: { left: 10, top: 200 }"));
+  assert(registrySource.includes("defaultPosition: { right: 12, top: 340 }"));
+});
+
+test('HUD drag manager bootstraps first-launch positions without overwriting saved layouts', () => {
+  const dragSource = fs.readFileSync(new URL('../HUD/HUDDragManager.js', import.meta.url), 'utf8');
+
+  assert(dragSource.includes('export function hasSavedHudPositions()'));
+  assert(dragSource.includes('export function hasSavedHudPosition(hudKey)'));
+  assert(dragSource.includes('export function applyDefaultHudBootstrapLayout({ force = false, attempt = 0 } = {})'));
+  assert(dragSource.includes('export function applyAutomationHudWaveAnchor({ force = false, attempt = 0 } = {})'));
+  assert(dragSource.includes('if (!force && hasSavedHudPositions()) {'));
+  assert(dragSource.includes("if (!force && hasSavedHudPosition('automationHUD')) {"));
+  assert(dragSource.includes('applyDefaultHudBootstrapLayout();'));
+  assert(dragSource.includes('const DEFAULT_AUTOMATION_WAVE_REQUIRED_IDS = Object.freeze(['));
+  assert(dragSource.includes("applyDefaultHudBootstrapLayout({ force: true });"));
+  assert(dragSource.includes("applyAutomationHudWaveAnchor({ force: true });"));
+  assert(dragSource.includes("'wave-debug-overlay'"));
+  assert(dragSource.includes("'ai-automation-hud'"));
+  assert(dragSource.includes("inspectorHud.style.maxHeight = `${maxInspectorHeight}px`;"));
+  assert(dragSource.includes('const automationTop = Math.round(waveRect.bottom + DEFAULT_VERTICAL_GAP);'));
+});
+
+test('Node inspect overlay participates in the first-launch HUD bootstrap flow', () => {
+  const inspectSource = fs.readFileSync(new URL('../NodeInspectOverlay1_0.js', import.meta.url), 'utf8');
+
+  assert(inspectSource.includes("import { applyDefaultHudBootstrapLayout, hasSavedHudPositions } from './HUD/HUDDragManager.js';"));
+  assert(inspectSource.includes('if (!hasSavedHudPositions()) {'));
+  assert(inspectSource.includes('this.repositionBelowCoreMetrics();'));
+  assert(inspectSource.includes('applyDefaultHudBootstrapLayout({ force: true });'));
+});
+
+test('AI Automation HUD reapplies the canonical wave anchor after remounts', () => {
+  const automationHudSource = fs.readFileSync(new URL('../HUD/AIAutomationHUD.js', import.meta.url), 'utf8');
+
+  assert(automationHudSource.includes("import { applyAutomationHudWaveAnchor } from './HUDDragManager.js';"));
+  assert(automationHudSource.includes('position: fixed;'));
+  assert(automationHudSource.includes('right: 12px;'));
+  assert(automationHudSource.includes('top: 340px;'));
+  assert(automationHudSource.includes('applyAutomationHudWaveAnchor();'));
 });
 
 test('Unified release score config is mirrored in main and menu definitions', () => {

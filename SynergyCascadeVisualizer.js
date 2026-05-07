@@ -147,13 +147,13 @@ export class SynergyCascadeVisualizer {
       echoRippleVerticalOffset: 0.07,
       echoRippleRadiusStep: 0.48,
       echoRippleOpacityFalloff: 0.12,
-      echoRippleCooldownSeconds: 3.0,
-      synergyRippleCooldownSeconds: 3.5,
+      echoRippleCooldownSeconds: 2.0,
+      synergyRippleCooldownSeconds: 2.0,
       sharedLineRippleCooldownSeconds: 2.0,
       topologyBiasRippleCount: 3,
       topologyBiasRippleRadiusStep: 0.32,
       topologyBiasRippleOpacityScale: 0.30,
-      topologyBiasRippleCooldownSeconds: 2.4,
+      topologyBiasRippleCooldownSeconds: 2.0,
       topologyBiasRippleColor: new THREE.Color(0x18265f),
       topologyBiasRippleAccentColor: new THREE.Color(0x14d3dd),
       topologyBiasRippleWarmColor: new THREE.Color(0xd98b2a)
@@ -350,9 +350,13 @@ export class SynergyCascadeVisualizer {
         : (targetPos ?? sourcePos ?? this._asVector3(history?.anchor ?? null));
       if (!anchor) continue;
 
-      if (this.config.visualizations.rippleEffect && this._canTriggerLinkEffect(this._rippleCooldownByLinkId, linkId, band.rippleCooldownSeconds)) {
-        const globalKey = `ripple:${linkId || 'global'}`;
-        if (!this._canTriggerGlobalRipple(globalKey, 0.50)) continue;
+      if (this.config.visualizations.rippleEffect && this._tryConsumeRippleBudget({
+        family: 'line',
+        sourceKey: linkId || history?.linkId || 'heartbeat',
+        anchor,
+        sourceCooldownSeconds: band.rippleCooldownSeconds,
+        anchorCooldownSeconds: this.config.sharedLineRippleCooldownSeconds
+      })) {
         this._spawnRippleCluster(anchor, Math.max(0.1, linkIntensity), band.rippleCount, { ...band, flatRipple: true });
       }
 
@@ -563,14 +567,15 @@ export class SynergyCascadeVisualizer {
     if (!anchor) return;
 
     const key = this._getSynergyNodeCooldownKey(event);
-    if (!this._canTriggerNodeSynergyEffect(key, this.config.synergyRippleCooldownSeconds)) {
-      return;
-    }
-
     const intensity = this._clamp01(Number(event.intensity ?? event.value ?? event.synergy ?? 0) || 0.28);
     if (tier === 'low') {
-      const globalKey = `ripple:${this._getSynergyNodeCooldownKey(event) || 'global'}`;
-      if (!this._canTriggerGlobalRipple(globalKey, 0.50)) return;
+      if (!this._tryConsumeRippleBudget({
+        family: 'node',
+        sourceKey: key || 'node-synergy-low',
+        anchor,
+        sourceCooldownSeconds: this.config.synergyRippleCooldownSeconds,
+        anchorCooldownSeconds: this.config.sharedLineRippleCooldownSeconds
+      })) return;
       this._spawnRippleCluster(anchor, Math.max(0.12, intensity * 0.78), 1, {
         radiusScale: 0.92,
         opacityScale: 0.78,
@@ -582,8 +587,13 @@ export class SynergyCascadeVisualizer {
     }
 
     if (tier === 'mid') {
-      const globalKey = `ripple:${this._getSynergyNodeCooldownKey(event) || 'global'}`;
-      if (!this._canTriggerGlobalRipple(globalKey, 0.50)) return;
+      if (!this._tryConsumeRippleBudget({
+        family: 'node',
+        sourceKey: key || 'node-synergy-mid',
+        anchor,
+        sourceCooldownSeconds: this.config.synergyRippleCooldownSeconds,
+        anchorCooldownSeconds: this.config.sharedLineRippleCooldownSeconds
+      })) return;
       this._spawnRippleCluster(anchor, Math.max(0.18, intensity * 0.92), 2, {
         radiusScale: 1.08,
         opacityScale: 0.92,
@@ -595,8 +605,13 @@ export class SynergyCascadeVisualizer {
     }
 
     if (tier === 'high') {
-      const globalKey = `ripple:${this._getSynergyNodeCooldownKey(event) || 'global'}`;
-      if (!this._canTriggerGlobalRipple(globalKey, 0.50)) return;
+      if (!this._tryConsumeRippleBudget({
+        family: 'echo',
+        sourceKey: key || 'node-synergy-high',
+        anchor,
+        sourceCooldownSeconds: this.config.synergyRippleCooldownSeconds,
+        anchorCooldownSeconds: this.config.sharedLineRippleCooldownSeconds
+      })) return;
       this._spawnEchoRippleCluster(anchor, Math.max(0.24, intensity * 1.05), 2, {
         colorPalette: [
           this.config.cascadeColor,
@@ -615,8 +630,13 @@ export class SynergyCascadeVisualizer {
       return;
     }
 
-    const globalKey = `ripple:${this._getSynergyNodeCooldownKey(event) || 'global'}`;
-    if (!this._canTriggerGlobalRipple(globalKey, 0.50)) return;
+    if (!this._tryConsumeRippleBudget({
+      family: 'node',
+      sourceKey: key || 'node-synergy-generic',
+      anchor,
+      sourceCooldownSeconds: this.config.synergyRippleCooldownSeconds,
+      anchorCooldownSeconds: this.config.sharedLineRippleCooldownSeconds
+    })) return;
     this._spawnRippleCluster(anchor, Math.max(0.16, intensity * 0.88), 1, {
       radiusScale: 1.0,
       opacityScale: 0.84,
@@ -890,6 +910,73 @@ export class SynergyCascadeVisualizer {
     return true;
   }
 
+  _tryConsumeCooldownTargets(targets = []) {
+    const normalized = targets.filter((target) => {
+      const cooldownSeconds = Number(target?.cooldownSeconds) || 0;
+      return target?.store && target?.key && cooldownSeconds > 0;
+    });
+
+    if (normalized.length === 0) return true;
+
+    const now = this._nowSeconds();
+    for (const target of normalized) {
+      const last = target.store.get(target.key);
+      if (last !== undefined && (now - last) < target.cooldownSeconds) {
+        return false;
+      }
+    }
+
+    for (const target of normalized) {
+      target.store.set(target.key, now);
+    }
+
+    return true;
+  }
+
+  _getRippleSourceCooldownKey(family, sourceKey = 'global') {
+    return `ripple-source:${String(family || 'line')}:${String(sourceKey || 'global')}`;
+  }
+
+  _getRippleAnchorCooldownKey(anchor) {
+    const resolved = this._asVector3(anchor);
+    if (!resolved) return null;
+    return `ripple-anchor:${this._getSharedRippleCooldownKey(resolved)}`;
+  }
+
+  _tryConsumeRippleBudget({
+    family = 'line',
+    sourceKey = 'global',
+    anchor = null,
+    sourceCooldownSeconds = null,
+    anchorCooldownSeconds = null
+  } = {}) {
+    const resolvedSourceCooldown = Math.max(
+      0,
+      Number(sourceCooldownSeconds ?? this.config.sharedLineRippleCooldownSeconds) || 0
+    );
+    const resolvedAnchorCooldown = Math.max(
+      0,
+      Number(anchorCooldownSeconds ?? resolvedSourceCooldown) || 0
+    );
+
+    const targets = [{
+      store: this._globalRippleCooldown,
+      key: this._getRippleSourceCooldownKey(family, sourceKey),
+      cooldownSeconds: resolvedSourceCooldown
+    }];
+
+    const anchorKey = this._getRippleAnchorCooldownKey(anchor);
+    if (anchorKey) {
+      targets.push({
+        store: this._globalRippleCooldown,
+        key: anchorKey,
+        cooldownSeconds: resolvedAnchorCooldown
+      });
+    }
+
+    return this._tryConsumeCooldownTargets(targets);
+  }
+
   _getSharedRippleCooldownKey(anchor, options = {}) {
     const explicitKey = options.cooldownKey ?? null;
     if (explicitKey) {
@@ -1003,7 +1090,13 @@ export class SynergyCascadeVisualizer {
       if (!position) continue;
 
       const key = this._getTopologyBiasCooldownKey(position, i);
-      if (!this._canTriggerTopologyBiasEffect(key, this.config.topologyBiasRippleCooldownSeconds)) {
+      if (!this._tryConsumeRippleBudget({
+        family: 'topology',
+        sourceKey: key,
+        anchor: position,
+        sourceCooldownSeconds: this.config.topologyBiasRippleCooldownSeconds,
+        anchorCooldownSeconds: this.config.sharedLineRippleCooldownSeconds
+      })) {
         continue;
       }
 
@@ -1073,14 +1166,15 @@ export class SynergyCascadeVisualizer {
       this._resolveCascadeSignalIntensity(event)
     ));
 
-    if (!this._canTriggerLinkEffect(this._echoRippleCooldownByLinkId, linkId, this.config.echoRippleCooldownSeconds)) {
-      return;
-    }
-
     this._getOrCreateCascade(context.cascadeId, Math.max(0.1, intensity));
     this._seedCascadeHistory(link, intensity, context.anchor);
-    const globalKey = `ripple:${linkId || 'global'}`;
-    if (!this._canTriggerGlobalRipple(globalKey, 0.50)) return;
+    if (!this._tryConsumeRippleBudget({
+      family: 'echo',
+      sourceKey: linkId,
+      anchor: context.anchor,
+      sourceCooldownSeconds: this.config.echoRippleCooldownSeconds,
+      anchorCooldownSeconds: this.config.sharedLineRippleCooldownSeconds
+    })) return;
     this._spawnEchoRippleCluster(context.anchor, Math.max(0.12, intensity), this.config.echoRippleCount, {
       intensityScale: 1.1,
       spacing: this.config.echoRippleSpacing,
@@ -1204,7 +1298,13 @@ export class SynergyCascadeVisualizer {
     };
     cascade.hops.push(hop);
 
-    if (this.config.visualizations.rippleEffect && this._canTriggerLinkEffect(this._rippleCooldownByLinkId, linkId, band.rippleCooldownSeconds)) {
+    if (this.config.visualizations.rippleEffect && this._tryConsumeRippleBudget({
+      family: 'line',
+      sourceKey: linkId || context.cascadeId || 'link-created',
+      anchor: context.anchor,
+      sourceCooldownSeconds: band.rippleCooldownSeconds,
+      anchorCooldownSeconds: this.config.sharedLineRippleCooldownSeconds
+    })) {
       this._spawnRippleCluster(context.anchor, Math.max(0.1, visualIntensity), band.rippleCount, {
         ...band,
         cooldownKey: linkId || context.cascadeId || 'link-created',
@@ -2195,7 +2295,13 @@ export class SynergyCascadeVisualizer {
       this._getOrCreateCascade(cascadeId, Math.max(0.1, visualIntensity));
       this._seedCascadeHistory(link, visualIntensity, anchor);
 
-      if (this.config.visualizations.rippleEffect && this._canTriggerLinkEffect(this._rippleCooldownByLinkId, linkId, band.rippleCooldownSeconds)) {
+      if (this.config.visualizations.rippleEffect && this._tryConsumeRippleBudget({
+        family: 'line',
+        sourceKey: linkId || cascadeId || 'cascade-start',
+        anchor,
+        sourceCooldownSeconds: band.rippleCooldownSeconds,
+        anchorCooldownSeconds: this.config.sharedLineRippleCooldownSeconds
+      })) {
         this._spawnRippleCluster(anchor, Math.max(0.1, visualIntensity), band.rippleCount, {
           ...band,
           flatRipple: true,
@@ -2224,9 +2330,12 @@ export class SynergyCascadeVisualizer {
 
     this._getOrCreateCascade(cascadeId, intensity);
     if (this.config.visualizations.rippleEffect) {
-      if (this._canSpawnSharedLineRipple(anchor, {
-        cooldownKey: cascadeId || 'cascade-start-standalone',
-        cooldownSeconds: this.config.sharedLineRippleCooldownSeconds
+      if (this._tryConsumeRippleBudget({
+        family: 'line',
+        sourceKey: cascadeId || 'cascade-start-standalone',
+        anchor,
+        sourceCooldownSeconds: this.config.sharedLineRippleCooldownSeconds,
+        anchorCooldownSeconds: this.config.sharedLineRippleCooldownSeconds
       })) {
         this.createRipple(anchor, Math.max(0.1, intensity));
       }
@@ -2262,7 +2371,13 @@ export class SynergyCascadeVisualizer {
         completed: false
       });
 
-      if (anchor && this.config.visualizations.rippleEffect && this._canTriggerLinkEffect(this._rippleCooldownByLinkId, linkId, band.rippleCooldownSeconds)) {
+      if (anchor && this.config.visualizations.rippleEffect && this._tryConsumeRippleBudget({
+        family: 'line',
+        sourceKey: linkId || cascadeId || 'cascade-hop',
+        anchor,
+        sourceCooldownSeconds: band.rippleCooldownSeconds,
+        anchorCooldownSeconds: this.config.sharedLineRippleCooldownSeconds
+      })) {
         this._spawnRippleCluster(anchor, Math.max(0.1, visualIntensity), band.rippleCount, {
           ...band,
           flatRipple: true,
@@ -2302,9 +2417,12 @@ export class SynergyCascadeVisualizer {
     });
 
     if (anchor && this.config.visualizations.rippleEffect) {
-      if (this._canSpawnSharedLineRipple(anchor, {
-        cooldownKey: cascadeId || 'cascade-hop-standalone',
-        cooldownSeconds: this.config.sharedLineRippleCooldownSeconds
+      if (this._tryConsumeRippleBudget({
+        family: 'line',
+        sourceKey: cascadeId || 'cascade-hop-standalone',
+        anchor,
+        sourceCooldownSeconds: this.config.sharedLineRippleCooldownSeconds,
+        anchorCooldownSeconds: this.config.sharedLineRippleCooldownSeconds
       })) {
         this.createRipple(anchor, Math.max(0.09, intensity * 0.5));
       }
@@ -2367,16 +2485,25 @@ export class SynergyCascadeVisualizer {
             const hopLink = hop.link ?? this._resolveLinkById(hop.linkId);
             const synergy = this._readLinkSynergy(hopLink);
             const band = this._getSynergyCascadeBand(synergy);
-            if (band && hopLink && this._canTriggerLinkEffect(this._rippleCooldownByLinkId, this._resolveLinkId(hopLink), band.rippleCooldownSeconds)) {
+            if (band && hopLink && this._tryConsumeRippleBudget({
+              family: 'line',
+              sourceKey: this._resolveLinkId(hopLink) || hop.linkId || cascade.id || 'cascade-complete',
+              anchor: hop.targetPosition,
+              sourceCooldownSeconds: band.rippleCooldownSeconds,
+              anchorCooldownSeconds: this.config.sharedLineRippleCooldownSeconds
+            })) {
               this._spawnRippleCluster(hop.targetPosition, Math.max(0.1, synergy), band.rippleCount, {
                 ...band,
                 cooldownKey: this._resolveLinkId(hopLink) || hop.linkId || cascade.id || 'cascade-complete',
                 cooldownSeconds: this.config.sharedLineRippleCooldownSeconds
               });
             } else {
-              if (this._canSpawnSharedLineRipple(hop.targetPosition, {
-                cooldownKey: hop.linkId || cascade.id || 'cascade-complete-standalone',
-                cooldownSeconds: this.config.sharedLineRippleCooldownSeconds
+              if (this._tryConsumeRippleBudget({
+                family: 'line',
+                sourceKey: hop.linkId || cascade.id || 'cascade-complete-standalone',
+                anchor: hop.targetPosition,
+                sourceCooldownSeconds: this.config.sharedLineRippleCooldownSeconds,
+                anchorCooldownSeconds: this.config.sharedLineRippleCooldownSeconds
               })) {
                 this.createRipple(hop.targetPosition, hop.intensity * 0.5);
               }

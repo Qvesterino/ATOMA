@@ -22,6 +22,7 @@ import { AtomaLanguageEngine2_0 } from './_AtomaLanguageEngine2_0.js';
 import { atomaNamingEngine } from './_AtomaNamingEngine.js';
 import { NodeSpatialIndex } from './NodeSpatialIndex.js';
 import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
+import { applyDefaultHudBootstrapLayout, hasSavedHudPositions } from './HUD/HUDDragManager.js';
 
 const METRIC_DISPLAY_MODES = Object.freeze({
   NUMERIC: 'numeric',
@@ -109,6 +110,9 @@ export class NodeInspectOverlay1_0 {
     
     // Initialize HUD
     this.initializeHUD();
+    if (!hasSavedHudPositions()) {
+      this.repositionBelowCoreMetrics();
+    }
 
     const semanticBus = globalThis.semanticBus;
     if (semanticBus?.subscribe) {
@@ -458,23 +462,7 @@ export class NodeInspectOverlay1_0 {
    * @private
    */
   repositionBelowCoreMetrics() {
-    // Deferred positioning to ensure Core Metrics exists in DOM
-    const positionInspector = () => {
-      const coreMetrics = document.getElementById('core-metrics-hud');
-      if (coreMetrics) {
-        const rect = coreMetrics.getBoundingClientRect();
-        const inspectorTop = rect.bottom + 10; // 10px gap
-        this.hudPanel.style.top = inspectorTop + 'px';
-        this.hudPanel.style.bottom = '';
-      }
-    };
-    
-    // Try immediately
-    positionInspector();
-    
-    // Also try after a short delay in case DOM is still loading
-    setTimeout(positionInspector, 100);
-    setTimeout(positionInspector, 500);
+    applyDefaultHudBootstrapLayout({ force: true });
   }
 
   /**

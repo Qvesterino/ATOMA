@@ -1,6 +1,7 @@
 ﻿// UI ONLY – Debug scaffold for AI Automation HUD (read-only, no data wiring, no authority)
 import * as HudCollapseSystem from './HudCollapseSystem1_0.js';
 import { UIVisibilityConfig, UI_VISIBILITY_CHANGE_EVENT } from '../ui/config/UIVisibilityConfig.js';
+import { applyAutomationHudWaveAnchor } from './HUDDragManager.js';
 /**
  * VARIANT A – FROZEN
  * ------------------
@@ -19,9 +20,9 @@ function createStyles() {
   style.id = 'ai-automation-hud-style';
   style.textContent = `
     #ai-automation-hud {
-      position: absolute;
-      right: 1.5vw;
-      top: 18vh;
+      position: fixed;
+      right: 12px;
+      top: 340px;
       width: 18vw;
       min-width: 260px;
       max-width: 340px;
@@ -415,6 +416,7 @@ function syncAutomationHudVisibility() {
     mountAIAutomationHUD(window.__ATOMA_AIAUTOMATION_HUD_ROOT__ || document.body, { skipVisibilitySync: true });
   }
 
+  applyAutomationHudWaveAnchor();
   updateAIAutomationHUD();
 }
 
@@ -580,6 +582,7 @@ export function mountAIAutomationHUD(rootElement, { skipVisibilitySync = false }
   target.appendChild(style);
   target.appendChild(hud);
   target.appendChild(tooltip);
+  applyAutomationHudWaveAnchor();
 
   if (!skipVisibilitySync) {
     updateAIAutomationHUD();

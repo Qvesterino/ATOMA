@@ -1,10 +1,13 @@
 import {
+    canAccessMap,
     ensureMenuStyles,
     getMenuMaps,
     getSettingsRows,
+    isMenuDevMapUnlockEnabled,
     isMenuAudioMuted,
     loadContinueSnapshot,
     loadMenuProfile,
+    resolvePublicSelectedMapId,
     saveContinueSnapshot,
     saveMenuProfile,
     setMenuAudioMuted,
@@ -44,6 +47,8 @@ function isInteractiveTarget(target) {
 export class PauseMenu {
     constructor({ actions = {}, buildLabel = PAUSE_BUILD_LABEL } = {}) {
         ensureMenuStyles();
+        const profile = loadMenuProfile();
+        const devUnlock = isMenuDevMapUnlockEnabled();
 
         this.actions = {
             resume: () => {},
@@ -52,7 +57,10 @@ export class PauseMenu {
             ...actions,
         };
         this.buildLabel = buildLabel;
-        this.profile = saveMenuProfile(loadMenuProfile());
+        this.profile = saveMenuProfile({
+            ...profile,
+            selectedMapId: resolvePublicSelectedMapId(profile.selectedMapId, { devUnlock }),
+        });
         this.state = {
             screen: 'MAIN',
             selectedIndex: 0,
@@ -130,7 +138,9 @@ export class PauseMenu {
     }
 
     refresh() {
+        const devUnlock = isMenuDevMapUnlockEnabled();
         this.profile.settings.audioMuted = isMenuAudioMuted();
+        this.profile.selectedMapId = resolvePublicSelectedMapId(this.profile.selectedMapId, { devUnlock });
         this.profile = saveMenuProfile(this.profile);
         this._screenEntries = this._buildScreenEntries();
 
@@ -272,12 +282,16 @@ export class PauseMenu {
 
     _buildScreenEntries() {
         if (this.state.screen === 'MAP') {
+            const devUnlock = isMenuDevMapUnlockEnabled();
             return getMenuMaps().map((map) => ({
                 id: map.id,
                 label: map.label,
                 meta: map.description,
                 type: 'map',
-                selectable: true,
+                selectable: canAccessMap(map.id, { devUnlock }),
+                releaseState: map.releaseState,
+                releaseLabel: map.releaseLabel || '',
+                publicLocked: map.releaseState === 'coming-soon',
                 mapData: map,
             }));
         }
@@ -327,7 +341,9 @@ export class PauseMenu {
             this.subtitle.textContent = 'Switch the active world without leaving the runtime.';
             this.screenTitle.textContent = 'SWITCH WORLD';
             this.hint.textContent = 'UP / DOWN TO SELECT  |  ENTER TO SWITCH  |  ESC TO BACK';
-            this.status.textContent = 'World switching stays inside the current runtime. No full reboot is performed.';
+            this.status.textContent = isMenuDevMapUnlockEnabled()
+                ? 'Dev unlock is active. Coming-soon worlds remain visible and can be switched into locally.'
+                : 'Only released worlds can be switched into. Coming-soon worlds remain visible but public-locked.';
             this._renderWorldCards();
             return;
         }
@@ -449,17 +465,22 @@ export class PauseMenu {
     _renderWorldCards() {
         const RISK_LEVELS = { calm: 15, low: 30, moderate: 55, extreme: 90 };
         const PROSPERITY_LEVELS = { low: 25, moderate: 50, high: 75, extreme: 95 };
-        const maps = getMenuMaps();
 
         const grid = document.createElement('div');
         grid.className = 'atoma-main-menu__world-cards';
 
-        maps.forEach((map, index) => {
+        this._screenEntries.forEach((entry, index) => {
+            const map = entry?.mapData;
+            if (!map) return;
             const isSelected = index === this.state.selectedIndex;
             const card = document.createElement('div');
             card.className = 'atoma-main-menu__world-card';
             if (isSelected) {
                 card.classList.add('is-selected');
+            }
+            if (!entry.selectable) {
+                card.classList.add('is-locked');
+                card.setAttribute('aria-disabled', 'true');
             }
             card.style.setProperty('--world-accent', `rgba(${map.accentRgb}, 0.6)`);
             card.dataset.entryKey = `MAP:${map.id}`;
@@ -467,13 +488,27 @@ export class PauseMenu {
 
             const header = document.createElement('div');
             header.className = 'atoma-main-menu__world-card-header';
+
             const name = document.createElement('div');
             name.className = 'atoma-main-menu__world-card-name';
             name.textContent = map.label;
+
+            const badges = document.createElement('div');
+            badges.className = 'atoma-main-menu__world-card-badges';
+
             const riskBadge = document.createElement('div');
             riskBadge.className = `atoma-main-menu__world-card-risk atoma-main-menu__world-card-risk--${map.risk}`;
             riskBadge.textContent = map.risk.toUpperCase();
-            header.append(name, riskBadge);
+            badges.appendChild(riskBadge);
+
+            if (entry.publicLocked) {
+                const releaseBadge = document.createElement('div');
+                releaseBadge.className = 'atoma-main-menu__world-card-release atoma-main-menu__world-card-release--coming-soon';
+                releaseBadge.textContent = map.releaseLabel || 'COMING SOON';
+                badges.appendChild(releaseBadge);
+            }
+
+            header.append(name, badges);
 
             const tagline = document.createElement('div');
             tagline.className = 'atoma-main-menu__world-card-tagline';
@@ -524,13 +559,15 @@ export class PauseMenu {
             bars.append(riskGroup, propGroup);
             card.append(header, tagline, fantasy, moodContainer, bars);
 
-            card.addEventListener('mouseenter', () => {
-                this.setSelectedIndex(index);
-            });
-            card.addEventListener('click', () => {
-                this.setSelectedIndex(index);
-                void this.activateSelected();
-            });
+            if (entry.selectable) {
+                card.addEventListener('mouseenter', () => {
+                    this.setSelectedIndex(index);
+                });
+                card.addEventListener('click', () => {
+                    this.setSelectedIndex(index);
+                    void this.activateSelected();
+                });
+            }
 
             grid.appendChild(card);
             this._focusableRefs.push({
@@ -830,16 +867,24 @@ export class PauseMenu {
         }
 
         if (this.state.screen === 'MAP') {
-            this.profile.selectedMapId = entry.id;
+            const nextWorldId = resolvePublicSelectedMapId(entry.id);
+            if (!canAccessMap(entry.id)) {
+                this.profile.selectedMapId = nextWorldId;
+                this.profile = saveMenuProfile(this.profile);
+                this.refresh();
+                return;
+            }
+
+            this.profile.selectedMapId = nextWorldId;
             this.profile = saveMenuProfile(this.profile);
             saveContinueSnapshot({
-                worldId: entry.id,
-                selectedMapId: entry.id,
+                worldId: nextWorldId,
+                selectedMapId: nextWorldId,
                 savedAt: Date.now(),
             });
             this.actions.switchWorld({
-                worldId: entry.id,
-                selectedMapId: entry.id,
+                worldId: nextWorldId,
+                selectedMapId: nextWorldId,
                 settings: { ...this.profile.settings },
             });
             return;

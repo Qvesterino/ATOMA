@@ -26,6 +26,22 @@ import { getAllHudIds, getHudConfig, getHudElement } from './HUDRegistry.js';
 
 const POSITION_STORAGE_KEY = 'atoma.hud.positions.v1';
 const LOCK_MODE_STORAGE_KEY = 'atoma.hud.layoutLocked';
+const DEFAULT_LEFT_EDGE = 10;
+const DEFAULT_TOP_EDGE = 10;
+const DEFAULT_BOTTOM_EDGE = 20;
+const DEFAULT_VERTICAL_GAP = 12;
+const DEFAULT_RIGHT_EDGE = 12;
+const DEFAULT_BOOTSTRAP_RETRY_MS = 100;
+const DEFAULT_BOOTSTRAP_MAX_ATTEMPTS = 24;
+const DEFAULT_LEFT_BOOTSTRAP_REQUIRED_IDS = Object.freeze([
+  'ui-category-legend',
+  'node-inspect-overlay',
+  'core-metrics-hud',
+]);
+const DEFAULT_AUTOMATION_WAVE_REQUIRED_IDS = Object.freeze([
+  'wave-debug-overlay',
+  'ai-automation-hud',
+]);
 
 /** @type {boolean} Whether layout is locked (not draggable) */
 let _layoutLocked = true;
@@ -56,6 +72,7 @@ export function initializeHudDragManager() {
   loadPositions();
   loadLockState();
   applyAllPositions();
+  applyDefaultHudBootstrapLayout();
   attachDragListeners();
   attachKeyListener();
   createLockIndicator();
@@ -85,6 +102,50 @@ function loadPositions() {
     }
   } catch {
     // Ignore storage errors
+  }
+}
+
+/**
+ * Check whether the player already has saved HUD positions.
+ * Safe to call before drag manager initialization.
+ * @returns {boolean}
+ */
+export function hasSavedHudPositions() {
+  if (_savedPositions.size > 0) {
+    return true;
+  }
+
+  try {
+    const raw = localStorage.getItem(POSITION_STORAGE_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    return !!parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check whether a specific HUD already has a saved drag position.
+ * @param {string} hudKey
+ * @returns {boolean}
+ */
+export function hasSavedHudPosition(hudKey) {
+  if (!hudKey) {
+    return false;
+  }
+
+  if (_savedPositions.has(hudKey)) {
+    return true;
+  }
+
+  try {
+    const raw = localStorage.getItem(POSITION_STORAGE_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    return !!parsed && typeof parsed === 'object' && !!parsed[hudKey];
+  } catch {
+    return false;
   }
 }
 
@@ -161,6 +222,169 @@ export function applyPosition(hudKey) {
  */
 export function applyAllPositions() {
   getAllHudIds().forEach(hudKey => applyPosition(hudKey));
+}
+
+function setFixedPosition(el, position = {}) {
+  if (!el) return;
+
+  if (position.left !== undefined) {
+    el.style.left = `${position.left}px`;
+    el.style.right = 'auto';
+  }
+  if (position.top !== undefined) {
+    el.style.top = `${position.top}px`;
+    el.style.bottom = 'auto';
+  }
+  if (position.right !== undefined) {
+    el.style.right = `${position.right}px`;
+    el.style.left = 'auto';
+  }
+  if (position.bottom !== undefined) {
+    el.style.bottom = `${position.bottom}px`;
+    el.style.top = 'auto';
+  }
+}
+
+function readRightOffset(el, fallback = DEFAULT_RIGHT_EDGE) {
+  if (!el) return fallback;
+
+  const rect = el.getBoundingClientRect();
+  if (rect.width > 0) {
+    return Math.max(0, Math.round(window.innerWidth - rect.right));
+  }
+
+  const inlineValue = Number.parseFloat(el.style.right);
+  if (Number.isFinite(inlineValue)) {
+    return inlineValue;
+  }
+
+  const computedValue = Number.parseFloat(window.getComputedStyle(el).right);
+  if (Number.isFinite(computedValue)) {
+    return computedValue;
+  }
+
+  return fallback;
+}
+
+function getRequiredBootstrapElements(requiredIds) {
+  const elements = {};
+  for (const id of requiredIds) {
+    const el = document.getElementById(id);
+    if (!el) {
+      return null;
+    }
+    elements[id] = el;
+  }
+  return elements;
+}
+
+function applyLeftColumnBootstrapLayoutPass() {
+  const required = getRequiredBootstrapElements(DEFAULT_LEFT_BOOTSTRAP_REQUIRED_IDS);
+  if (!required) return false;
+
+  const categoryHud = required['ui-category-legend'];
+  const inspectorHud = required['node-inspect-overlay'];
+  const coreMetricsHud = required['core-metrics-hud'];
+
+  setFixedPosition(categoryHud, {
+    left: DEFAULT_LEFT_EDGE,
+    top: DEFAULT_TOP_EDGE,
+  });
+
+  setFixedPosition(coreMetricsHud, {
+    left: DEFAULT_LEFT_EDGE,
+    bottom: DEFAULT_BOTTOM_EDGE,
+  });
+
+  const categoryRect = categoryHud.getBoundingClientRect();
+  const coreRect = coreMetricsHud.getBoundingClientRect();
+  const inspectorTop = Math.round(categoryRect.bottom + DEFAULT_VERTICAL_GAP);
+  const maxInspectorHeight = Math.max(
+    0,
+    Math.floor(coreRect.top - DEFAULT_VERTICAL_GAP - inspectorTop),
+  );
+
+  setFixedPosition(inspectorHud, {
+    left: DEFAULT_LEFT_EDGE,
+    top: inspectorTop,
+  });
+  inspectorHud.style.maxHeight = `${maxInspectorHeight}px`;
+  inspectorHud.style.overflowY = 'auto';
+  inspectorHud.style.overflowX = 'hidden';
+
+  return true;
+}
+
+function applyAutomationHudWaveAnchorPass() {
+  const required = getRequiredBootstrapElements(DEFAULT_AUTOMATION_WAVE_REQUIRED_IDS);
+  if (!required) return false;
+
+  const waveHud = required['wave-debug-overlay'];
+  const automationHud = required['ai-automation-hud'];
+
+  const waveRight = readRightOffset(waveHud, DEFAULT_RIGHT_EDGE);
+  const waveRect = waveHud.getBoundingClientRect();
+  const automationTop = Math.round(waveRect.bottom + DEFAULT_VERTICAL_GAP);
+
+  setFixedPosition(automationHud, {
+    right: waveRight,
+    top: automationTop,
+  });
+
+  return true;
+}
+
+/**
+ * Apply the canonical first-launch HUD bootstrap layout.
+ * Saved player positions stay authoritative unless force is enabled.
+ * @param {{ force?: boolean, attempt?: number }} [options]
+ * @returns {boolean}
+ */
+export function applyDefaultHudBootstrapLayout({ force = false, attempt = 0 } = {}) {
+  if (!force && hasSavedHudPositions()) {
+    return false;
+  }
+
+  const leftApplied = applyLeftColumnBootstrapLayoutPass();
+  const rightApplied = applyAutomationHudWaveAnchorPass();
+  if (leftApplied && rightApplied) {
+    return true;
+  }
+
+  if (attempt >= DEFAULT_BOOTSTRAP_MAX_ATTEMPTS) {
+    return false;
+  }
+
+  setTimeout(() => {
+    applyDefaultHudBootstrapLayout({ force, attempt: attempt + 1 });
+  }, DEFAULT_BOOTSTRAP_RETRY_MS);
+  return false;
+}
+
+/**
+ * Re-anchor AI Automation HUD under the Wave System HUD.
+ * Respects saved custom automation positions unless force is enabled.
+ * @param {{ force?: boolean, attempt?: number }} [options]
+ * @returns {boolean}
+ */
+export function applyAutomationHudWaveAnchor({ force = false, attempt = 0 } = {}) {
+  if (!force && hasSavedHudPosition('automationHUD')) {
+    return false;
+  }
+
+  const applied = applyAutomationHudWaveAnchorPass();
+  if (applied) {
+    return true;
+  }
+
+  if (attempt >= DEFAULT_BOOTSTRAP_MAX_ATTEMPTS) {
+    return false;
+  }
+
+  setTimeout(() => {
+    applyAutomationHudWaveAnchor({ force, attempt: attempt + 1 });
+  }, DEFAULT_BOOTSTRAP_RETRY_MS);
+  return false;
 }
 
 // ── DRAG HANDLING ───────────────────────────────────────────────────
@@ -474,6 +698,8 @@ function exposeConsoleAPI() {
     _savedPositions.clear();
     try { localStorage.removeItem(POSITION_STORAGE_KEY); } catch {}
     applyAllPositions();
+    applyDefaultHudBootstrapLayout({ force: true });
+    applyAutomationHudWaveAnchor({ force: true });
     console.log('✓ HUD positions reset to defaults');
   };
 

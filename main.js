@@ -11730,8 +11730,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         // Visual: animation time reversal during rewind
         if (this.visualNetworkTimeElasticity) {
             const rawNetworkMetrics = this.metricsRuntime_v1?.getRawNetworkMetrics?.() || null;
-            const avgSynergy = rawNetworkMetrics?.networkSynergy ?? 0.0;
-            this.visualNetworkTimeElasticity.setAverageSynergy(avgSynergy);
+            this.visualNetworkTimeElasticity.setNetworkMetricsSnapshot(rawNetworkMetrics || {});
             this.visualNetworkTimeElasticity.update(deltaTime, this.time);
             
             // Store visual time for use in animation systems

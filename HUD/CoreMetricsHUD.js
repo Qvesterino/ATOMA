@@ -371,6 +371,19 @@ export class CoreMetricsHUD {
           color: rgba(0, 200, 220, 0.35);
           margin-top: 2px;
         }
+        #core-metrics-hud .sustain-lock-reason {
+          min-height: 10px;
+          margin-top: 2px;
+          font-size: 6px;
+          letter-spacing: 0.13em;
+          text-transform: uppercase;
+          color: rgba(255, 166, 77, 0.9);
+          opacity: 0;
+          transition: opacity 0.18s ease;
+        }
+        #core-metrics-hud .sustain-lock-reason.visible {
+          opacity: 1;
+        }
         #core-metrics-hud .nt-sparkline-container {
           margin-top: 6px;
           opacity: 0.8;
@@ -463,9 +476,14 @@ export class CoreMetricsHUD {
     sustainLabel.textContent = 'SYNERGY SUSTAIN';
     sustainSection.appendChild(sustainLabel);
 
+    const sustainLockReason = document.createElement('div');
+    sustainLockReason.className = 'sustain-lock-reason';
+    sustainSection.appendChild(sustainLockReason);
+
     this.hudContainer.appendChild(sustainSection);
     this.hudElements.sustainProgress = sustainFill;
     this.hudElements.sustainSection = sustainSection;
+    this.hudElements.sustainLockReason = sustainLockReason;
 
     // ── Network Time Sparkline (Phase 6B) ─────────────────────────────
     const sparklineContainer = document.createElement('div');
@@ -845,7 +863,8 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
       return;
     }
 
-    const direction = this._scoreSystem.getDirection();
+    const scoreState = this._scoreSystem.getScoreState?.() || null;
+    const direction = scoreState?.direction || this._scoreSystem.getDirection();
     const displayValue = this._scoreSystem.getNetworkTimeFormatted();
     this.hudElements.networkTime.textContent = displayValue;
 
@@ -912,12 +931,27 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
 
     // ── Sustain progress bar ──────────────────────────────────────────
     if (this.hudElements.sustainProgress && this.hudElements.sustainSection) {
-      const sustainRatio = this._scoreSystem.getSustainProgressRatio();
+      const sustainRatio = scoreState
+        ? Number(scoreState.sustainRatio ?? 0)
+        : this._scoreSystem.getSustainProgressRatio();
       const isSustaining = sustainRatio > 0.001;
       const isComplete = sustainRatio >= 1.0;
+      const lockReason = scoreState?.rewindBlockReason ?? null;
+      const lockReasonText = {
+        'need-more-nodes': 'NEED MORE NODES',
+        'need-more-links': 'NEED MORE LINKS',
+        'quality-too-low': 'LINK QUALITY TOO LOW',
+        'synergy-too-low': 'SYNERGY TOO LOW'
+      }[lockReason] || '';
+      const shouldShowLockReason = direction !== SCORE_DIRECTION.REWIND
+        && direction !== SCORE_DIRECTION.WON
+        && !!lockReasonText;
 
       // Show/hide sustain section
-      this.hudElements.sustainSection.classList.toggle('visible', isSustaining || direction === SCORE_DIRECTION.REWIND);
+      this.hudElements.sustainSection.classList.toggle(
+        'visible',
+        isSustaining || direction === SCORE_DIRECTION.REWIND || shouldShowLockReason
+      );
 
       // Update fill width
       const fillPercent = (Math.min(sustainRatio, 1.0) * 100).toFixed(1);
@@ -925,6 +959,11 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
 
       // Complete state (orange glow when ready to rewind)
       this.hudElements.sustainProgress.classList.toggle('complete', isComplete || direction === SCORE_DIRECTION.REWIND);
+
+      if (this.hudElements.sustainLockReason) {
+        this.hudElements.sustainLockReason.textContent = shouldShowLockReason ? lockReasonText : '';
+        this.hudElements.sustainLockReason.classList.toggle('visible', shouldShowLockReason);
+      }
     }
 
     // ── Drama Zone (Phase 4C) ──────────────────────────────────────────
@@ -943,7 +982,7 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
     }
 
     // ── Combo indicator (Phase 5A) ─────────────────────────────────────
-    const comboCount = this._scoreSystem.getScoreState?.()?.combo ?? 0;
+    const comboCount = scoreState?.combo ?? 0;
     if (comboCount >= 2) {
       if (!this._comboBadge) {
         const badge = document.createElement('span');
@@ -951,7 +990,7 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
         this.hudElements.networkTime.parentElement.appendChild(badge);
         this._comboBadge = badge;
       }
-      const mult = this._scoreSystem.getScoreState?.()?.comboMultiplier ?? '1.0';
+      const mult = scoreState?.comboMultiplier ?? '1.0';
       this._comboBadge.textContent = `×${mult}`;
       this._comboBadge.classList.add('active');
       this._comboBadge.classList.toggle('high-combo', comboCount >= 3);

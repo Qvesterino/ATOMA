@@ -1,5 +1,9 @@
 # SYNERGY UNIFIED ARCHITECTURE — Analytical Study & Design Proposal
 
+> Status note (2026-05-06): this is an architecture study, not current gameplay truth.
+> The `VisualNetworkTimeElasticity` trigger values referenced below are historically important but outdated for live runtime.
+> Current gameplay-state audit: `docs/audits/NETWORK_TIME_GAMEPLAY_BALANCE_AUDIT_2026-05-06.md`.
+
 **Date:** 2026-04-25  
 **Phase:** EVOLUTION_V2 · CONTROLLED INNOVATION  
 **Scope:** HIGH — Architecture redesign across 10 synergy subsystems  

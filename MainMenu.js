@@ -8,6 +8,7 @@ import {
 
 const MENU_PROFILE_STORAGE_KEY = 'atoma.menu.profile.v1';
 const MENU_SNAPSHOT_STORAGE_KEY = 'atoma.menu.snapshot.v1';
+const MENU_DEV_UNLOCK_STORAGE_KEY = 'atoma.dev.unlockMaps';
 const MENU_STYLE_ID = 'atoma-main-menu-style';
 const MENU_PROFILE_VERSION = 1;
 const MENU_SNAPSHOT_VERSION = 1;
@@ -32,6 +33,7 @@ const MENU_MAPS = Object.freeze([
         id: 'quantum',
         label: 'QUANTUM ISLAND',
         footerLabel: 'Quantum Island',
+        releaseState: 'available',
         description: 'Probabilistic terrain with unstable gradients and uncertain silhouettes.',
         tagline: 'Probability collapses into form',
         mood: ['uncertain', 'electric', 'emergent'],
@@ -46,6 +48,7 @@ const MENU_MAPS = Object.freeze([
         id: 'desert',
         label: 'DREAM DESERT',
         footerLabel: 'Dream Desert',
+        releaseState: 'available',
         description: 'Surreal cognitive horizon with wide spacing and soft atmospheric drift.',
         tagline: 'Thoughts drift like dunes',
         mood: ['surreal', 'vast', 'contemplative'],
@@ -60,6 +63,8 @@ const MENU_MAPS = Object.freeze([
         id: 'memory',
         label: 'MEMORY LANE',
         footerLabel: 'Memory Lane',
+        releaseState: 'coming-soon',
+        releaseLabel: 'COMING SOON',
         description: 'Endless corridor of archived echoes, server towers, and slow drifting recollection.',
         tagline: 'Every echo remembers you',
         mood: ['nostalgic', 'linear', 'haunted'],
@@ -74,6 +79,8 @@ const MENU_MAPS = Object.freeze([
         id: 'sigma',
         label: 'SIGMA CHAMBER',
         footerLabel: 'Sigma Chamber',
+        releaseState: 'coming-soon',
+        releaseLabel: 'COMING SOON',
         description: 'Anomalous chamber with sharper tension, instability, and glitch pressure.',
         tagline: 'The system tests itself here',
         mood: ['tense', 'glitched', 'adversarial'],
@@ -88,6 +95,8 @@ const MENU_MAPS = Object.freeze([
         id: 'desert2',
         label: 'MIRAGE VEIL',
         footerLabel: 'Mirage Veil',
+        releaseState: 'coming-soon',
+        releaseLabel: 'COMING SOON',
         description: 'A denser second dreamscape with sharper dunes, brighter mirage pressure, and a deeper horizon.',
         tagline: 'Reality shimmers at the edge',
         mood: ['hallucinatory', 'dense', 'shifting'],
@@ -102,6 +111,8 @@ const MENU_MAPS = Object.freeze([
         id: 'fractal',
         label: 'FRACTAL VALLEY',
         footerLabel: 'Fractal Valley',
+        releaseState: 'coming-soon',
+        releaseLabel: 'COMING SOON',
         description: 'Recursive mathematical space. Calm, structured, and self-similar.',
         tagline: 'Where mathematics breathes',
         mood: ['serene', 'infinite', 'geometric'],
@@ -120,6 +131,16 @@ function clamp(value, min, max) {
 
 function lerp(start, end, alpha) {
     return start + (end - start) * alpha;
+}
+
+function isTruthyStorageValue(value) {
+    if (value == null) return false;
+    const normalized = String(value).trim().toLowerCase();
+    return normalized !== '' && normalized !== '0' && normalized !== 'false' && normalized !== 'off';
+}
+
+function getMenuMapById(mapId) {
+    return MENU_MAPS.find((map) => map.id === mapId) || MENU_MAPS[0];
 }
 
 function readStorageJSON(key) {
@@ -153,10 +174,6 @@ function removeStorageKey(key) {
     }
 }
 
-function getMenuMapById(mapId) {
-    return MENU_MAPS.find((map) => map.id === mapId) || MENU_MAPS[0];
-}
-
 function sanitizeSelectedMapId(value) {
     if (typeof value !== 'string') {
         return MENU_MAPS[0].id;
@@ -164,6 +181,45 @@ function sanitizeSelectedMapId(value) {
 
     const normalized = value.trim().toLowerCase();
     return getMenuMapById(normalized).id;
+}
+
+export function isMapPubliclyAvailable(mapId) {
+    return getMenuMapById(sanitizeSelectedMapId(mapId)).releaseState !== 'coming-soon';
+}
+
+export function isMenuDevMapUnlockEnabled() {
+    try {
+        if (typeof localStorage === 'undefined') return false;
+        return isTruthyStorageValue(localStorage.getItem(MENU_DEV_UNLOCK_STORAGE_KEY));
+    } catch {
+        return false;
+    }
+}
+
+export function setMenuDevMapUnlockEnabled(enabled) {
+    const nextEnabled = enabled === true;
+    try {
+        if (typeof localStorage !== 'undefined') {
+            if (nextEnabled) {
+                localStorage.setItem(MENU_DEV_UNLOCK_STORAGE_KEY, '1');
+            } else {
+                localStorage.removeItem(MENU_DEV_UNLOCK_STORAGE_KEY);
+            }
+        }
+    } catch {
+        // Ignore persistence failures and still return requested state.
+    }
+    return nextEnabled;
+}
+
+export function canAccessMap(mapId, { devUnlock = isMenuDevMapUnlockEnabled() } = {}) {
+    const normalizedMapId = sanitizeSelectedMapId(mapId);
+    return isMapPubliclyAvailable(normalizedMapId) || devUnlock === true;
+}
+
+export function resolvePublicSelectedMapId(mapId, { devUnlock = isMenuDevMapUnlockEnabled() } = {}) {
+    const normalizedMapId = sanitizeSelectedMapId(mapId);
+    return canAccessMap(normalizedMapId, { devUnlock }) ? normalizedMapId : MENU_MAPS[0].id;
 }
 
 function getAudioEnabledPreference() {
@@ -959,6 +1015,14 @@ export function ensureMenuStyles() {
             overflow: hidden;
         }
 
+        .atoma-main-menu__world-card.is-locked {
+            cursor: default;
+            opacity: 0.58;
+            border-color: rgba(108, 234, 255, 0.08);
+            background: linear-gradient(180deg, rgba(10, 18, 24, 0.62), rgba(5, 10, 16, 0.52));
+            box-shadow: none;
+        }
+
         .atoma-main-menu__world-card::before {
             content: '';
             position: absolute;
@@ -975,6 +1039,12 @@ export function ensureMenuStyles() {
         .atoma-main-menu__world-card:hover {
             border-color: rgba(108, 234, 255, 0.20);
             background: linear-gradient(180deg, rgba(12, 30, 42, 0.70), rgba(8, 20, 30, 0.50));
+        }
+
+        .atoma-main-menu__world-card.is-locked:hover {
+            border-color: rgba(108, 234, 255, 0.08);
+            background: linear-gradient(180deg, rgba(10, 18, 24, 0.62), rgba(5, 10, 16, 0.52));
+            transform: none;
         }
 
         .atoma-main-menu__world-card.is-selected {
@@ -994,6 +1064,14 @@ export function ensureMenuStyles() {
             align-items: center;
             justify-content: space-between;
             gap: 8px;
+        }
+
+        .atoma-main-menu__world-card-badges {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 6px;
+            flex-wrap: wrap;
         }
 
         .atoma-main-menu__world-card-name {
@@ -1017,6 +1095,21 @@ export function ensureMenuStyles() {
         .atoma-main-menu__world-card-risk--low { color: #00d4ff; border-color: rgba(0, 212, 255, 0.25); background: rgba(0, 212, 255, 0.08); }
         .atoma-main-menu__world-card-risk--moderate { color: #ffc107; border-color: rgba(255, 193, 7, 0.25); background: rgba(255, 193, 7, 0.08); }
         .atoma-main-menu__world-card-risk--extreme { color: #ff3d8e; border-color: rgba(255, 61, 142, 0.25); background: rgba(255, 61, 142, 0.08); }
+
+        .atoma-main-menu__world-card-release {
+            font-size: 8px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            padding: 2px 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.10);
+        }
+
+        .atoma-main-menu__world-card-release--coming-soon {
+            color: #9fb8c2;
+            border-color: rgba(159, 184, 194, 0.18);
+            background: rgba(159, 184, 194, 0.08);
+        }
 
         .atoma-main-menu__world-card-tagline {
             font-size: 11px;
@@ -1276,6 +1369,7 @@ export class MainMenu {
 
         const snapshot = loadContinueSnapshot();
         const profile = loadMenuProfile();
+        const devUnlock = isMenuDevMapUnlockEnabled();
 
         this.actions = {
             resume: () => {},
@@ -1285,7 +1379,7 @@ export class MainMenu {
         };
         this.buildLabel = buildLabel;
         this.profile = saveMenuProfile({
-            selectedMapId: snapshot?.selectedMapId || profile.selectedMapId,
+            selectedMapId: resolvePublicSelectedMapId(snapshot?.selectedMapId || profile.selectedMapId, { devUnlock }),
             settings: profile.settings,
         });
         this.state = {
@@ -1367,8 +1461,11 @@ export class MainMenu {
 
     refresh() {
         const loreScrollTop = this.loreBody ? this.loreBody.scrollTop : 0;
-        this.state.hasSave = Boolean(loadContinueSnapshot());
+        const snapshot = loadContinueSnapshot();
+        const devUnlock = isMenuDevMapUnlockEnabled();
+        this.state.hasSave = Boolean(snapshot);
         this.profile.settings.audioMuted = isMenuAudioMuted();
+        this.profile.selectedMapId = resolvePublicSelectedMapId(this.profile.selectedMapId, { devUnlock });
         this.profile = saveMenuProfile(this.profile);
         this._screenEntries = this._buildScreenEntries();
 
@@ -1472,12 +1569,16 @@ export class MainMenu {
 
     _buildScreenEntries() {
         if (this.state.screen === 'MAP') {
+            const devUnlock = isMenuDevMapUnlockEnabled();
             return MENU_MAPS.map((map) => ({
                 id: map.id,
                 label: map.label,
                 meta: map.description,
                 type: 'map',
-                selectable: true,
+                selectable: canAccessMap(map.id, { devUnlock }),
+                releaseState: map.releaseState,
+                releaseLabel: map.releaseLabel || '',
+                publicLocked: map.releaseState === 'coming-soon',
                 mapData: map,
             }));
         }
@@ -1534,7 +1635,9 @@ export class MainMenu {
             this.subtitle.textContent = 'Each world shapes the network differently. Choose your proving ground.';
             this.screenTitle.textContent = 'SELECT WORLD';
             this.hint.textContent = '[ UP / DOWN ] SELECT  |  [ ENTER ] LAUNCH  |  [ ESC ] BACK';
-            this.status.textContent = 'World identity persists across sessions. Risk and prosperity define the experience.';
+            this.status.textContent = isMenuDevMapUnlockEnabled()
+                ? 'Dev unlock is active. Coming-soon worlds remain visible and can be launched locally.'
+                : 'Only released worlds can launch. Coming-soon worlds remain visible but public-locked.';
             this._renderWorldCards();
             return;
         }
@@ -1660,12 +1763,18 @@ export class MainMenu {
         const grid = document.createElement('div');
         grid.className = 'atoma-main-menu__world-cards';
 
-        MENU_MAPS.forEach((map, index) => {
+        this._screenEntries.forEach((entry, index) => {
+            const map = entry?.mapData;
+            if (!map) return;
             const isSelected = index === this.state.selectedIndex;
             const card = document.createElement('div');
             card.className = 'atoma-main-menu__world-card';
             if (isSelected) {
                 card.classList.add('is-selected');
+            }
+            if (!entry.selectable) {
+                card.classList.add('is-locked');
+                card.setAttribute('aria-disabled', 'true');
             }
             card.style.setProperty('--world-accent', `rgba(${map.accentRgb}, 0.6)`);
             card.dataset.entryKey = `MAP:${map.id}`;
@@ -1679,11 +1788,22 @@ export class MainMenu {
             name.className = 'atoma-main-menu__world-card-name';
             name.textContent = map.label;
 
+            const badges = document.createElement('div');
+            badges.className = 'atoma-main-menu__world-card-badges';
+
             const riskBadge = document.createElement('div');
             riskBadge.className = `atoma-main-menu__world-card-risk atoma-main-menu__world-card-risk--${map.risk}`;
             riskBadge.textContent = map.risk.toUpperCase();
+            badges.appendChild(riskBadge);
 
-            header.append(name, riskBadge);
+            if (entry.publicLocked) {
+                const releaseBadge = document.createElement('div');
+                releaseBadge.className = 'atoma-main-menu__world-card-release atoma-main-menu__world-card-release--coming-soon';
+                releaseBadge.textContent = map.releaseLabel || 'COMING SOON';
+                badges.appendChild(releaseBadge);
+            }
+
+            header.append(name, badges);
 
             // Tagline
             const tagline = document.createElement('div');
@@ -1740,13 +1860,15 @@ export class MainMenu {
             card.append(header, tagline, fantasy, moodContainer, bars);
 
             // Interaction
-            card.addEventListener('mouseenter', () => {
-                this.setSelectedIndex(index);
-            });
-            card.addEventListener('click', () => {
-                this.setSelectedIndex(index);
-                void this.activateSelected();
-            });
+            if (entry.selectable) {
+                card.addEventListener('mouseenter', () => {
+                    this.setSelectedIndex(index);
+                });
+                card.addEventListener('click', () => {
+                    this.setSelectedIndex(index);
+                    void this.activateSelected();
+                });
+            }
 
             grid.appendChild(card);
             this._focusableRefs.push({
@@ -2082,11 +2204,19 @@ export class MainMenu {
         }
 
         if (this.state.screen === 'MAP') {
-            this.profile.selectedMapId = entry.id;
+            const launchWorldId = resolvePublicSelectedMapId(entry.id);
+            if (!canAccessMap(entry.id)) {
+                this.profile.selectedMapId = launchWorldId;
+                this.profile = saveMenuProfile(this.profile);
+                this.refresh();
+                return;
+            }
+
+            this.profile.selectedMapId = launchWorldId;
             this.profile = saveMenuProfile(this.profile);
             this.actions.startNew({
-                worldId: entry.id,
-                selectedMapId: entry.id,
+                worldId: launchWorldId,
+                selectedMapId: launchWorldId,
                 settings: { ...this.profile.settings },
             });
             return;

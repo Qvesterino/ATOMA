@@ -1,5 +1,9 @@
 # Network Time Score — Gameplay Architecture Plan
 
+> Status note (2026-05-06): this file is a historical implementation plan. Current runtime no longer matches all values here.
+> Current live truth is documented in `docs/audits/NETWORK_TIME_GAMEPLAY_BALANCE_AUDIT_2026-05-06.md`.
+> Key drift: runtime uses `5s` sustain and raw `MetricsRuntime_v1.getRawNetworkMetrics().networkSynergy`, not the older `7s` plan below.
+
 ## Goal
 
 Turn **Network Time** from a passive display counter into the **core gameplay score**:

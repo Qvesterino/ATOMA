@@ -1,10 +1,13 @@
 import { mountAIAutomationHUD } from './hud/AIAutomationHUD.js';
 import { startAtomaGame } from './main.js';
 import {
+    isMenuDevMapUnlockEnabled,
     MainMenu,
     clearContinueSnapshot,
     loadContinueSnapshot,
+    resolvePublicSelectedMapId,
     saveContinueSnapshot,
+    setMenuDevMapUnlockEnabled,
 } from './MainMenu.js';
 import { PauseMenu } from './PauseMenu.js';
 import { loadUIVisibilityConfig } from './ui/config/UIVisibilityConfig.js';
@@ -43,13 +46,16 @@ class AtomaBootController {
             exit: () => this.exit(),
             pause: () => this.openPauseMenu(),
             resumeGame: () => this.resumeGame(),
+            setMapDevUnlock: (enabled) => this.setMapDevUnlock(enabled),
+            isMapDevUnlockEnabled: () => isMenuDevMapUnlockEnabled(),
         };
     }
 
     startNew(worldId, selectedMapId, settings) {
+        const nextSelection = this._resolveWorldSelection(worldId, selectedMapId);
         void this._launch({
-            startupWorld: worldId,
-            selectedMapId,
+            startupWorld: nextSelection.worldId,
+            selectedMapId: nextSelection.selectedMapId,
             settings,
         }).catch(() => {});
     }
@@ -60,10 +66,11 @@ class AtomaBootController {
             return;
         }
 
+        const sanitizedSnapshot = this._sanitizeContinueSnapshot(snapshot);
         void this._launch({
-            startupWorld: snapshot.worldId,
-            selectedMapId: snapshot.selectedMapId || snapshot.worldId,
-            continueSnapshot: snapshot,
+            startupWorld: sanitizedSnapshot.worldId,
+            selectedMapId: sanitizedSnapshot.selectedMapId || sanitizedSnapshot.worldId,
+            continueSnapshot: sanitizedSnapshot,
             settings,
         }).catch(() => {});
     }
@@ -80,18 +87,35 @@ class AtomaBootController {
         this.menu.refresh();
     }
 
+    setMapDevUnlock(enabled) {
+        const nextEnabled = setMenuDevMapUnlockEnabled(enabled);
+
+        if (!this.game) {
+            this.menu?.refresh();
+        }
+        this.pauseMenu?.refresh();
+
+        return nextEnabled;
+    }
+
     async _launch({ startupWorld, selectedMapId, continueSnapshot = null, settings = null }) {
         if (this._booting || this.game) {
             return;
         }
 
         this._booting = true;
-
-        const nextSnapshot = saveContinueSnapshot({
-            worldId: startupWorld,
-            selectedMapId: selectedMapId || startupWorld,
-            savedAt: Date.now(),
-        });
+        const sanitizedSelection = this._resolveWorldSelection(startupWorld, selectedMapId);
+        const sanitizedContinueSnapshot = continueSnapshot
+            ? this._sanitizeContinueSnapshot(continueSnapshot)
+            : null;
+        const effectiveContinueSnapshot = sanitizedContinueSnapshot
+            ? saveContinueSnapshot(sanitizedContinueSnapshot)
+            : saveContinueSnapshot({
+                worldId: sanitizedSelection.worldId,
+                selectedMapId: sanitizedSelection.selectedMapId,
+                savedAt: Date.now(),
+            });
+        const isResume = Boolean(continueSnapshot);
 
         try {
             await this.loadingOverlay.run(async ({ setPhase, yieldFrame }) => {
@@ -100,24 +124,24 @@ class AtomaBootController {
                 this.menu.hide();
 
                 setPhase({
-                    title: continueSnapshot ? 'RESUMING ATOMA' : 'INITIALIZING ATOMA',
+                    title: isResume ? 'RESUMING ATOMA' : 'INITIALIZING ATOMA',
                     subtitle: 'Preparing the world shell and initial field state.',
                     phase: 'INITIALIZING WORLD',
-                    variant: continueSnapshot ? 'resume' : 'boot',
+                    variant: isResume ? 'resume' : 'boot',
                 });
                 await yieldFrame();
 
                 this.game = startAtomaGame({
-                    startupWorld,
-                    continueSnapshot: continueSnapshot || nextSnapshot,
+                    startupWorld: sanitizedSelection.worldId,
+                    continueSnapshot: effectiveContinueSnapshot,
                     menuSettings: settings,
                 });
 
                 setPhase({
-                    title: continueSnapshot ? 'RESUMING ATOMA' : 'INITIALIZING ATOMA',
+                    title: isResume ? 'RESUMING ATOMA' : 'INITIALIZING ATOMA',
                     subtitle: 'Binding runtime systems and visual authorities.',
                     phase: 'BINDING SYSTEMS',
-                    variant: continueSnapshot ? 'resume' : 'boot',
+                    variant: isResume ? 'resume' : 'boot',
                 });
 
                 this._ensurePauseMenu();
@@ -126,17 +150,17 @@ class AtomaBootController {
                 this.menu.dispose();
 
                 setPhase({
-                    title: continueSnapshot ? 'RESUMING ATOMA' : 'INITIALIZING ATOMA',
+                    title: isResume ? 'RESUMING ATOMA' : 'INITIALIZING ATOMA',
                     subtitle: 'Returning to the live simulation field.',
                     phase: 'ENTERING SIMULATION',
-                    variant: continueSnapshot ? 'resume' : 'boot',
+                    variant: isResume ? 'resume' : 'boot',
                 });
                 await yieldFrame();
             }, {
-                title: continueSnapshot ? 'RESUMING ATOMA' : 'INITIALIZING ATOMA',
+                title: isResume ? 'RESUMING ATOMA' : 'INITIALIZING ATOMA',
                 subtitle: 'Preparing the world shell and initial field state.',
                 phase: 'INITIALIZING WORLD',
-                variant: continueSnapshot ? 'resume' : 'boot',
+                variant: isResume ? 'resume' : 'boot',
             });
         } catch (error) {
             document.body.classList.add(PREBOOT_BODY_CLASS);
@@ -177,15 +201,16 @@ class AtomaBootController {
             return;
         }
 
+        const nextSelection = this._resolveWorldSelection(worldId, selectedMapId);
         try {
             saveContinueSnapshot({
-                worldId,
-                selectedMapId: selectedMapId || worldId,
+                worldId: nextSelection.worldId,
+                selectedMapId: nextSelection.selectedMapId,
                 savedAt: Date.now(),
             });
             this._persistBootSettings(settings);
             this.pauseMenu?.hide();
-            await this.game.switchWorld?.(worldId);
+            await this.game.switchWorld?.(nextSelection.worldId);
             this.game.resume?.();
         } catch (error) {
             console.error('[AtomaBoot] pause world switch failed:', error);
@@ -254,6 +279,33 @@ class AtomaBootController {
         } catch {
             // Ignore persistence failures for boot settings.
         }
+    }
+
+    _resolveWorldSelection(worldId, selectedMapId, { devUnlock = isMenuDevMapUnlockEnabled() } = {}) {
+        const nextWorldId = resolvePublicSelectedMapId(worldId, { devUnlock });
+        const nextSelectedMapId = resolvePublicSelectedMapId(selectedMapId || nextWorldId, { devUnlock });
+        return {
+            worldId: nextWorldId,
+            selectedMapId: nextSelectedMapId,
+        };
+    }
+
+    _sanitizeContinueSnapshot(snapshot, { devUnlock = isMenuDevMapUnlockEnabled() } = {}) {
+        if (!snapshot || typeof snapshot !== 'object') {
+            return null;
+        }
+
+        const nextSelection = this._resolveWorldSelection(
+            snapshot.worldId,
+            snapshot.selectedMapId || snapshot.worldId,
+            { devUnlock },
+        );
+
+        return {
+            ...snapshot,
+            worldId: nextSelection.worldId,
+            selectedMapId: nextSelection.selectedMapId,
+        };
     }
 }
 

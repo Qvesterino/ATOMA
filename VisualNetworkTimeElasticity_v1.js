@@ -31,6 +31,21 @@
 import { getDefaultMetricThresholds } from './src/metrics/MetricTierClassifier.js';
 
 const DEFAULT_REWIND_SYNERGY_THRESHOLD = getDefaultMetricThresholds('synergy').high;
+const DEFAULT_REWIND_MIN_NODE_COUNT = 4;
+const DEFAULT_REWIND_MIN_LINK_COUNT = 3;
+const DEFAULT_REWIND_MIN_AVG_LINK_QUALITY = 0.55;
+const REWIND_BLOCK_REASON = Object.freeze({
+  SYNERGY_TOO_LOW: 'synergy-too-low',
+  NEED_MORE_NODES: 'need-more-nodes',
+  NEED_MORE_LINKS: 'need-more-links',
+  QUALITY_TOO_LOW: 'quality-too-low'
+});
+
+function clamp01(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(0, Math.min(1, numeric));
+}
 
 // Direction states
 export const SCORE_DIRECTION = Object.freeze({
@@ -49,6 +64,9 @@ export class VisualNetworkTimeElasticity_v1 {
     this._rewindSpeed = config.rewindSpeed ?? 3.5;        // base units/sec counting down (slower = harder)
     this._synergyThreshold = config.synergyThreshold ?? DEFAULT_REWIND_SYNERGY_THRESHOLD;  // canonical global.synergy.high
     this._sustainDuration = config.sustainDuration ?? 5.0;     // seconds of sustained high synergy
+    this._rewindMinNodeCount = config.rewindMinNodeCount ?? DEFAULT_REWIND_MIN_NODE_COUNT;
+    this._rewindMinLinkCount = config.rewindMinLinkCount ?? DEFAULT_REWIND_MIN_LINK_COUNT;
+    this._rewindMinAvgLinkQuality = config.rewindMinAvgLinkQuality ?? DEFAULT_REWIND_MIN_AVG_LINK_QUALITY;
 
     // ── Phase 4: Dynamic speed scaling ──────────────────────────────
     this._synergyQualityScale = config.synergyQualityScale ?? 5.0;   // rewind bonus per unit synergy above threshold
@@ -86,6 +104,9 @@ export class VisualNetworkTimeElasticity_v1 {
     this._networkTimeCounter = 0;    // the actual score counter
     this._direction = SCORE_DIRECTION.FORWARD;
     this._won = false;
+    this._networkMetricsSnapshot = this._createNetworkMetricsSnapshot();
+    this._rewindEligible = false;
+    this._rewindBlockReason = REWIND_BLOCK_REASON.SYNERGY_TOO_LOW;
 
     // ── Sustain tracking ────────────────────────────────────────────
     this._highSynergyStartTime = null;
@@ -206,6 +227,11 @@ export class VisualNetworkTimeElasticity_v1 {
       isWon: this._won,
       inDramaZone: this._inDramaZone,
       avgSynergy: this.avgSynergy,
+      rewindEligible: this._rewindEligible,
+      rewindBlockReason: this._rewindBlockReason,
+      connectedNodeCount: this._networkMetricsSnapshot.nodeCount,
+      activeLinkCount: this._networkMetricsSnapshot.linkCount,
+      avgLinkQuality: this._networkMetricsSnapshot.avgLinkQuality,
       sustainProgress: this._sustainedDuration.toFixed(2),
       sustainRatio: this.getSustainProgressRatio().toFixed(3),
       synergyThreshold: this._synergyThreshold,
@@ -236,7 +262,22 @@ export class VisualNetworkTimeElasticity_v1 {
    * @param {number} avg - Average synergy [0..1]
    */
   setAverageSynergy(avg) {
-    this.avgSynergy = Math.max(0.0, Math.min(1.0, avg || 0.0));
+    this.setNetworkMetricsSnapshot({
+      ...this._networkMetricsSnapshot,
+      networkSynergy: avg
+    });
+  }
+
+  /**
+   * Set the raw gameplay snapshot consumed by the score loop.
+   * @param {Object} snapshot
+   */
+  setNetworkMetricsSnapshot(snapshot = {}) {
+    this._networkMetricsSnapshot = this._createNetworkMetricsSnapshot(snapshot);
+    this.avgSynergy = this._networkMetricsSnapshot.networkSynergy;
+    const gateState = this._evaluateRewindGate(this._networkMetricsSnapshot);
+    this._rewindEligible = gateState.eligible;
+    this._rewindBlockReason = gateState.blockReason;
   }
 
   /**
@@ -340,6 +381,31 @@ export class VisualNetworkTimeElasticity_v1 {
   // MAIN UPDATE LOOP
   // ================================================================
 
+  _createNetworkMetricsSnapshot(snapshot = {}) {
+    return {
+      networkSynergy: clamp01(snapshot?.networkSynergy),
+      nodeCount: Number.isFinite(snapshot?.nodeCount) ? Math.max(0, Math.floor(snapshot.nodeCount)) : 0,
+      linkCount: Number.isFinite(snapshot?.linkCount) ? Math.max(0, Math.floor(snapshot.linkCount)) : 0,
+      avgLinkQuality: clamp01(snapshot?.avgLinkQuality)
+    };
+  }
+
+  _evaluateRewindGate(snapshot = this._networkMetricsSnapshot) {
+    if (snapshot.networkSynergy < this._synergyThreshold) {
+      return { eligible: false, blockReason: REWIND_BLOCK_REASON.SYNERGY_TOO_LOW };
+    }
+    if (snapshot.nodeCount < this._rewindMinNodeCount) {
+      return { eligible: false, blockReason: REWIND_BLOCK_REASON.NEED_MORE_NODES };
+    }
+    if (snapshot.linkCount < this._rewindMinLinkCount) {
+      return { eligible: false, blockReason: REWIND_BLOCK_REASON.NEED_MORE_LINKS };
+    }
+    if (snapshot.avgLinkQuality < this._rewindMinAvgLinkQuality) {
+      return { eligible: false, blockReason: REWIND_BLOCK_REASON.QUALITY_TOO_LOW };
+    }
+    return { eligible: true, blockReason: null };
+  }
+
   /**
    * Update score and visual time elasticity state.
    * Called once per simulation tick (10Hz via FrameScheduler).
@@ -357,9 +423,12 @@ export class VisualNetworkTimeElasticity_v1 {
     }
 
     // ============================================================
-    // PHASE 1: Check synergy threshold + track stats
+    // PHASE 1: Check synergy threshold + score-local rewind gate
     // ============================================================
     const synergyHigh = this.avgSynergy >= this._synergyThreshold;
+    const gateState = this._evaluateRewindGate(this._networkMetricsSnapshot);
+    this._rewindEligible = gateState.eligible;
+    this._rewindBlockReason = gateState.blockReason;
 
     // Track max synergy achieved
     if (this.avgSynergy > this._runStats.maxSynergyAchieved) {
@@ -368,14 +437,17 @@ export class VisualNetworkTimeElasticity_v1 {
 
     if (synergyHigh) {
       this._runStats.totalHighSynergyTime += dt;
-      // Accumulate sustain timer
+    }
+
+    if (gateState.eligible) {
+      // Accumulate sustain timer only when the whole gameplay gate is satisfied.
       if (this._highSynergyStartTime === null) {
         this._highSynergyStartTime = gameTime;
         this._sustainedDuration = 0;
       }
       this._sustainedDuration = gameTime - this._highSynergyStartTime;
     } else {
-      // Reset sustain timer
+      // Reset sustain timer whenever the local rewind gate is not fully satisfied.
       this._highSynergyStartTime = null;
       this._sustainedDuration = 0;
     }
@@ -701,6 +773,9 @@ export class VisualNetworkTimeElasticity_v1 {
     this._milestonesTriggered.clear();
     this._peakNT = 0;
     this._runStats = this._createRunStats();
+    this._networkMetricsSnapshot = this._createNetworkMetricsSnapshot();
+    this._rewindEligible = false;
+    this._rewindBlockReason = REWIND_BLOCK_REASON.SYNERGY_TOO_LOW;
     if (typeof window !== 'undefined') window.__ATOMA_DRAMA_ZONE__ = false;
   }
 
@@ -717,6 +792,7 @@ export class VisualNetworkTimeElasticity_v1 {
 export function validateVisualNetworkTimeElasticity() {
   console.log('✓ VisualNetworkTimeElasticity_v2.1 (Network Time Score + Dynamic Speeds) loaded');
   console.log(`  - Trigger: canonical global.synergy.high (>= ${DEFAULT_REWIND_SYNERGY_THRESHOLD}) for 5+ seconds`);
+  console.log(`  - Rewind gate: >= ${DEFAULT_REWIND_MIN_NODE_COUNT} nodes, >= ${DEFAULT_REWIND_MIN_LINK_COUNT} links, avg quality >= ${DEFAULT_REWIND_MIN_AVG_LINK_QUALITY}`);
   console.log('  - Forward: 5 base units/sec (escalates with Network Time)');
   console.log('  - Rewind: 3.5 base units/sec (scales with synergy quality above threshold)');
   console.log('  - Win: Network Time reaches 0');

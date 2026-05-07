@@ -41,7 +41,7 @@ export const HUD_REGISTRY = {
     title: 'Network Command',
     layer: HUD_LAYER.PLAYER_CRITICAL,
     defaultCollapsed: false,
-    defaultPosition: { left: 10, top: 20 },
+    defaultPosition: { left: 10, bottom: 20 },
     description: 'Primary network status — player-facing command panel',
     playerFacing: true
   },
@@ -63,7 +63,7 @@ export const HUD_REGISTRY = {
     title: 'Node Categories',
     layer: HUD_LAYER.CONTEXTUAL_INSPECT,
     defaultCollapsed: false,
-    defaultPosition: { left: 10, top: 200 },
+    defaultPosition: { left: 10, top: 10 },
     description: 'Reference legend showing all node categories',
     playerFacing: true
   },
@@ -73,7 +73,7 @@ export const HUD_REGISTRY = {
     title: 'Node Inspector',
     layer: HUD_LAYER.CONTEXTUAL_INSPECT,
     defaultCollapsed: false,
-    defaultPosition: { left: 10, top: 360 },
+    defaultPosition: { left: 10, top: 200 },
     description: 'Context-triggered node inspection display',
     playerFacing: true
   },
@@ -84,7 +84,7 @@ export const HUD_REGISTRY = {
     title: 'AI Automation',
     layer: HUD_LAYER.DEBUG_AUTHORING,
     defaultCollapsed: false,
-    defaultPosition: { right: 10, top: 200 },
+    defaultPosition: { right: 12, top: 340 },
     description: 'Link automation recommendations and status — dev only',
     playerFacing: false
   },
