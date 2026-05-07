@@ -1,4 +1,5 @@
 const UI_VISIBILITY_STORAGE_KEY = 'atoma.ui.visibility';
+const DEVELOPER_MODE_STORAGE_KEY = 'atoma.hud.developerMode';
 
 export const UI_VISIBILITY_CHANGE_EVENT = 'atoma-ui-visibility-change';
 
@@ -7,8 +8,8 @@ export const UIVisibilityConfig = {
   nodeInspect: true,
   categoryLegend: true,
   selectedHUD: true,
-  aiHUD: true,
-  advisorHUD: true,
+  aiHUD: false,
+  advisorHUD: false,
   waveSystemHUD: true,
   /** Developer mode — controls DEBUG_AUTHORING layer visibility */
   developerMode: false
@@ -18,7 +19,67 @@ function isPlainObject(value) {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
-function notifyUIVisibilityChange() {
+function getStoredDeveloperMode() {
+  try {
+    if (typeof localStorage === 'undefined') return false;
+    return localStorage.getItem(DEVELOPER_MODE_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export function isDeveloperModeActive() {
+  return getStoredDeveloperMode();
+}
+
+export function isHudEnabledByPreference(hudId) {
+  const mapping = {
+    aiHUD: UIVisibilityConfig.aiHUD,
+    automationHUD: UIVisibilityConfig.aiHUD,
+    advisorHUD: UIVisibilityConfig.advisorHUD,
+    waveSystemHUD: UIVisibilityConfig.waveSystemHUD,
+    debugHUD: true,
+  };
+  const enabled = mapping[hudId];
+  return enabled === undefined ? false : enabled !== false;
+}
+
+export function isDeveloperHudEnabledByPreference(hudId) {
+  return isHudEnabledByPreference(hudId);
+}
+
+export function isHudEffectivelyVisible(hudId) {
+  if (hudId === 'waveSystemHUD') {
+    return isDeveloperModeActive() && isHudEnabledByPreference('waveSystemHUD');
+  }
+
+  if (hudId === 'aiHUD' || hudId === 'automationHUD') {
+    return isHudEnabledByPreference('aiHUD');
+  }
+
+  if (hudId === 'advisorHUD') {
+    return isHudEnabledByPreference('advisorHUD');
+  }
+
+  if (hudId === 'debugHUD') {
+    return isDeveloperModeActive();
+  }
+
+  return false;
+}
+
+export function isDeveloperHudEffectivelyVisible(hudId) {
+  return isHudEffectivelyVisible(hudId);
+}
+
+function buildVisibilityEventDetail() {
+  return {
+    ...UIVisibilityConfig,
+    developerMode: isDeveloperModeActive(),
+  };
+}
+
+export function dispatchUIVisibilityChange() {
   if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') {
     return;
   }
@@ -26,7 +87,7 @@ function notifyUIVisibilityChange() {
   try {
     window.dispatchEvent(
       new CustomEvent(UI_VISIBILITY_CHANGE_EVENT, {
-        detail: { ...UIVisibilityConfig },
+        detail: buildVisibilityEventDetail(),
       }),
     );
   } catch {
@@ -49,7 +110,7 @@ export function loadUIVisibilityConfig() {
     // Ignore malformed storage and keep defaults.
   }
 
-  notifyUIVisibilityChange();
+  dispatchUIVisibilityChange();
 }
 
 export function saveUIVisibilityConfig() {
@@ -60,7 +121,7 @@ export function saveUIVisibilityConfig() {
     // Ignore persistence failures.
   }
 
-  notifyUIVisibilityChange();
+  dispatchUIVisibilityChange();
 }
 
 export function setUIVisibilityFlag(key, value) {
@@ -84,6 +145,10 @@ export function toggleUIVisibilityFlag(key) {
 }
 
 export function getUIVisibilitySettingsRows() {
+  const aiHudVisible = isHudEffectivelyVisible('aiHUD');
+  const advisorHudVisible = isHudEffectivelyVisible('advisorHUD');
+  const waveHudVisible = isHudEffectivelyVisible('waveSystemHUD');
+
   return [
     {
       type: 'section',
@@ -126,32 +191,39 @@ export function getUIVisibilitySettingsRows() {
     },
     {
       type: 'section',
-      id: 'dev-visibility-section',
-      label: 'DEVELOPER',
-      description: 'Debug and authoring HUDs. Only visible when developer mode is active (F4).',
+      id: 'optional-visibility-section',
+      label: 'OPTIONAL HUDS',
+      description: 'Optional overlays that can be toggled on demand.',
       selectable: false,
     },
     {
       type: 'visibility',
       id: 'aiHUD',
       label: 'AI Automation',
-      value: UIVisibilityConfig.aiHUD ? '[ ON ]' : '[ OFF ]',
-      description: 'Controls the AI automation HUD (requires dev mode).',
+      value: aiHudVisible ? '[ ON ]' : '[ OFF ]',
+      description: 'Controls the AI automation overlay.',
       action: () => toggleUIVisibilityFlag('aiHUD'),
     },
     {
       type: 'visibility',
       id: 'advisorHUD',
       label: 'Advisor HUD',
-      value: UIVisibilityConfig.advisorHUD ? '[ ON ]' : '[ OFF ]',
-      description: 'Controls the advisor HUD (requires dev mode).',
+      value: advisorHudVisible ? '[ ON ]' : '[ OFF ]',
+      description: 'Controls the compact advisor overlay.',
       action: () => toggleUIVisibilityFlag('advisorHUD'),
+    },
+    {
+      type: 'section',
+      id: 'dev-visibility-section',
+      label: 'DEVELOPER',
+      description: 'Debug overlays visible only when developer mode is active (F4).',
+      selectable: false,
     },
     {
       type: 'visibility',
       id: 'waveSystemHUD',
       label: 'Wave System HUD',
-      value: UIVisibilityConfig.waveSystemHUD ? '[ ON ]' : '[ OFF ]',
+      value: waveHudVisible ? '[ ON ]' : '[ OFF ]',
       description: 'Controls the wave system debug overlay in main.js.',
       action: () => toggleUIVisibilityFlag('waveSystemHUD'),
     },

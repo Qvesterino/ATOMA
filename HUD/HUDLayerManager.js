@@ -7,7 +7,7 @@
  * LAYER MODEL:
  * - PLAYER_CRITICAL: Always visible. Core game state.
  * - CONTEXTUAL_INSPECT: Visible on interaction, auto-fades when stale.
- * - DEBUG_AUTHORING: Visible only when developer mode is active.
+ * - DEBUG_AUTHORING: Internal/debug layer. Per-HUD policy decides whether dev mode is required.
  * 
  * RESPONSIBILITIES:
  * - Enforce layer visibility rules
@@ -29,7 +29,7 @@ import {
   requiresDevMode,
   getHudElement
 } from './HUDRegistry.js';
-import { UIVisibilityConfig } from '../ui/config/UIVisibilityConfig.js';
+import { UIVisibilityConfig, dispatchUIVisibilityChange } from '../ui/config/UIVisibilityConfig.js';
 
 const DEV_MODE_STORAGE_KEY = 'atoma.hud.developerMode';
 
@@ -82,6 +82,7 @@ export function toggleDeveloperMode() {
   _developerMode = !_developerMode;
   saveDeveloperMode();
   applyLayout();
+  dispatchUIVisibilityChange();
   notifySubscribers('developerMode', _developerMode);
   console.log(`✓ Developer mode: ${_developerMode ? 'ON' : 'OFF'}`);
 }
@@ -95,6 +96,7 @@ export function setDeveloperMode(enabled) {
   _developerMode = !!enabled;
   saveDeveloperMode();
   applyLayout();
+  dispatchUIVisibilityChange();
   notifySubscribers('developerMode', _developerMode);
 }
 
@@ -151,7 +153,7 @@ export function shouldHudBeVisible(hudKey) {
       return _contextualVisible.has(hudKey) || true; // Visible by default, can be auto-hidden
 
     case HUD_LAYER.DEBUG_AUTHORING:
-      return _developerMode;
+      return requiresDevMode(hudKey) ? _developerMode : true;
 
     default:
       return false;

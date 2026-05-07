@@ -1,6 +1,9 @@
 ﻿// UI ONLY – Debug scaffold for AI Automation HUD (read-only, no data wiring, no authority)
 import * as HudCollapseSystem from './HudCollapseSystem1_0.js';
-import { UIVisibilityConfig, UI_VISIBILITY_CHANGE_EVENT } from '../ui/config/UIVisibilityConfig.js';
+import {
+  UI_VISIBILITY_CHANGE_EVENT,
+  isHudEffectivelyVisible,
+} from '../ui/config/UIVisibilityConfig.js';
 import { applyAutomationHudWaveAnchor } from './HUDDragManager.js';
 /**
  * VARIANT A – FROZEN
@@ -406,7 +409,7 @@ function syncAutomationHudVisibility() {
   const hud = getAutomationHudRoot();
   const tooltip = document.querySelector('.ai-reco-tooltip');
 
-  if (!UIVisibilityConfig.aiHUD) {
+  if (!isHudEffectivelyVisible('aiHUD')) {
     hud?.remove();
     tooltip?.remove();
     return;
@@ -550,7 +553,7 @@ export function mountAIAutomationHUD(rootElement, { skipVisibilitySync = false }
   window.__ATOMA_AIAUTOMATION_HUD_ROOT__ = target;
   bindAutomationHudVisibilityListener();
 
-  if (!UIVisibilityConfig.aiHUD) {
+  if (!isHudEffectivelyVisible('aiHUD')) {
     document.querySelectorAll('#ai-automation-hud').forEach((node) => node.remove());
     document.querySelectorAll('.ai-reco-tooltip').forEach((node) => node.remove());
     return null;
@@ -609,7 +612,7 @@ function getAutomationHudRoot() {
 // READ-ONLY AI HUD BINDING
 // No authority. No execution. Debug / QA only.
 export function updateAIAutomationHUD(report) {
-  if (!UIVisibilityConfig.aiHUD) {
+  if (!isHudEffectivelyVisible('aiHUD')) {
     return;
   }
 

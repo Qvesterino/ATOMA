@@ -598,7 +598,11 @@ import { NetworkStressAggregator, setupNetworkStressAggregatorConsoleAPI } from 
 // REMOVED: ParticleEmissionScaler — moved to LEGACY/april (2026-04-22)
 import { mountAIAutomationHUD, updateAIAutomationHUD } from './hud/AIAutomationHUD.js';
 import { mountVariantBAdvisorHUD, updateVariantBAdvisorHUD } from './ui/hud/VariantBAdvisorHUD.js';
-import { UIVisibilityConfig, UI_VISIBILITY_CHANGE_EVENT } from './ui/config/UIVisibilityConfig.js';
+import {
+    UIVisibilityConfig,
+    UI_VISIBILITY_CHANGE_EVENT,
+    isHudEffectivelyVisible,
+} from './ui/config/UIVisibilityConfig.js';
 import { getSharedPostProcessingPipeline } from './PostProcessing.js';
 import { getSharedLuminosityBloomPipeline } from './LuminosityBloomPipeline.js';
 
@@ -14573,8 +14577,8 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
 
     _refreshAIHudReports() {
         // Visibility guard: skip entirely if both AI HUDs are hidden
-        const aiHudVisible = UIVisibilityConfig.aiHUD;
-        const advisorHudVisible = UIVisibilityConfig.advisorHUD;
+        const aiHudVisible = isHudEffectivelyVisible('aiHUD');
+        const advisorHudVisible = isHudEffectivelyVisible('advisorHUD');
         if (!aiHudVisible && !advisorHudVisible) return;
 
         // Throttle: ~5Hz (200ms interval) — AI HUD reports don't need 10Hz updates

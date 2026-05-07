@@ -8,7 +8,10 @@
  * Language and data binding come later.
  */
 
-import { UIVisibilityConfig, UI_VISIBILITY_CHANGE_EVENT } from '../config/UIVisibilityConfig.js';
+import {
+  UI_VISIBILITY_CHANGE_EVENT,
+  isHudEffectivelyVisible,
+} from '../config/UIVisibilityConfig.js';
 
 let advisorVisibilityListenerBound = false;
 
@@ -28,7 +31,7 @@ function syncAdvisorHudVisibility() {
 
   const existing = document.querySelector('[data-hud-variant="b-advisor"]');
 
-  if (!UIVisibilityConfig.advisorHUD) {
+  if (!isHudEffectivelyVisible('advisorHUD')) {
     existing?.remove();
     return;
   }
@@ -49,7 +52,7 @@ export function mountVariantBAdvisorHUD(rootElement, { skipVisibilitySync = fals
   window.__ATOMA_VARIANT_B_ADVISOR_ROOT__ = target;
   bindAdvisorHudVisibilityListener();
 
-  if (!UIVisibilityConfig.advisorHUD) {
+  if (!isHudEffectivelyVisible('advisorHUD')) {
     target.querySelectorAll('[data-hud-variant="b-advisor"]').forEach((node) => node.remove());
     return null;
   }
@@ -278,7 +281,7 @@ function buildFallbackAdvisorData() {
 }
 
 export function updateVariantBAdvisorHUD(data) {
-  if (!UIVisibilityConfig.advisorHUD) {
+  if (!isHudEffectivelyVisible('advisorHUD')) {
     return;
   }
 

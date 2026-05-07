@@ -10,6 +10,11 @@ import { VisualNetworkTimeElasticity_v1, SCORE_DIRECTION } from '../VisualNetwor
 import { AtomaLeaderboard } from '../AtomaLeaderboard.js';
 import { LinkCollapseSystem } from '../LinkCollapseSystem.js';
 import { getDefaultMetricThresholds } from '../src/metrics/MetricTierClassifier.js';
+import {
+  UIVisibilityConfig,
+  getUIVisibilitySettingsRows,
+  isHudEffectivelyVisible,
+} from '../ui/config/UIVisibilityConfig.js';
 import { NODE_VISUAL_REGISTRY } from '../NodeVisualRegistry.js';
 import { NetworkMetricsAggregator } from '../src/metrics/NetworkMetricsAggregator.js';
 import { onLinkCreated, onLinkRemoved } from '../src/metrics/NodeMetricEngine.js';
@@ -21,6 +26,33 @@ function test(name, fn) {
 
 function assertNear(actual, expected, epsilon = 1e-9) {
   assert(Math.abs(actual - expected) <= epsilon, `expected ${actual} to be within ${epsilon} of ${expected}`);
+}
+
+function withMockLocalStorage(values, fn) {
+  const originalLocalStorage = globalThis.localStorage;
+  const store = new Map(Object.entries(values ?? {}));
+  const mockLocalStorage = {
+    getItem(key) {
+      return store.has(key) ? store.get(key) : null;
+    },
+    setItem(key, value) {
+      store.set(key, String(value));
+    },
+    removeItem(key) {
+      store.delete(key);
+    }
+  };
+
+  globalThis.localStorage = mockLocalStorage;
+  try {
+    return fn(store);
+  } finally {
+    if (originalLocalStorage === undefined) {
+      delete globalThis.localStorage;
+    } else {
+      globalThis.localStorage = originalLocalStorage;
+    }
+  }
 }
 
 function deriveReachabilityTarget(metrics) {
@@ -400,6 +432,54 @@ test('AI Automation HUD reapplies the canonical wave anchor after remounts', () 
   assert(automationHudSource.includes('right: 12px;'));
   assert(automationHudSource.includes('top: 340px;'));
   assert(automationHudSource.includes('applyAutomationHudWaveAnchor();'));
+  assert(automationHudSource.includes("if (!isHudEffectivelyVisible('aiHUD')) {"));
+});
+
+test('Optional HUD defaults start off while Wave System remains developer-gated', () => {
+  assert.strictEqual(UIVisibilityConfig.aiHUD, false);
+  assert.strictEqual(UIVisibilityConfig.advisorHUD, false);
+  assert.strictEqual(UIVisibilityConfig.waveSystemHUD, true);
+});
+
+test('Optional HUD rows show direct menu truth and Wave System stays developer-gated', () => {
+  UIVisibilityConfig.aiHUD = true;
+  UIVisibilityConfig.advisorHUD = false;
+  UIVisibilityConfig.waveSystemHUD = true;
+
+  withMockLocalStorage({ 'atoma.hud.developerMode': 'false' }, () => {
+    const rows = getUIVisibilitySettingsRows();
+    const aiRow = rows.find((row) => row.id === 'aiHUD');
+    const advisorRow = rows.find((row) => row.id === 'advisorHUD');
+    const waveRow = rows.find((row) => row.id === 'waveSystemHUD');
+
+    assert.strictEqual(aiRow.value, '[ ON ]');
+    assert.strictEqual(advisorRow.value, '[ OFF ]');
+    assert.strictEqual(waveRow.value, '[ OFF ]');
+    assert(aiRow.description.includes('AI automation overlay'));
+    assert(advisorRow.description.includes('compact advisor overlay'));
+    assert.strictEqual(isHudEffectivelyVisible('aiHUD'), true);
+    assert.strictEqual(isHudEffectivelyVisible('advisorHUD'), false);
+    assert.strictEqual(isHudEffectivelyVisible('waveSystemHUD'), false);
+  });
+
+  withMockLocalStorage({ 'atoma.hud.developerMode': 'true' }, () => {
+    UIVisibilityConfig.advisorHUD = true;
+    assert.strictEqual(isHudEffectivelyVisible('aiHUD'), true);
+    assert.strictEqual(isHudEffectivelyVisible('advisorHUD'), true);
+    assert.strictEqual(isHudEffectivelyVisible('waveSystemHUD'), true);
+  });
+});
+
+test('Developer mode changes rebroadcast the shared UI visibility event', () => {
+  const layerManagerSource = fs.readFileSync(new URL('../HUD/HUDLayerManager.js', import.meta.url), 'utf8');
+  const advisorSource = fs.readFileSync(new URL('../ui/hud/VariantBAdvisorHUD.js', import.meta.url), 'utf8');
+  const registrySource = fs.readFileSync(new URL('../HUD/HUDRegistry.js', import.meta.url), 'utf8');
+
+  assert(layerManagerSource.includes('dispatchUIVisibilityChange();'));
+  assert(advisorSource.includes("if (!isHudEffectivelyVisible('advisorHUD')) {"));
+  assert(registrySource.includes('requiresDevMode: false'));
+  assert(registrySource.includes('requiresDevMode: true'));
+  assert(layerManagerSource.includes('return requiresDevMode(hudKey) ? _developerMode : true;'));
 });
 
 test('Unified release score config is mirrored in main and menu definitions', () => {

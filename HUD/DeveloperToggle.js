@@ -2,8 +2,8 @@
  * DEVELOPER TOGGLE 1.0
  * 
  * Global keyboard shortcut for toggling ATOMA developer mode.
- * When developer mode is OFF, all DEBUG_AUTHORING layer HUDs are hidden.
- * When ON, they become visible.
+ * When developer mode is OFF, only dev-gated debug HUDs are hidden.
+ * When ON, those developer-only panels become visible.
  * 
  * DEFAULT: F4 key
  * 

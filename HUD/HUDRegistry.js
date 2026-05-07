@@ -7,7 +7,7 @@
  * LAYER MODEL (P0.5 HUD Consolidation):
  * - PLAYER_CRITICAL: Always visible during gameplay. Core game state.
  * - CONTEXTUAL_INSPECT: Visible on player interaction. Secondary detail.
- * - DEBUG_AUTHORING: Visible only in developer mode. Internal tooling.
+ * - DEBUG_AUTHORING: Internal/debug layer. Individual HUDs may still opt out of dev gating.
  * 
  * SAFETY: Pure configuration object - zero gameplay impact
  */
@@ -26,7 +26,7 @@ export const HUD_LAYER = Object.freeze({
  * Layer visibility rules:
  * - PLAYER_CRITICAL: visible unless player explicitly hides
  * - CONTEXTUAL_INSPECT: visible on interaction, auto-hide when stale
- * - DEBUG_AUTHORING: visible only when developerMode is true
+ * - DEBUG_AUTHORING: visibility depends on per-HUD `requiresDevMode` policy
  */
 export const LAYER_DEFAULTS = Object.freeze({
   [HUD_LAYER.PLAYER_CRITICAL]: { visible: true, requiresDevMode: false },
@@ -83,9 +83,10 @@ export const HUD_REGISTRY = {
     id: 'ai-automation-hud',
     title: 'AI Automation',
     layer: HUD_LAYER.DEBUG_AUTHORING,
+    requiresDevMode: false,
     defaultCollapsed: false,
     defaultPosition: { right: 12, top: 340 },
-    description: 'Link automation recommendations and status — dev only',
+    description: 'Link automation recommendations and status — optional overlay',
     playerFacing: false
   },
 
@@ -94,9 +95,10 @@ export const HUD_REGISTRY = {
     selector: '[data-hud-variant="b-advisor"]',
     title: 'Advisor',
     layer: HUD_LAYER.DEBUG_AUTHORING,
+    requiresDevMode: false,
     defaultCollapsed: false,
     defaultPosition: { right: 10, top: 400 },
-    description: 'AI advisor analysis — dev only',
+    description: 'AI advisor analysis — optional overlay',
     playerFacing: false
   },
 
@@ -104,6 +106,7 @@ export const HUD_REGISTRY = {
     id: 'atoma-debug-hud',
     title: 'Debug Monitor',
     layer: HUD_LAYER.DEBUG_AUTHORING,
+    requiresDevMode: true,
     defaultCollapsed: true,
     defaultPosition: { right: 20, bottom: 20 },
     description: 'Internal engine debug monitoring — dev only',
@@ -161,6 +164,9 @@ export function getPlayerFacingHuds() {
 export function requiresDevMode(hudKey) {
   const config = HUD_REGISTRY[hudKey];
   if (!config) return false;
+  if (typeof config.requiresDevMode === 'boolean') {
+    return config.requiresDevMode;
+  }
   return config.layer === HUD_LAYER.DEBUG_AUTHORING;
 }
 

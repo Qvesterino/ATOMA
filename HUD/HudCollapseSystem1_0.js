@@ -102,7 +102,7 @@ export function initializeHudCollapseSystem() {
   console.log('%cLayer Architecture:', 'color: lime;');
   console.log('  PLAYER_CRITICAL — Always visible during gameplay');
   console.log('  CONTEXTUAL_INSPECT — Visible on interaction');
-  console.log('  DEBUG_AUTHORING — F4 developer toggle only');
+  console.log('  DEBUG_AUTHORING — Internal/debug layer; some panels require F4');
   
   console.log('%c\nLayout persistence:', 'color: lime;');
   console.log('  ✓ Storage key: atoma_hud_layout_v1');
@@ -112,7 +112,7 @@ export function initializeHudCollapseSystem() {
   
   console.log('%c\nControls:', 'color: lime;');
   console.log('  F3 — Toggle layout edit mode (drag to reposition)');
-  console.log('  F4 — Toggle developer mode (show/hide debug HUDs)');
+  console.log('  F4 — Toggle developer mode (show/hide dev-gated HUDs)');
   console.log('%c\nConsole Commands:', 'color: lime;');
   console.log('  window.toggleHud(\'automationHUD\')    — Toggle specific HUD');
   console.log('  window.resetAtomaHudLayout()         — Reset collapse state');
