@@ -4534,6 +4534,18 @@ class AtomaGame {
             }
         }, 'simulation.synapticSpecializationAdapter');
         this.frameScheduler.register('simulation', (dt) => {
+            if (this.competitionDominance && this.aiNodes) {
+                this.competitionDominance.update(
+                    this.aiNodes.nodes || [],
+                    Array.isArray(this.linkingSystem?.links) ? this.linkingSystem.links : [],
+                    dt,
+                    {
+                        time: this.time,
+                    }
+                );
+            }
+        }, 'simulation.competitionDominance');
+        this.frameScheduler.register('simulation', (dt) => {
             this.cascadeEventBridge?._decayUpdate?.(dt);
         }, 'simulation.cascadeEventBridge');
         this.frameScheduler.register('visual', (dt) => {

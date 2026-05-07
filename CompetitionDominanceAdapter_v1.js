@@ -53,6 +53,16 @@ export class CompetitionDominanceAdapter_v1 {
     this.regionCache = new Map();        // Cached region memberships
     this.lastRegionUpdate = 0;
     this.regionUpdateInterval = 30;      // Update regions every 30 frames
+    this._nodeLookup = new Map();
+    this.updateCount = 0;
+    this.lastUpdatedAt = 0;
+    this.lastRoleCounts = {
+      dominant: 0,
+      contested: 0,
+      submissive: 0,
+      neutral: 0,
+    };
+    this.lastStatusSample = [];
 
     // Per-region dominance state
     this.regionDominanceMap = new Map(); // regionKey -> { dominantNodeId, contestants, beatFreq, phaseOffset }
@@ -60,6 +70,7 @@ export class CompetitionDominanceAdapter_v1 {
     // Visual effect parameters
     this.maxPhaseWobble = config.maxPhaseWobble ?? 0.3;     // Max phase offset in contested zones
     this.maxBeatFrequency = config.maxBeatFrequency ?? 2.0; // Beat freq when nodes compete
+    this.contestationGapThreshold = config.contestationGapThreshold ?? 0.18;
 
     console.log('[CompetitionDominanceAdapter] Initialized', {
       enabled: this.enabled,
@@ -74,9 +85,12 @@ export class CompetitionDominanceAdapter_v1 {
    */
   update(nodes, links, deltaTime, worldState) {
     if (!this.enabled || !nodes || nodes.length === 0) return;
+    this.updateCount++;
+    this.lastUpdatedAt = Date.now();
+    this.rebuildNodeLookup(nodes);
 
     // Update regions periodically
-    if (this.lastRegionUpdate++ > this.regionUpdateInterval) {
+    if (this.regionCache.size === 0 || this.lastRegionUpdate++ > this.regionUpdateInterval) {
       this.updateRegionMemberships(nodes, links);
       this.lastRegionUpdate = 0;
     }
@@ -94,25 +108,22 @@ export class CompetitionDominanceAdapter_v1 {
   updateRegionMemberships(nodes, links) {
     this.regionCache.clear();
 
-    if (!links) {
-      // No links: treat each node as its own region
-      nodes.forEach((node, idx) => {
-        const regionKey = `solo-${idx}`;
-        this.regionCache.set(regionKey, [node.id || idx]);
-      });
+    if (!Array.isArray(links) || links.length === 0) {
       return;
     }
 
     // Build adjacency map
     const adjacency = new Map();
-    nodes.forEach(n => {
-      const id = n.id ?? nodes.indexOf(n);
+    nodes.forEach((n, idx) => {
+      const id = this.getNodeKey(n, idx);
+      if (id == null) return;
       adjacency.set(id, []);
     });
 
     links.forEach(link => {
-      const srcId = link.source?.id ?? (link.source ?? 0);
-      const dstId = link.target?.id ?? (link.target ?? 1);
+      const srcId = this.getLinkEndpointKey(link, 'source', 'sourceNode');
+      const dstId = this.getLinkEndpointKey(link, 'target', 'targetNode');
+      if (srcId == null || dstId == null) return;
       
       if (adjacency.has(srcId)) adjacency.get(srcId).push(dstId);
       if (adjacency.has(dstId)) adjacency.get(dstId).push(srcId);
@@ -121,10 +132,12 @@ export class CompetitionDominanceAdapter_v1 {
     // BFS to find neighborhoods (hop radius)
     const visited = new Set();
     nodes.forEach((node, idx) => {
-      const nodeId = node.id ?? idx;
+      const nodeId = this.getNodeKey(node, idx);
+      if (nodeId == null) return;
       if (visited.has(nodeId)) return;
 
       const neighborhood = this.getNeighborhood(nodeId, adjacency, this.regionHopRadius);
+      if (neighborhood.size <= 1) return;
       const regionKey = `region-${Array.from(neighborhood).sort().join('-')}`;
       
       this.regionCache.set(regionKey, Array.from(neighborhood));
@@ -164,19 +177,7 @@ export class CompetitionDominanceAdapter_v1 {
 
     this.regionCache.forEach((nodeIds, regionKey) => {
       if (nodeIds.length === 0) return;
-      if (nodeIds.length === 1) {
-        // Solo node: complete dominance
-        const nodeId = nodeIds[0];
-        this.regionDominanceMap.set(regionKey, {
-          dominantNodeId: nodeId,
-          dominanceLevel: 1.0,
-          contestants: [],
-          isContested: false,
-          beatFrequency: 0,
-          phaseOffset: 0,
-        });
-        return;
-      }
+      if (nodeIds.length === 1) return;
 
       // Multiple nodes: compute dominance scores
       const dominanceScores = [];
@@ -190,14 +191,19 @@ export class CompetitionDominanceAdapter_v1 {
 
       const dominant = dominanceScores[0];
       const contestants = dominanceScores.slice(1);
-      const isContested = contestants.length > 0 && contestants[0].score > 0.3;
+      const topContestant = contestants[0] || null;
+      const isContested = Boolean(
+        topContestant &&
+        dominant &&
+        (dominant.score - topContestant.score) <= this.contestationGapThreshold
+      );
 
       // Compute beat frequency if contested
       let beatFrequency = 0;
       let phaseOffset = 0;
       if (isContested) {
-        const scoreDiff = dominant.score - contestants[0].score;
-        beatFrequency = this.maxBeatFrequency * (1 - scoreDiff);
+        const scoreDiff = Math.max(0, dominant.score - topContestant.score);
+        beatFrequency = this.maxBeatFrequency * (1 - scoreDiff / Math.max(this.contestationGapThreshold, 0.001));
         phaseOffset = (Math.sin(beatFrequency) * this.maxPhaseWobble);
       }
 
@@ -217,17 +223,16 @@ export class CompetitionDominanceAdapter_v1 {
    * Higher = more dominant
    */
   computeDominanceScore(nodeId, nodes) {
-    const nodeIndex = this.findNodeIndex(nodeId, nodes);
-    if (nodeIndex === -1) return 0;
-
-    const node = nodes[nodeIndex];
-    const metrics = node.metrics || {};
+    const node = this._nodeLookup.get(nodeId);
+    if (!node) return 0;
+    const metrics = node.userData?.metrics || {};
 
     let score = 0.5;  // Base score
 
     // Specialization strength (abs(synapticBias))
-    if (node.synapticBias !== undefined) {
-      const biasMagnitude = Math.abs(node.synapticBias);
+    const synapticBias = node.userData?.synapticBias;
+    if (synapticBias !== undefined) {
+      const biasMagnitude = Math.abs(synapticBias);
       score += biasMagnitude * 0.3;  // Specialized nodes dominate more
     }
 
@@ -241,33 +246,60 @@ export class CompetitionDominanceAdapter_v1 {
     score += Math.max(0, synergy) * 0.15;
 
     // Hub resilience (stable nodes dominate)
-    const resilience = metrics.resilience ?? 0;
+    const resilience = metrics.resilience ?? metrics.stability ?? 0;
     score += resilience * 0.15;
 
     // Inverse fatigue (tired nodes yield)
-    const fatigue = metrics.fatigue ?? 0;
+    const fatigue = node.userData?.synapticFatigue ?? metrics.fatigue ?? 0;
     score *= (1 - fatigue * 0.25);  // Fatigue reduces dominance
+
+    // Load pressure slightly suppresses authority under strain
+    const loadPressure = metrics.loadPressure ?? 0;
+    score *= (1 - loadPressure * 0.15);
 
     // Clamp to [0, 1]
     return Math.max(0, Math.min(1, score));
   }
 
   /**
-   * Find node index in array by id or direct reference
+   * Rebuild fast node lookup for the current frame
    */
-  findNodeIndex(nodeId, nodes) {
+  rebuildNodeLookup(nodes) {
+    this._nodeLookup.clear();
     for (let i = 0; i < nodes.length; i++) {
-      if (nodes[i].id === nodeId || i === nodeId) return i;
+      const key = this.getNodeKey(nodes[i], i);
+      if (key == null) continue;
+      this._nodeLookup.set(key, nodes[i]);
     }
-    return -1;
+  }
+
+  getNodeKey(node, fallbackIndex = null) {
+    if (!node) return fallbackIndex;
+    return node.id ?? node.uuid ?? node.name ?? node.userData?.nodeId ?? fallbackIndex;
+  }
+
+  getLinkEndpointKey(link, primaryKey, secondaryKey) {
+    const endpoint = link?.[secondaryKey] ?? link?.[primaryKey] ?? null;
+    if (endpoint && typeof endpoint === 'object') {
+      return this.getNodeKey(endpoint, null);
+    }
+    return endpoint ?? null;
   }
 
   /**
    * Apply dominance visuals to each node
    */
   applyDominanceVisuals(nodes, worldState) {
+    const roleCounts = {
+      dominant: 0,
+      contested: 0,
+      submissive: 0,
+      neutral: 0,
+    };
+    const statusSample = [];
+
     nodes.forEach((node, idx) => {
-      const nodeId = node.id ?? idx;
+      const nodeId = this.getNodeKey(node, idx);
 
       // Find regions this node participates in
       const participatingRegions = [];
@@ -282,6 +314,10 @@ export class CompetitionDominanceAdapter_v1 {
       if (participatingRegions.length === 0) {
         // Node not in any competing region
         this.clearDominanceEffects(node);
+        roleCounts.neutral++;
+        if (statusSample.length < 5) {
+          statusSample.push(this.createStatusSample(node, 'neutral', 0));
+        }
         return;
       }
 
@@ -292,8 +328,18 @@ export class CompetitionDominanceAdapter_v1 {
       this.smoothDominanceTransition(node, aggregated);
 
       // Apply visual effects based on dominance role
-      this.applyVisualEffects(node, aggregated, worldState);
+      const resolvedState = this.applyVisualEffects(node, aggregated, worldState);
+      const resolvedRole = resolvedState?.role || 'neutral';
+      if (Object.prototype.hasOwnProperty.call(roleCounts, resolvedRole)) {
+        roleCounts[resolvedRole]++;
+      }
+      if (statusSample.length < 5) {
+        statusSample.push(this.createStatusSample(node, resolvedRole, resolvedState?.dominanceLevel ?? 0));
+      }
     });
+
+    this.lastRoleCounts = roleCounts;
+    this.lastStatusSample = statusSample;
   }
 
   /**
@@ -339,8 +385,9 @@ export class CompetitionDominanceAdapter_v1 {
    * Smoothly transition dominance state
    */
   smoothDominanceTransition(node, newState) {
-    if (!this.nodeDominanceMap.has(node.id ?? node)) {
-      this.nodeDominanceMap.set(node.id ?? node, {
+    const nodeKey = this.getNodeKey(node, node);
+    if (!this.nodeDominanceMap.has(nodeKey)) {
+      this.nodeDominanceMap.set(nodeKey, {
         dominanceLevel: 0,
         phaseOffset: 0,
         beatFrequency: 0,
@@ -349,7 +396,7 @@ export class CompetitionDominanceAdapter_v1 {
       });
     }
 
-    const state = this.nodeDominanceMap.get(node.id ?? node);
+    const state = this.nodeDominanceMap.get(nodeKey);
 
     // Smooth transition
     state.dominanceLevel = this.lerp(state.dominanceLevel, newState.dominanceLevel, 1 - this.dominanceSmoothness);
@@ -413,8 +460,10 @@ export class CompetitionDominanceAdapter_v1 {
 
     // Store state for shader/VFX consumption
     visuals.dominanceLevel = state.dominanceLevel;
+    visuals.modulation = this.createReadableModulation(state, visuals.role);
     visuals.lastUpdate = Date.now();
     node.userData.dominanceVisuals = visuals;
+    return visuals;
   }
 
   /**
@@ -429,10 +478,58 @@ export class CompetitionDominanceAdapter_v1 {
         phaseAuthority: 0,
         rippleStrength: 1.0,
         dominanceLevel: 0,
+        modulation: null,
         role: 'neutral',
       };
       node.userData.dominanceVisuals = node.userData.visualState.dominance;
     }
+  }
+
+  createReadableModulation(state, role) {
+    const readableStrength = Math.max(0, Math.min(1, this.dominanceStrength));
+    const dominanceLevel = Math.max(0, Math.min(1, state?.dominanceLevel ?? 0));
+    const contestedBlend = Math.max(0, Math.min(1, this.contestationStrength));
+
+    if (role === 'dominant') {
+      return {
+        haloAmplitudeMul: 1 + (0.10 + dominanceLevel * 0.08) * readableStrength,
+        haloFrequencyMul: 1 - (0.03 + dominanceLevel * 0.02) * readableStrength,
+        pulseCoherenceMul: 1 + (0.18 + dominanceLevel * 0.08) * readableStrength,
+        pulseStreakMul: 1 + (0.08 + dominanceLevel * 0.04) * readableStrength,
+        pulsePhaseOffset: 0,
+      };
+    }
+
+    if (role === 'contested') {
+      const wobble = Math.max(-0.25, Math.min(0.25, (state?.phaseOffset ?? 0) * 0.85 * contestedBlend));
+      return {
+        haloAmplitudeMul: 1 + 0.04 * contestedBlend,
+        haloFrequencyMul: 1 + (0.05 + Math.min(0.04, (state?.beatFrequency ?? 0) * 0.02)) * contestedBlend,
+        pulseCoherenceMul: 1 - 0.06 * contestedBlend,
+        pulseStreakMul: 1 + 0.04 * contestedBlend,
+        pulsePhaseOffset: wobble,
+      };
+    }
+
+    const submissionLevel = 1 - dominanceLevel;
+    return {
+      haloAmplitudeMul: 1 - (0.08 + submissionLevel * 0.10) * readableStrength,
+      haloFrequencyMul: 1 - 0.01 * readableStrength,
+      pulseCoherenceMul: 1 - (0.16 + submissionLevel * 0.08) * readableStrength,
+      pulseStreakMul: 1 - (0.08 + submissionLevel * 0.05) * readableStrength,
+      pulsePhaseOffset: 0,
+    };
+  }
+
+  createStatusSample(node, role, dominanceLevel) {
+    const nodeId = node?.userData?.nodeId || this.getNodeKey(node, null);
+    return {
+      nodeId,
+      synapticBias: Number(node?.userData?.synapticBias ?? 0),
+      synapticSpecialization: node?.userData?.synapticSpecialization ?? 'neutral',
+      dominanceLevel: Number(dominanceLevel ?? 0),
+      role,
+    };
   }
 
   /**
@@ -475,10 +572,14 @@ export class CompetitionDominanceAdapter_v1 {
       debugMode: this.debugMode,
       dominanceStrength: this.dominanceStrength,
       contestationStrength: this.contestationStrength,
+      updateCount: this.updateCount,
+      lastUpdatedAt: this.lastUpdatedAt,
       regionHopRadius: this.regionHopRadius,
       regionsIdentified: this.regionCache.size,
       activeCompetitions: this.regionDominanceMap.size,
       nodesTracked: this.nodeDominanceMap.size,
+      roleCounts: { ...this.lastRoleCounts },
+      sample: [...this.lastStatusSample],
     };
   }
 

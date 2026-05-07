@@ -47,6 +47,56 @@ const HARMONY_THRESHOLDS = {
   ANCHOR: 1.0
 };
 
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+export function applyDominancePulseModulation(
+  {
+    haloAmplitude = 0.15,
+    haloFrequency = 1.0,
+    pulsePhase = 0,
+    pulseCoherence = 0.3,
+    pulseStreak = 0.2,
+  },
+  dominanceState = null,
+) {
+  const modulation = dominanceState?.modulation;
+  if (!modulation) {
+    return {
+      haloAmplitude,
+      haloFrequency,
+      pulsePhase,
+      pulseCoherence,
+      pulseStreak,
+    };
+  }
+
+  return {
+    haloAmplitude: clamp(
+      haloAmplitude * (Number.isFinite(modulation.haloAmplitudeMul) ? modulation.haloAmplitudeMul : 1),
+      0.08,
+      0.5,
+    ),
+    haloFrequency: clamp(
+      haloFrequency * (Number.isFinite(modulation.haloFrequencyMul) ? modulation.haloFrequencyMul : 1),
+      0.6,
+      1.8,
+    ),
+    pulsePhase: pulsePhase + (Number.isFinite(modulation.pulsePhaseOffset) ? modulation.pulsePhaseOffset : 0),
+    pulseCoherence: clamp(
+      pulseCoherence * (Number.isFinite(modulation.pulseCoherenceMul) ? modulation.pulseCoherenceMul : 1),
+      0.18,
+      1.45,
+    ),
+    pulseStreak: clamp(
+      pulseStreak * (Number.isFinite(modulation.pulseStreakMul) ? modulation.pulseStreakMul : 1),
+      0.08,
+      1.1,
+    ),
+  };
+}
+
 
 // ============================================================================
 // SECTION 1: HarmonyStabilizationSystem_v1
@@ -220,6 +270,19 @@ export class HarmonyStabilizationSystem_v1 {
     const pulseSpeed = 1.0 + hubResilience * 0.5;
     pulsePhase = (currentTime * pulseSpeed + phaseOffset) % (Math.PI * 2);
     node.userData._pulsePhaseOffset = phaseOffset;
+
+    const modulated = applyDominancePulseModulation({
+      haloAmplitude,
+      haloFrequency,
+      pulsePhase,
+      pulseCoherence,
+      pulseStreak,
+    }, node.userData?.visualState?.dominance);
+    haloAmplitude = modulated.haloAmplitude;
+    haloFrequency = modulated.haloFrequency;
+    pulsePhase = modulated.pulsePhase;
+    pulseCoherence = modulated.pulseCoherence;
+    pulseStreak = modulated.pulseStreak;
 
     node.userData.haloAmplitude = haloAmplitude;
     node.userData.haloFrequency = haloFrequency;

@@ -10,6 +10,8 @@ import { VisualNetworkTimeElasticity_v1, SCORE_DIRECTION } from '../VisualNetwor
 import { AtomaLeaderboard } from '../AtomaLeaderboard.js';
 import { LinkCollapseSystem } from '../LinkCollapseSystem.js';
 import { getDefaultMetricThresholds } from '../src/metrics/MetricTierClassifier.js';
+import { CompetitionDominanceAdapter_v1 } from '../CompetitionDominanceAdapter_v1.js';
+import { applyDominancePulseModulation } from '../HarmonyStabilization.js';
 import {
   UIVisibilityConfig,
   getUIVisibilitySettingsRows,
@@ -137,6 +139,126 @@ test('Network Time rewinds after 5s of canonical global.synergy.high sustain', (
   score.update(1, 6);
   assert.strictEqual(score.getDirection(), SCORE_DIRECTION.REWIND);
   assert(score.getNetworkTime() > 0, 'Network Time should accumulate before rewind starts');
+});
+
+test('CompetitionDominanceAdapter reads canonical userData fields and writes readable dominance payload', () => {
+  const adapter = new CompetitionDominanceAdapter_v1({
+    dominanceStrength: 0.7,
+    contestationStrength: 0.5,
+    regionHopRadius: 2,
+  });
+
+  const dominantNode = {
+    id: 'node-dominant',
+    userData: {
+      nodeId: 'node-dominant',
+      synapticBias: 0.92,
+      synapticSpecialization: 'excitatory',
+      synapticFatigue: 0.02,
+      metrics: {
+        harmony: 0.9,
+        corruption: 0.05,
+        synergy: 0.88,
+        stability: 0.84,
+        loadPressure: 0.08,
+      },
+    },
+  };
+
+  const submissiveNode = {
+    id: 'node-submissive',
+    userData: {
+      nodeId: 'node-submissive',
+      synapticBias: -0.08,
+      synapticSpecialization: 'neutral',
+      synapticFatigue: 0.42,
+      metrics: {
+        harmony: 0.25,
+        corruption: 0.38,
+        synergy: 0.18,
+        stability: 0.22,
+        loadPressure: 0.54,
+      },
+    },
+  };
+
+  const nodes = [dominantNode, submissiveNode];
+  const links = [{ sourceNode: dominantNode, targetNode: submissiveNode }];
+
+  adapter.update(nodes, links, 1 / 10, { time: 1.5 });
+
+  const dominantVisuals = dominantNode.userData.visualState?.dominance;
+  const submissiveVisuals = submissiveNode.userData.visualState?.dominance;
+
+  assert(dominantVisuals, 'dominant node should receive dominance visuals');
+  assert(submissiveVisuals, 'submissive node should receive dominance visuals');
+  assert.strictEqual(dominantVisuals.role, 'dominant');
+  assert.strictEqual(submissiveVisuals.role, 'submissive');
+  assert(dominantVisuals.dominanceLevel > submissiveVisuals.dominanceLevel, 'dominant node should score higher');
+  assert(dominantVisuals.modulation.pulseCoherenceMul > 1, 'dominant payload should boost coherence');
+  assert(submissiveVisuals.modulation.pulseCoherenceMul < 1, 'submissive payload should reduce coherence');
+
+  const status = adapter.getStatus();
+  assert.strictEqual(status.updateCount, 1);
+  assert.strictEqual(status.nodesTracked, 2);
+  assert.strictEqual(status.regionsIdentified, 1);
+  assert.strictEqual(status.roleCounts.dominant, 1);
+  assert.strictEqual(status.roleCounts.submissive, 1);
+  assert(Array.isArray(status.sample) && status.sample.length > 0, 'status should expose node samples');
+});
+
+test('CompetitionDominanceAdapter keeps solo nodes neutral without live competition', () => {
+  const adapter = new CompetitionDominanceAdapter_v1();
+  const node = {
+    id: 'solo-node',
+    userData: {
+      nodeId: 'solo-node',
+      synapticBias: 0.75,
+      synapticSpecialization: 'excitatory',
+      metrics: {
+        harmony: 0.8,
+        corruption: 0.1,
+        synergy: 0.7,
+        stability: 0.8,
+        loadPressure: 0.1,
+      },
+    },
+  };
+
+  adapter.update([node], [], 1 / 10, { time: 0.5 });
+
+  assert.strictEqual(node.userData.visualState?.dominance?.role, 'neutral');
+  assert.strictEqual(adapter.getStatus().roleCounts.neutral, 1);
+});
+
+test('applyDominancePulseModulation bridges dominance payload into existing halo and pulse channels', () => {
+  const modulated = applyDominancePulseModulation({
+    haloAmplitude: 0.15,
+    haloFrequency: 1.0,
+    pulsePhase: 0.5,
+    pulseCoherence: 0.3,
+    pulseStreak: 0.2,
+  }, {
+    modulation: {
+      haloAmplitudeMul: 1.2,
+      haloFrequencyMul: 0.95,
+      pulseCoherenceMul: 1.3,
+      pulseStreakMul: 1.1,
+      pulsePhaseOffset: 0.12,
+    },
+  });
+
+  assertNear(modulated.haloAmplitude, 0.18);
+  assertNear(modulated.haloFrequency, 0.95);
+  assertNear(modulated.pulsePhase, 0.62);
+  assertNear(modulated.pulseCoherence, 0.39);
+  assertNear(modulated.pulseStreak, 0.22);
+});
+
+test('main.js wires competition dominance update on simulation tick', () => {
+  const source = fs.readFileSync(new URL('../main.js', import.meta.url), 'utf8');
+  assert(source.includes("simulation.competitionDominance"), 'expected simulation competition dominance scheduler registration');
+  assert(source.includes("this.competitionDominance.update("), 'expected competition dominance update call in scheduler');
 });
 
 test('Network Time stays forward below canonical global.synergy.high threshold', () => {
