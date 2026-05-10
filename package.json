@@ -4,8 +4,10 @@
   "type": "module",
   "private": true,
 "scripts": {
+  "check:imports-case": "node tools/check-import-case.mjs",
   "test": "vitest run",
   "dev": "vite",
+  "build:pages": "npm run check:imports-case && vite build",
   "build": "vite build",
   "preview": "vite preview"
 },
