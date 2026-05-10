@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.ref_name == github.event.repository.default_branch
+    if: github.ref_name == github.event.repository.default_branch || github.ref_name == 'zedli-kokot-cele-fixy-vyjebane'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
