@@ -1,4 +1,4 @@
-import { mountAIAutomationHUD } from './hud/AIAutomationHUD.js';
+import { mountAIAutomationHUD } from './HUD/AIAutomationHUD.js';
 import { startAtomaGame } from './main.js';
 import {
     isMenuDevMapUnlockEnabled,
