@@ -13,6 +13,55 @@
 
 import * as THREE from 'three';
 
+function ensureSpatialSphere(obj) {
+  if (!obj) return null;
+  obj.userData = obj.userData || {};
+
+  let sphere = obj.userData._spatialSphere;
+  if (!(sphere instanceof THREE.Sphere)) {
+    sphere = new THREE.Sphere();
+    obj.userData._spatialSphere = sphere;
+  }
+
+  obj.updateMatrixWorld?.(true);
+
+  const center = obj.getWorldPosition
+    ? obj.getWorldPosition(new THREE.Vector3())
+    : new THREE.Vector3(
+        Number(obj.position?.x) || 0,
+        Number(obj.position?.y) || 0,
+        Number(obj.position?.z) || 0
+      );
+
+  let radius = Number(obj.userData?.spatialRadius);
+  if (!Number.isFinite(radius) || radius <= 0) {
+    const geometry = obj.geometry;
+    if (geometry) {
+      if (!geometry.boundingSphere && typeof geometry.computeBoundingSphere === 'function') {
+        geometry.computeBoundingSphere();
+      }
+      const baseRadius = geometry.boundingSphere?.radius;
+      if (Number.isFinite(baseRadius) && baseRadius > 0) {
+        const scale = obj.getWorldScale ? obj.getWorldScale(new THREE.Vector3(1, 1, 1)) : obj.scale;
+        const maxScale = Math.max(
+          Math.abs(Number(scale?.x) || 1),
+          Math.abs(Number(scale?.y) || 1),
+          Math.abs(Number(scale?.z) || 1),
+          1
+        );
+        radius = baseRadius * maxScale;
+      }
+    }
+  }
+  if (!Number.isFinite(radius) || radius <= 0) {
+    radius = 1.5;
+  }
+
+  sphere.center.copy(center);
+  sphere.radius = radius;
+  return sphere;
+}
+
 /**
  * Simple Octree node for spatial partitioning
  */
@@ -97,16 +146,8 @@ class OctreeNode {
    * Insert an object into this node
    */
   insert(obj) {
-    const sphere = obj.userData._spatialSphere;
-    if (!sphere) {
-      // Create bounding sphere if not exists
-      obj.userData._spatialSphere = new THREE.Sphere();
-      obj.updateMatrixWorld();
-      obj.userData._spatialSphere.setFromCenterAndRadius(
-        obj.getWorldPosition(new THREE.Vector3()),
-        1.5 // Default radius for nodes
-      );
-    }
+    const sphere = ensureSpatialSphere(obj);
+    if (!sphere) return;
 
     this.objectCount++;
 

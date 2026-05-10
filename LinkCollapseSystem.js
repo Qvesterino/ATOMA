@@ -855,8 +855,8 @@ export class LinkCollapseSystem {
 
   _readNormalizedMetrics(link, metrics = null) {
     const corruption = this._clamp01(this._readMetric(
-      link?.userData?.metrics?.corruption,
       metrics?.corruption,
+      link?.userData?.metrics?.corruption,
       link?.corruptionLevel,
       link?.corruptionIntensity
     ));
@@ -871,8 +871,8 @@ export class LinkCollapseSystem {
     );
 
     const stability = this._clamp01(this._readMetric(
-      link?.userData?.metrics?.stability,
       metrics?.stability,
+      link?.userData?.metrics?.stability,
       link?.stability,
       link?.stabilityLevel,
       endpointStability,
@@ -883,8 +883,8 @@ export class LinkCollapseSystem {
     ));
 
     const loadPressure = this._clamp01(this._readMetric(
-      link?.userData?.metrics?.loadPressure,
       metrics?.loadPressure,
+      link?.userData?.metrics?.loadPressure,
       link?.loadPressure,
       this._readLoadMetric(link?.source),
       this._readLoadMetric(link?.target)

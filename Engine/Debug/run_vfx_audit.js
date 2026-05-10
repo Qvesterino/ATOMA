@@ -31,7 +31,7 @@ async function runVFXAudit() {
     try {
         // 1. Načítaj ATOMA
         console.log('📄 Loading ATOMA...');
-        await page.goto('http://127.0.0.1:5500/index.html', {
+        await page.goto('http://127.0.0.1:5173/', {
             waitUntil: 'networkidle',
             timeout: 30000
         });

@@ -1,9 +1,9 @@
 # ATOMA Boot & Test Manual
 
 ## Priorita testovania
-- Preferované URL pre všetky testy: `http://localhost:5500/`
-- Ak je potrebné spustiť aplikáciu cez Vite, používaj `npm run dev` a potom otvori `http://localhost:5173/`
-- Najprv sa pokús spustiť existujúci server na `5500`; Vite je iba alternatíva pre vývoj
+- Preferované URL pre všetky testy: `http://127.0.0.1:5173/`
+- Spúšťaj aplikáciu cez Vite (`npm run dev`) a testuj live runtime tam
+- `5500` ber len ako legacy/static fallback, nie ako primárnu testovaciu pravdu
 
 ## Boot pipeline
 1. Načítaj stránku a počkaj, kým sa zobrazí hlavné menu.
@@ -45,7 +45,7 @@
 ## FAIL FAST (KRITICKÉ)
 - ak blank page → skontroluj console (F12) a network tab
 - ak build error → neopakuj test, oprav error
-- ak port 5173 nefunguje → použi 5500
+- ak port 5173 nefunguje → oprav alebo znovu spusti Vite; `5500` použi len ak task výslovne potrebuje legacy static boot
 - ak link po create nezobrazí → skontroluj, či bol prvý node nastavený ako Primary Node
 
 ## EXPECTED RESULT
@@ -57,7 +57,7 @@
 
 ## DO NOT DO
 - nepoužívaj Playwright automaticky
-- nespúšťaj vlastné servery
+- nespúšťaj iný server ako Vite bez dôvodu
 - nerob retry loop bez zmeny
 
 ## MINI SYSTEM MAP

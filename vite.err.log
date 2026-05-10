@@ -1,21 +1,13 @@
-[2m20:11:37[22m [33m[1m[vite][22m[39m Failed to load source map for D:/ATOMA_CLEAN/three160.mjs.
-Error: An error occurred while trying to read the map file at three.mjs.map
-Error: ENOENT: no such file or directory, open 'D:\ATOMA_CLEAN\three.mjs.map'
-    at async open (node:internal/fs/promises:633:25)
-    at async Object.readFile (node:internal/fs/promises:1237:14)
-    at async extractSourcemapFromFile (file:///D:/ATOMA_CLEAN/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:21002:53)
-    at async loadAndTransform (file:///D:/ATOMA_CLEAN/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:51941:27)
-[2m20:11:37[22m [33m[1m[vite][22m[39m [33mwarning: 
+[2m10:28:48[22m [33m[1m[vite][22m[39m [33mwarning: 
 [36mD:/ATOMA_CLEAN/VisualTemplateResolver.js[33m
-[0m161|      return module;
-162|    } catch (err) {
-163|      console.error(`VisualTemplateResolver: Failed to load ${modulePath}`, err);
-   |                                                                     ^^^^^^^^^^
-164|      throw err;
-165|    }[0m[33m
+[0m129|      return module;
+130|    } catch (err) {
+131|      console.error(`VisualTemplateResolver: Failed to load ${modulePath}`, err);
+   |                                     ^^^^^^^^^^
+132|      throw err;
+133|    }[0m[33m
 The above dynamic import cannot be analyzed by Vite.
 See [34mhttps://github.com/rollup/plugins/tree/master/packages/dynamic-import-vars#limitations[33m for supported dynamic import formats. If this is intended to be left as-is, you can use the /* @vite-ignore */ comment inside the import() call to suppress this warning.
 [33m[39m
   Plugin: [35mvite:import-analysis[39m
   File: [36mD:/ATOMA_CLEAN/VisualTemplateResolver.js[39m
-^C

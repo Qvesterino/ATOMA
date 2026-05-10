@@ -158,6 +158,24 @@ Original prompt: tak jako composite glyphy mali lietať po orbite nodov ako Glyp
 - Added `LinkCreateStagePolicy.js` as the orchestration layer for staged link creation, with a 12-frame map plus prep phase and explicit out-of-band global systems.
 - `LinkRendererConduit` now records bootstrap stage metadata and uses the new policy for its bootstrap phase ceiling, but the global bridges in `main.js` remain separate for now.
 
+## 2026-05-07
+- Demo latent-systems containment pass landed for the synaptic/topology release subset.
+- Added central demo policy authority in `src/runtime/AtomaReleaseContainmentPolicy.js`.
+- `main.js` now exposes release truth helpers:
+  - `window.__ATOMA_RELEASE_CONTAINMENT_PROFILE__()`
+  - `window.__ATOMA_RELEASE_CONTAINMENT_STATUS__()`
+- Demo default now sets `ATOMA_DISABLE_SYNERGY_CHAIN_REACTION = true`.
+- `SynergyChainReaction_v1` is no longer initialized or scheduler-registered in the demo profile.
+- `SynapticGatingAdapter_v1` remains active but is explicitly treated as support-only.
+- Release truth doc:
+  - `docs/audits/DEMO_VFX_RELEASE_CONTAINMENT_2026-05-07.md`
+- Verification:
+  - `node --check src/runtime/AtomaReleaseContainmentPolicy.js`
+  - `node --check main.js`
+  - `node --check tests/GameplayLoopChecks.js`
+  - `node tests/GameplayLoopChecks.js`
+  - in-app browser reload smoke still reached the ATOMA main menu on `http://127.0.0.1:5500/index.html`
+
 ## 2026-03-28
 - Composite glyphs now receive an orbit anchor and orbit parameters from `GlyphFusionZone`.
 - `NeuralConvergenceSingularity` now updates its world position by orbiting around the anchor instead of sitting statically on the node center.

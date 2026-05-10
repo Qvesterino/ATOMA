@@ -2091,13 +2091,14 @@ export class NodeLinkingSystem {
         );
       }
 
-      if (this.aiNodes?.maybeSpawnNodeFromLinkCreation && currentTier >= 1) {
+      if (this.aiNodes?.maybeSpawnNodeFromLinkCreation) {
         this.aiNodes.maybeSpawnNodeFromLinkCreation({
           linkId: activeLink.id,
           sourceNodeId: this.getNodeId(currentSource),
           targetNodeId: this.getNodeId(currentTarget),
           createdAt: Date.now(),
-          totalLinks: Array.isArray(this.links) ? this.links.length : undefined
+          totalLinks: Array.isArray(this.links) ? this.links.length : undefined,
+          linkTier: currentTier
         });
       }
 

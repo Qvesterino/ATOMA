@@ -23724,6 +23724,14 @@ static createAnalyticsNode2(group, color) {
   }
 
   /**
+   * Legacy compatibility alias for control fallback paths.
+   * Keep runtime growth alive even when older callsites still request createControlNode().
+   */
+  static createControlNode(group, index, color) {
+    return this.createControlNodeStyled_v2(group, index, color);
+  }
+
+  /**
    * CONTROL v2 LEGACY: Cybernetic Dominion Core
    * (Restored for diagnostics; not part of registry by default)
    */

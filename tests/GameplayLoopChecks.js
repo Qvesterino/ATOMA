@@ -13,6 +13,10 @@ import { getDefaultMetricThresholds } from '../src/metrics/MetricTierClassifier.
 import { CompetitionDominanceAdapter_v1 } from '../CompetitionDominanceAdapter_v1.js';
 import { applyDominancePulseModulation } from '../HarmonyStabilization.js';
 import {
+  buildAtomaReleaseContainmentStatus,
+  ensureAtomaReleaseContainmentGlobals,
+} from '../src/runtime/AtomaReleaseContainmentPolicy.js';
+import {
   UIVisibilityConfig,
   getUIVisibilitySettingsRows,
   isHudEffectivelyVisible,
@@ -255,10 +259,75 @@ test('applyDominancePulseModulation bridges dominance payload into existing halo
   assertNear(modulated.pulseStreak, 0.22);
 });
 
+test('repo runtime truth points browser validation to Vite 5173 and keeps 5500 as non-canonical fallback', () => {
+  const toolsText = fs.readFileSync(new URL('../TOOLS.md', import.meta.url), 'utf8');
+  const memoryText = fs.readFileSync(new URL('../MEMORY.md', import.meta.url), 'utf8');
+  const bootText = fs.readFileSync(new URL('../BOOT.md', import.meta.url), 'utf8');
+  const vfxAuditText = fs.readFileSync(new URL('../Engine/Debug/run_vfx_audit.js', import.meta.url), 'utf8');
+
+  assert(toolsText.includes('http://127.0.0.1:5173/'));
+  assert(toolsText.includes('legacy static fallback') || toolsText.includes('legacy/static fallback'));
+  assert(memoryText.includes('http://127.0.0.1:5173/'));
+  assert(memoryText.includes('legacy/static fallback'));
+  assert(bootText.includes('http://127.0.0.1:5173/'));
+  assert(vfxAuditText.includes("http://127.0.0.1:5173/"));
+});
+
+test('main debug surface exposes live link snapshot, unlink, and canonical link-metrics helpers', () => {
+  const mainText = fs.readFileSync(new URL('../main.js', import.meta.url), 'utf8');
+  assert(mainText.includes('window.__DEBUG.getActiveLinkSnapshot'));
+  assert(mainText.includes('window.__DEBUG.removeLink'));
+  assert(mainText.includes('window.__DEBUG.pushLinkMetrics'));
+  assert(mainText.includes('window.__DEBUG.sustainLinkMetrics'));
+  assert(mainText.includes('window.__DEBUG.getCollapseSystem'));
+});
+
+test('main runs aiNodes.updateSpawning on simulation authority instead of the visual tick', () => {
+  const mainText = fs.readFileSync(new URL('../main.js', import.meta.url), 'utf8');
+  assert(mainText.includes("'simulation.aiNodeSpawning'"));
+  assert(mainText.includes("regGuard('aiNodeSpawning', 'simulation.aiNodeSpawning'"));
+});
+
 test('main.js wires competition dominance update on simulation tick', () => {
   const source = fs.readFileSync(new URL('../main.js', import.meta.url), 'utf8');
   assert(source.includes("simulation.competitionDominance"), 'expected simulation competition dominance scheduler registration');
   assert(source.includes("this.competitionDominance.update("), 'expected competition dominance update call in scheduler');
+});
+
+test('release containment policy defaults to demo-disabled synergy chain reaction', () => {
+  const target = {};
+  const profile = ensureAtomaReleaseContainmentGlobals(target);
+
+  assert.strictEqual(target.ATOMA_DEMO_RELEASE_PROFILE, true);
+  assert.strictEqual(target.ATOMA_DISABLE_SYNERGY_CHAIN_REACTION, true);
+  assert.strictEqual(profile.systems.synapticGating.policy, 'support-only');
+  assert.strictEqual(profile.systems.synergyChainReaction.policy, 'disabled');
+  assert.strictEqual(profile.systems.synergyChainReaction.disabledByPolicy, true);
+});
+
+test('release containment status merges runtime truth with central policy', () => {
+  const scope = {
+    ATOMA_DEMO_RELEASE_PROFILE: true,
+    ATOMA_DISABLE_SYNERGY_CHAIN_REACTION: true,
+  };
+  const status = buildAtomaReleaseContainmentStatus(scope, {
+    synapticGating: { initialized: true, scheduled: true, enabled: true },
+    competitionDominance: { initialized: true, scheduled: true, enabled: true },
+    synergyChainReaction: { initialized: false, scheduled: false, enabled: false },
+  });
+
+  assert.strictEqual(status.systems.synapticGating.classification, 'ACTIVE AS SUPPORT');
+  assert.strictEqual(status.systems.synapticGating.initialized, true);
+  assert.strictEqual(status.systems.competitionDominance.scheduled, true);
+  assert.strictEqual(status.systems.synergyChainReaction.disabledByPolicy, true);
+  assert.strictEqual(status.systems.synergyChainReaction.scheduled, false);
+});
+
+test('main.js applies demo containment gate to synergy chain reaction wiring', () => {
+  const source = fs.readFileSync(new URL('../main.js', import.meta.url), 'utf8');
+  assert(source.includes('ATOMA_DISABLE_SYNERGY_CHAIN_REACTION'), 'expected demo containment flag alias in main.js');
+  assert(source.includes('SynergyChainReaction_v1 disabled by demo release containment policy'), 'expected explicit chain reaction containment log');
+  assert(source.includes("window.__ATOMA_RELEASE_CONTAINMENT_STATUS__"), 'expected runtime release containment status helper');
 });
 
 test('Network Time stays forward below canonical global.synergy.high threshold', () => {
@@ -829,7 +898,7 @@ test('Leaderboard scoring rewards rewind uptime and penalizes collapses', () => 
   assert(collapseHeavy.score < highUptime.score);
 });
 
-test('LinkCollapseSystem uses canonical link metrics instead of stale visual fallback metrics', () => {
+test('LinkCollapseSystem uses incoming canonical event metrics instead of stale cached or visual fallback metrics', () => {
   const originalDateNow = Date.now;
   let now = 1000;
   Date.now = () => now;
@@ -876,7 +945,7 @@ test('LinkCollapseSystem uses canonical link metrics instead of stale visual fal
 
     assert.strictEqual(collapseRequests.length, 1);
     assert.strictEqual(collapseSystem.getCollapseStatistics().totalCollapses, 1);
-    assert.strictEqual(collapseRequests[0].context.corruption, 0.9);
+    assert.strictEqual(collapseRequests[0].context.corruption, 0);
   } finally {
     Date.now = originalDateNow;
   }

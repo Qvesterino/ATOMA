@@ -143,13 +143,13 @@ dispose() {
 
 Confirmed default runtime validation entrypoint:
 
-- use `http://127.0.0.1:5500/index.html` for browser runtime tests and validation
-- prefer the local static server boot path over Vite when reproducing live runtime behavior
-- treat `5500/index.html` as the default verification target unless a task explicitly says otherwise
+- use `http://127.0.0.1:5173/` for browser runtime tests and validation
+- prefer the Vite dev runtime as the canonical live gameplay path
+- treat `5500/index.html` only as a legacy/static fallback when a task explicitly requires it
 
 ## Open Follow-Up
 
-- Deterministic node growth spawn is prewired; live Edge verification still needs a clean fresh-session smoke test.
+- Deterministic node growth spawn is prewired; live validation should always verify both init spread and post-link runtime growth on the canonical Vite target.
 
 ---
 

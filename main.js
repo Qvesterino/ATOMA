@@ -449,6 +449,7 @@ if (typeof window !== 'undefined') {
     // ====================================================================
     // ATOMA FLAGS — CONSOLIDATED FLAG SYSTEM (Phase C)
     // ====================================================================
+    const releaseContainmentProfile = ensureAtomaReleaseContainmentGlobals(window);
     window.ATOMA_FLAGS = {
       debug: {
         logLevel: window.ATOMA_LOG_LEVEL ?? 'error',
@@ -488,18 +489,32 @@ if (typeof window !== 'undefined') {
                 disableMythicRituals: window.ATOMA_DISABLE_MYTHIC_RITUALS ?? false,
         disablePhase8NetworkRituals: window.ATOMA_DISABLE_PHASE8_NETWORK_RITUALS ?? false,
         disableNuclearLock: true
+      },
+
+      release: {
+        demoProfile: releaseContainmentProfile.demoProfile,
+        disableSynergyChainReaction: releaseContainmentProfile.systems.synergyChainReaction.disabledByPolicy === true
       }
     };
     
     // Debug Log Level (separate for backward compatibility)
     window.ATOMA_LOG_LEVEL = window.ATOMA_FLAGS.debug.logLevel;
     window.ATOMA_DISABLE_SYNERGY_SHADER_STACK = window.ATOMA_FLAGS?.visual?.disableSynergyShaderStacks ?? false;
+    window.ATOMA_DEMO_RELEASE_PROFILE = window.ATOMA_FLAGS?.release?.demoProfile ?? true;
+    window.ATOMA_DISABLE_SYNERGY_CHAIN_REACTION = window.ATOMA_FLAGS?.release?.disableSynergyChainReaction ?? true;
+    window.__ATOMA_RELEASE_CONTAINMENT_PROFILE__ = () => getAtomaReleaseContainmentProfile(window);
     
     debugLog(window.ATOMA_FLAGS.debug.enabled, '[ATOMA] Flags initialized:', window.ATOMA_FLAGS);
 }
 
 debugLog(window.ATOMA_DEBUG, '[BOOT] main.js loaded');
 import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js';
+import {
+    buildAtomaReleaseContainmentStatus,
+    createAtomaReleaseContainmentRuntimeState,
+    ensureAtomaReleaseContainmentGlobals,
+    getAtomaReleaseContainmentProfile,
+} from './src/runtime/AtomaReleaseContainmentPolicy.js';
 import VisualTime from './src/time/VisualTime.js';
 import { FrameUpdateLoopOrderValidator_v1 } from './FrameUpdateLoopOrderValidator_v1.js';
 import { NodeEditor } from './NodeEditor.js';
@@ -533,6 +548,17 @@ const sessionVariantEngine = new SessionVariantEngine(Date.now());
 setSessionVariantEngine(sessionVariantEngine);
 if (typeof window !== 'undefined') {
     window.sessionVariantEngine = sessionVariantEngine;
+}
+
+function markReleaseContainmentRuntime(game, systemKey, patch = {}) {
+    if (!game) return null;
+    if (!game._releaseContainmentRuntime) {
+        game._releaseContainmentRuntime = createAtomaReleaseContainmentRuntimeState();
+    }
+    const systemState = game._releaseContainmentRuntime[systemKey];
+    if (!systemState) return null;
+    Object.assign(systemState, patch);
+    return systemState;
 }
 // REMOVED: EvolvingLinkFX2_0 - moved to LEGACY (2026-04-03)
 // REMOVED: NodePersonality2_0 - moved to LEGACY (2026-04-03)
@@ -4390,6 +4416,7 @@ class AtomaGame {
                 this.proceduralGlyphGenerator.update(dt);
             }
         }, 'visual.proceduralGlyphGenerator');
+        markReleaseContainmentRuntime(this, 'proceduralHarmonicGlyphGenerator', { scheduled: true });
         this.frameScheduler.register('background', (dt) => {
             if (this.harmonicCycleController?.enabled) {
                 const harmonicNetworkState = {
@@ -4496,6 +4523,7 @@ class AtomaGame {
                 this.synapticGatingAdapter.updateNodeGates(this.aiNodes.nodes || [], this.time * 1000);
             }
         }, 'simulation.synapticGatingAdapter');
+        markReleaseContainmentRuntime(this, 'synapticGating', { scheduled: true });
         this.frameScheduler.register('simulation', (dt) => {
             if (this.synapticFatigueAdapter && this.aiNodes) {
                 const currentTimeMs = this.time * 1000;
@@ -4511,6 +4539,7 @@ class AtomaGame {
                 );
             }
         }, 'simulation.synapticFatigueAdapter');
+        markReleaseContainmentRuntime(this, 'synapticFatigue', { scheduled: true });
         this.frameScheduler.register('simulation', (dt) => {
             if (this.networkFatigueSystem && this.aiNodes) {
                 this.networkFatigueSystem.update(dt);
@@ -4533,6 +4562,7 @@ class AtomaGame {
                 );
             }
         }, 'simulation.synapticSpecializationAdapter');
+        markReleaseContainmentRuntime(this, 'synapticSpecialization', { scheduled: true });
         this.frameScheduler.register('simulation', (dt) => {
             if (this.competitionDominance && this.aiNodes) {
                 this.competitionDominance.update(
@@ -4545,6 +4575,7 @@ class AtomaGame {
                 );
             }
         }, 'simulation.competitionDominance');
+        markReleaseContainmentRuntime(this, 'competitionDominance', { scheduled: true });
         this.frameScheduler.register('simulation', (dt) => {
             this.cascadeEventBridge?._decayUpdate?.(dt);
         }, 'simulation.cascadeEventBridge');
@@ -4642,13 +4673,15 @@ class AtomaGame {
             const aiNodesUpdateStart = performance.now();
             this.aiNodes.update(dt, this.time);
             this.updateValidator?.markSystemUpdate('aiNodes.update', performance.now() - aiNodesUpdateStart);
-            this.aiNodes.updateSpawning?.(Date.now());
             this.nodeUiAcc = (this.nodeUiAcc || 0) + dt;
             if (this.nodeUiAcc >= 0.1) {
                 this.nodeUiAcc = 0;
                 this.updateNodeUI();
             }
         }, 'visual.aiNodes');
+        this.frameScheduler.register('simulation', () => {
+            this.aiNodes?.updateSpawning?.(Date.now());
+        }, 'simulation.aiNodeSpawning');
         this.frameScheduler.register('simulation', (dt) => {
             this.nodeEditor?.update?.(dt);
         }, 'simulation.nodeEditor');
@@ -4754,6 +4787,7 @@ class AtomaGame {
                 this.topologyViz.update(dt, networkState);
             }
         }, 'simulation.topologyViz');
+        markReleaseContainmentRuntime(this, 'topologyBiasVisualization', { scheduled: true });
         this.frameScheduler.register('visual', () => {
             // FIX 5: Removed hard gate on nodeDynamicMetrics — falls back to 0.0 if absent
             if (this.echoTrailsIntegration) {
@@ -5799,6 +5833,7 @@ this.setHudDirty('nodeInspect');
 
         // Week 22 Synergy Chain Reactions (emergent cascade events)
         this.synergyChainReaction = null;
+        this._releaseContainmentRuntime = createAtomaReleaseContainmentRuntimeState();
 
         // REMOVED: synergyCascadeFXBridge — moved to LEGACY/april (2026-04-22)
 
@@ -9365,17 +9400,7 @@ window.__ATOMA_SCENE__ = this.scene;
             this.categoryLegend.bind(this.aiNodes);
         }
         // Enable runtime spawning after init batch
-        this.aiNodes.spawnMode = 'RUNTIME';
-        if (this.aiNodes.spawningConfig) {
-            this.aiNodes.spawningConfig.disableRuntimeSpawn = false;
-            this.aiNodes.spawningConfig.needsRearm = false;
-        }
-        if (this.aiNodes.spawnGrowthState) {
-            this.aiNodes.spawnGrowthState.lastTimeSpawnAt = Date.now();
-            this.aiNodes.spawnGrowthState.linksSinceSpawn = 0;
-            this.aiNodes.spawnGrowthState.linkSpawnMilestone = 0;
-            this.aiNodes.spawnGrowthState.lastObservedActiveLinks = 0;
-        }
+        this.aiNodes.armRuntimeSpawningAfterInit?.(Date.now());
 
         // Wave shader stacks: register/patch/apply after nodes exist (pre-link usage)
         try {
@@ -10942,45 +10967,56 @@ window.__ATOMA_SCENE__ = this.scene;
         // Generates LinkEvents (for shader effects) and NodeEvents (for AI behavior)
         // Reads from: node/link userData (synergy, resonance, personality)
         // Outputs: chainReaction.getActiveReactions() for shader/AI integration
-        try {
-            this.synergyChainReaction = new SynergyChainReaction_v1({
-                enabled: true,               // ENABLED for cascade activation
-                emitEvents: true,            // emit cascade events
-                debugEnabled: false,
-                primaryThreshold: 0.6,      // Node synergy to trigger cascade (znížené pre debug)
-                synergyThreshold: 0.6,      // legacy naming (znížené pre debug)
-                resonanceSimilarityThreshold: 0.6,  // Resonance compatibility
-                personalityCompatibilityThreshold: 0.5,  // Personality filter
-                synergyMinimum: 0.3,        // Min synergy for propagation
-                minimumIntensity: 0.1,      // Stop cascade below this
-                maxHops: 5,                 // Max chain depth (maxDepth: 5)
-                maxReactionsPerFrame: null, // No frame limit
-                maxNodesPerFrame: 30,
-                maxLinksPerFrame: 50,
-                intensityDecayPerHop: 0.75  // propagationFactor: 0.75
-            });
-            console.log('[main.js] SynergyChainReaction_v1 initialized ✓');
-            window.enableSynergyChainReaction = (flag = false) => {
-                if (!this.synergyChainReaction) {
-                    console.warn('[SynergyChainReaction_v1] instance not ready');
-                    return false;
-                }
-                const enable = Boolean(flag);
-                this.synergyChainReaction.enabled = enable;
-                this.synergyChainReaction.emitEvents = enable;
-                if (enable) {
-                    console.log('[SynergyChainReaction_v1] ENABLED (<=30Hz, caps: 30 nodes / 50 links)');
-                }
-                return enable;
-            };
-        } catch (err) {
-            console.warn('[main.js] SynergyChainReaction_v1 failed:', err);
-        }
+        const releaseContainmentProfile = getAtomaReleaseContainmentProfile(window);
+        if (!releaseContainmentProfile.systems.synergyChainReaction.disabledByPolicy) {
+            try {
+                this.synergyChainReaction = new SynergyChainReaction_v1({
+                    enabled: true,               // ENABLED for cascade activation
+                    emitEvents: true,            // emit cascade events
+                    debugEnabled: false,
+                    primaryThreshold: 0.6,      // Node synergy to trigger cascade (znížené pre debug)
+                    synergyThreshold: 0.6,      // legacy naming (znížené pre debug)
+                    resonanceSimilarityThreshold: 0.6,  // Resonance compatibility
+                    personalityCompatibilityThreshold: 0.5,  // Personality filter
+                    synergyMinimum: 0.3,        // Min synergy for propagation
+                    minimumIntensity: 0.1,      // Stop cascade below this
+                    maxHops: 5,                 // Max chain depth (maxDepth: 5)
+                    maxReactionsPerFrame: null, // No frame limit
+                    maxNodesPerFrame: 30,
+                    maxLinksPerFrame: 50,
+                    intensityDecayPerHop: 0.75  // propagationFactor: 0.75
+                });
+                markReleaseContainmentRuntime(this, 'synergyChainReaction', { initialized: true, enabled: true });
+                console.log('[main.js] SynergyChainReaction_v1 initialized ✓');
+            } catch (err) {
+                console.warn('[main.js] SynergyChainReaction_v1 failed:', err);
+            }
 
-        // === REGISTER SYNERGY CHAIN REACTION UPDATE ===
-        this.frameScheduler.register('simulation', (dt) => {
-            this.synergyChainReaction?.update?.(dt, this.nodes || this.aiNodes?.nodes || []);
-        }, 'simulation.synergyChainReaction');
+            this.frameScheduler.register('simulation', (dt) => {
+                this.synergyChainReaction?.update?.(dt, this.nodes || this.aiNodes?.nodes || []);
+            }, 'simulation.synergyChainReaction');
+            markReleaseContainmentRuntime(this, 'synergyChainReaction', { scheduled: true });
+        } else {
+            console.log('[main.js] SynergyChainReaction_v1 disabled by demo release containment policy');
+        }
+        window.enableSynergyChainReaction = (flag = false) => {
+            if (window.ATOMA_DISABLE_SYNERGY_CHAIN_REACTION !== false) {
+                console.warn('[SynergyChainReaction_v1] Disabled by ATOMA_DISABLE_SYNERGY_CHAIN_REACTION demo policy');
+                return false;
+            }
+            if (!this.synergyChainReaction) {
+                console.warn('[SynergyChainReaction_v1] instance not ready');
+                return false;
+            }
+            const enable = Boolean(flag);
+            this.synergyChainReaction.enabled = enable;
+            this.synergyChainReaction.emitEvents = enable;
+            markReleaseContainmentRuntime(this, 'synergyChainReaction', { enabled: enable });
+            if (enable) {
+                console.log('[SynergyChainReaction_v1] ENABLED (<=30Hz, caps: 30 nodes / 50 links)');
+            }
+            return enable;
+        };
         this.frameScheduler.register('simulation', () => this.updateHoverGlyphTarget?.(), 'simulation.semanticHoverGlyph');
         this.frameScheduler.register('simulation', () => this.nodeHierarchyBridge?.update?.(), 'simulation.nodeHierarchyBridge');
         this.frameScheduler.register('visual', (dt) => this.phase5CascadeVisualizationBridge?.update?.(dt), 'visual.phase5CascadeVisualizationBridge');
@@ -11929,12 +11965,14 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
             const aiNodesUpdateStart = performance.now();
             this.aiNodes.update(dt, this.time);
             this.updateValidator?.markSystemUpdate('aiNodes.update', performance.now() - aiNodesUpdateStart);
-            this.aiNodes.updateSpawning?.(Date.now());
             this.nodeUiAcc = (this.nodeUiAcc || 0) + dt;
             if (this.nodeUiAcc >= 0.1) {
                 this.nodeUiAcc = 0;
                 this.updateNodeUI();
             }
+        });
+        regGuard('aiNodeSpawning', 'simulation.aiNodeSpawning', () => {
+            this.aiNodes?.updateSpawning?.(Date.now());
         });
         regGuard('undoRedoUi', 'simulation.undoRedoUi', (dt) => {
             this.undoUiAcc = (this.undoUiAcc || 0) + dt;
@@ -15219,6 +15257,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
     setupSynapticFatigue() {
         try {
             const adapter = setupSynapticFatigueIntegration(this);
+            markReleaseContainmentRuntime(this, 'synapticFatigue', { initialized: Boolean(adapter) });
             console.log('[main.js] SynapticFatigueAdapter initialized ✓');
         } catch (err) {
             console.warn('[main.js] SynapticFatigueAdapter init error:', err);
@@ -15253,6 +15292,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
     setupSynapticSpecialization() {
         try {
             const adapter = setupSynapticSpecializationIntegration(this);
+            markReleaseContainmentRuntime(this, 'synapticSpecialization', { initialized: Boolean(adapter) });
             console.log('[main.js] SynapticSpecializationAdapter initialized ✓');
         } catch (err) {
             console.warn('[main.js] SynapticSpecializationAdapter init error:', err);
@@ -16199,6 +16239,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                 }
             );
             this.topologyViz.frameScheduler = this.frameScheduler;
+            markReleaseContainmentRuntime(this, 'topologyBiasVisualization', { initialized: true });
             
             setupTopologyBiasVisualizationConsoleAPI(this);
             
@@ -16228,6 +16269,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                 this.harmonicTopology
             );
             this.proceduralGlyphGenerator.frameScheduler = this.frameScheduler;
+            markReleaseContainmentRuntime(this, 'proceduralHarmonicGlyphGenerator', { initialized: true });
             
             setupProceduralGlyphConsoleAPI(this);
             
@@ -16334,6 +16376,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                 contestationStrength: 0.5,
                 regionHopRadius: 2,
             });
+            markReleaseContainmentRuntime(this, 'competitionDominance', { initialized: true });
 
             setupCompetitionDominanceIntegration(this.competitionDominance, this);
             console.log('[main.js] CompetitionDominanceAdapter initialized ✓');
@@ -17275,21 +17318,172 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         try {
             const adapter = setupSynapticGatingIntegration(this);
             this.synapticGatingAdapter = adapter;
+            markReleaseContainmentRuntime(this, 'synapticGating', { initialized: Boolean(adapter) });
             console.log('✅ [main.js] Synaptic Gating Adapter initialized');
         } catch (err) {
             console.warn('⚠ Synaptic Gating setup error:', err);
         }
     }
 
+    getReleaseContainmentStatus() {
+        const runtime = this._releaseContainmentRuntime || createAtomaReleaseContainmentRuntimeState();
+        markReleaseContainmentRuntime(this, 'synergyChainReaction', {
+            enabled: this.synergyChainReaction?.enabled === true,
+        });
+        return buildAtomaReleaseContainmentStatus(window, runtime);
+    }
+
     setupDebugCommands() {
         // Store game reference for global access
         window.atoma = this;
+        window.__ATOMA_RELEASE_CONTAINMENT_PROFILE__ = () => getAtomaReleaseContainmentProfile(window);
+        window.__ATOMA_RELEASE_CONTAINMENT_STATUS__ = () => this.getReleaseContainmentStatus();
         window.__DEBUG = window.__DEBUG || {};
         window.__DEBUG.getLinkingSystem = () => this.linkingSystem ?? this.nodeLinkingSystem ?? this.nodeLinking ?? null;
+        window.__DEBUG.getCollapseSystem = () => this.linkCollapseSystem ?? null;
         window.__DEBUG.getLinkResonanceFlowSystem = () => this.linkResonanceFlowSystem ?? this.linkRendererConduit?.linkResonanceFlowSystem ?? null;
         window.__DEBUG.createLinkById = (idA, idB) => window.__DEBUG.getLinkingSystem()?.createLinkById?.(idA, idB) ?? null;
         window.__DEBUG.createLink = (nodeA, nodeB) => window.__DEBUG.getLinkingSystem()?.createLink?.(nodeA, nodeB) ?? null;
         window.__DEBUG.getNodeById = (id) => window.__DEBUG.getLinkingSystem()?._resolveNodeById?.(id) ?? null;
+        const resolveDebugLink = (linkIdOrIndex) => {
+            const linkingSystem = window.__DEBUG.getLinkingSystem();
+            const links = Array.isArray(linkingSystem?.links) ? linkingSystem.links : [];
+            if (typeof linkIdOrIndex === 'number' && Number.isInteger(linkIdOrIndex)) {
+                return links[linkIdOrIndex] ?? null;
+            }
+            if (typeof linkIdOrIndex === 'string' && linkIdOrIndex.trim()) {
+                return links.find((entry) => entry?.id === linkIdOrIndex || entry?.linkId === linkIdOrIndex) ?? null;
+            }
+            return links[0] ?? null;
+        };
+        const buildActiveLinkSnapshot = (limit = 20) => {
+            const linkingSystem = window.__DEBUG.getLinkingSystem();
+            const links = Array.isArray(linkingSystem?.links) ? linkingSystem.links : [];
+            const safeLimit = Math.max(1, Number(limit) || 20);
+            return {
+                activeLinkCount: links.length,
+                pendingCollapseRequests: Array.isArray(linkingSystem?.pendingCollapseRequests)
+                    ? linkingSystem.pendingCollapseRequests.length
+                    : 0,
+                links: links.slice(0, safeLimit).map((link, index) => ({
+                    index,
+                    id: link?.id ?? link?.linkId ?? null,
+                    sourceNodeId: link?.source?.userData?.nodeId ?? link?.source?.id ?? null,
+                    targetNodeId: link?.target?.userData?.nodeId ?? link?.target?.id ?? null,
+                    metrics: link?.userData?.metrics ? { ...link.userData.metrics } : {},
+                })),
+            };
+        };
+        window.__DEBUG.getActiveLinkSnapshot = (limit = 20) => buildActiveLinkSnapshot(limit);
+        window.__DEBUG.removeLink = (linkIdOrIndex = 0) => {
+            const linkingSystem = window.__DEBUG.getLinkingSystem();
+            const link = resolveDebugLink(linkIdOrIndex);
+            if (!linkingSystem?.removeLink || !link) return null;
+            const linkId = link?.id ?? link?.linkId ?? null;
+            const sourceNodeId = link?.source?.userData?.nodeId ?? link?.source?.id ?? null;
+            const targetNodeId = link?.target?.userData?.nodeId ?? link?.target?.id ?? null;
+            linkingSystem.removeLink(link);
+            return {
+                removed: true,
+                linkId,
+                sourceNodeId,
+                targetNodeId,
+                snapshot: buildActiveLinkSnapshot(20),
+            };
+        };
+        const buildCanonicalDebugLinkMetrics = (link, metrics = {}) => {
+            const baseMetrics = link?.userData?.metrics && typeof link.userData.metrics === 'object'
+                ? { ...link.userData.metrics }
+                : {};
+            const mergedMetrics = {
+                ...baseMetrics,
+                ...metrics,
+            };
+            if (typeof mergedMetrics.stability === 'number' && !Number.isFinite(mergedMetrics.instability)) {
+                mergedMetrics.instability = Math.max(0, Math.min(1, 1 - mergedMetrics.stability));
+            }
+            mergedMetrics.__debugForcedAt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+            return mergedMetrics;
+        };
+        const applyDebugLinkMetrics = (linkingSystem, collapseSystem, link, metrics = {}, options = {}) => {
+            const canonicalMetrics = buildCanonicalDebugLinkMetrics(link, metrics);
+            if (link?.userData) {
+                link.userData.metrics = canonicalMetrics;
+            }
+            linkingSystem.updateLinkMetrics(link, canonicalMetrics);
+            collapseSystem?.onLinkMetricsUpdated?.(link, canonicalMetrics, {
+                debugForced: true,
+                source: 'window.__DEBUG.pushLinkMetrics',
+            });
+            if (options.runCollapseArbiter !== false) {
+                linkingSystem.runCollapseArbiter?.();
+            }
+            return {
+                ok: true,
+                linkId: link?.id ?? link?.linkId ?? null,
+                effectiveMetrics: canonicalMetrics,
+                metrics: link?.userData?.metrics ? { ...link.userData.metrics } : {},
+                collapseStats: collapseSystem?.getCollapseStatistics?.() ?? null,
+                collapseState: collapseSystem?.getCollapseState?.(link) ?? null,
+                snapshot: buildActiveLinkSnapshot(20),
+            };
+        };
+        window.__DEBUG.pushLinkMetrics = (linkIdOrIndex, metrics = {}, options = {}) => {
+            const linkingSystem = window.__DEBUG.getLinkingSystem();
+            const collapseSystem = window.__DEBUG.getCollapseSystem();
+            const link = resolveDebugLink(linkIdOrIndex);
+            if (!linkingSystem?.updateLinkMetrics || !link) {
+                return { ok: false, reason: 'link-not-found' };
+            }
+            return applyDebugLinkMetrics(linkingSystem, collapseSystem, link, metrics, options);
+        };
+        window.__DEBUG.sustainLinkMetrics = async (linkIdOrIndex, metrics = {}, options = {}) => {
+            const linkingSystem = window.__DEBUG.getLinkingSystem();
+            const collapseSystem = window.__DEBUG.getCollapseSystem();
+            if (!linkingSystem?.updateLinkMetrics) {
+                return { ok: false, reason: 'linking-system-unavailable' };
+            }
+            const holdMs = Math.max(0, Number(options.holdMs) || 0);
+            const pulseIntervalMs = Math.max(50, Number(options.pulseIntervalMs) || 250);
+            const maxPulses = Math.max(1, Number(options.maxPulses) || Math.ceil(holdMs / pulseIntervalMs) || 1);
+            const pulseSnapshots = [];
+
+            for (let pulseIndex = 0; pulseIndex < maxPulses; pulseIndex += 1) {
+                const link = resolveDebugLink(linkIdOrIndex);
+                if (!link) {
+                    return {
+                        ok: false,
+                        reason: 'link-not-found',
+                        pulseIndex,
+                        pulseSnapshots,
+                        collapseStats: collapseSystem?.getCollapseStatistics?.() ?? null,
+                    };
+                }
+                const result = applyDebugLinkMetrics(linkingSystem, collapseSystem, link, metrics, options);
+                pulseSnapshots.push({
+                    pulseIndex,
+                    timestamp: Date.now(),
+                    collapseState: result.collapseState,
+                    collapseStats: result.collapseStats,
+                });
+                if (holdMs <= 0 || pulseIndex >= maxPulses - 1) {
+                    return {
+                        ...result,
+                        pulseCount: pulseIndex + 1,
+                        pulseSnapshots,
+                    };
+                }
+                await new Promise((resolve) => setTimeout(resolve, pulseIntervalMs));
+            }
+
+            return {
+                ok: true,
+                pulseCount: pulseSnapshots.length,
+                pulseSnapshots,
+                collapseStats: collapseSystem?.getCollapseStatistics?.() ?? null,
+                snapshot: buildActiveLinkSnapshot(20),
+            };
+        };
         window.__DEBUG.listNodeIds = (limit = 20) => {
             const nodes = Array.isArray(this.aiNodes?.nodes) ? this.aiNodes.nodes : [];
             return nodes
@@ -17635,6 +17829,10 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         console.log('  - __DEBUG.createLink(nodeA, nodeB) — direct runtime passthrough');
         console.log('  - __DEBUG.getNodeById(id) — resolve a node from the runtime lookup');
         console.log('  - __DEBUG.getLinkingSystem() — current link authority instance');
+        console.log('  - __DEBUG.getActiveLinkSnapshot(limit?) — inspect live active links and collapse queue');
+        console.log('  - __DEBUG.removeLink(linkIdOrIndex?) — remove one live link through linking authority');
+        console.log('  - __DEBUG.pushLinkMetrics(linkIdOrIndex, metrics, options?) — canonical metric push + collapse arbiter pass');
+        console.log('  - __DEBUG.sustainLinkMetrics(linkIdOrIndex, metrics, { holdMs, pulseIntervalMs }) — sustain collapse-driving metrics through the real link update path');
         console.log('  - toggleRecursiveChains()');
         console.log('  - debugRecursiveMessages()');
         console.log('  - clearRecursiveGlyphs()');

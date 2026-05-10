@@ -106,7 +106,14 @@ function registerInteractiveMesh(mesh, spatialIndex = null) {
   interactiveNodes.push(mesh);
   // Also insert into spatial index if provided
   if (spatialIndex) {
-    spatialIndex.insert(mesh);
+    try {
+      spatialIndex.insert(mesh);
+    } catch (error) {
+      console.warn('[AINodes] Spatial index registration failed; keeping interactive mesh alive via fallback list', {
+        error: error?.message || error,
+        nodeId: mesh?.userData?.nodeId ?? mesh?.parent?.userData?.nodeId ?? null
+      });
+    }
   }
 }
 
@@ -617,11 +624,12 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // NEW CATEGORIES (v1.0): Mythic, Prime, Error
     this.newNodeCategories = ['mythic', 'prime', 'error'];
 
-    // Per-category variant counters (deterministic, no cross-category coupling)
+    // Run-scoped spawn freshness authority lives in SessionVariantEngine.
     this._variantCounterByCategory = {};
     this.spawnStats = {
       attempts: 0,
       success: 0,
+      failures: 0,
       skippedCap: 0,
       lastSpawnAt: 0
     };
@@ -659,6 +667,9 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       lastObservedActiveLinks: 0,
       lastTimeSpawnAt: Date.now()
     };
+    this.initSpawnCap = null;
+    this._lastInitSpawnPlan = [];
+    this._lastInitSpawnSummary = null;
     this.pendingLinkJobs = [];
     this._linkJobStats = { pending: 0, processed: 0, created: 0 };
     this.pendingDensityIntent = null;
@@ -702,6 +713,9 @@ function purgeForbiddenNodePrimitives(visualRoot) {
           }
         };
       };
+      window.__ATOMA_INIT_SPAWN_SUMMARY__ = () => this.getInitSpawnSummary();
+      window.__ATOMA_SPAWN_STATUS__ = () => this.getSpawnStatus();
+      window.__ATOMA_SPAWN_DISTRIBUTION__ = () => this.getSpawnDistribution();
     }
 
     // Spawn phase gate: INIT during batch creation, RUNTIME after explicit enablement.
@@ -1029,6 +1043,143 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     return links.filter((link) => link && link.active !== false).length;
   }
 
+  _getModeDefaultPopulationTarget() {
+    const mode = (typeof window !== 'undefined' ? window.game?.currentMode : null) || this.currentMode || null;
+    return mode === 'chamber' ? 80 : 120;
+  }
+
+  _shuffleValuesForRun(key, values) {
+    const list = Array.isArray(values) ? values.filter((value) => value != null) : [];
+    if (list.length <= 1) return list.slice();
+    if (this.variantEngine?.shuffleValues) {
+      return this.variantEngine.shuffleValues(key, list);
+    }
+
+    const next = list.slice();
+    for (let i = next.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [next[i], next[j]] = [next[j], next[i]];
+    }
+    return next;
+  }
+
+  _getCategoryVisualPool(category) {
+    const normalized = String(category || '').toLowerCase().trim();
+    if (!normalized) return [];
+    EnhancedNodeModels.ensureRegistryReady?.();
+    const pool = EnhancedNodeModels.getCategoryPool(normalized);
+    return Array.isArray(pool) ? pool.filter((code) => Number.isFinite(Number(code))).map((code) => Number(code)) : [];
+  }
+
+  _getValidSpawnCategories() {
+    const categories = Array.isArray(this.SUPPORTED_CATEGORIES) ? this.SUPPORTED_CATEGORIES : [];
+    return categories.filter((category) => this._getCategoryVisualPool(category).length > 0);
+  }
+
+  _getCategoryRepresentationCounts(categories = null) {
+    const normalizedCategories = Array.isArray(categories) && categories.length
+      ? categories.map((category) => String(category || '').toLowerCase().trim())
+      : this._getValidSpawnCategories();
+    const counts = {};
+    for (const category of normalizedCategories) {
+      counts[category] = 0;
+    }
+
+    const nodes = Array.isArray(this.nodes) ? this.nodes : [];
+    for (const node of nodes) {
+      const category = String(node?.userData?.category || '').toLowerCase().trim();
+      if (!category) continue;
+      counts[category] = (counts[category] || 0) + 1;
+    }
+
+    return counts;
+  }
+
+  _sortCategoriesByRepresentation(categories, counts = {}, shuffleKey = 'spawn-categories') {
+    const normalized = Array.isArray(categories)
+      ? Array.from(new Set(categories.map((category) => String(category || '').toLowerCase().trim()).filter(Boolean)))
+      : [];
+    if (!normalized.length) return [];
+
+    const grouped = new Map();
+    for (const category of normalized) {
+      const count = Number.isFinite(Number(counts?.[category])) ? Number(counts[category]) : 0;
+      if (!grouped.has(count)) grouped.set(count, []);
+      grouped.get(count).push(category);
+    }
+
+    const ordered = [];
+    const sortedCounts = Array.from(grouped.keys()).sort((a, b) => a - b);
+    for (const count of sortedCounts) {
+      const tied = this._shuffleValuesForRun(`${shuffleKey}:${count}`, grouped.get(count));
+      ordered.push(...tied);
+    }
+
+    return ordered;
+  }
+
+  _buildBalancedCategoryPlan(totalCount, categories, initialCounts = null, shuffleKey = 'spawn-plan') {
+    const normalized = Array.isArray(categories)
+      ? Array.from(new Set(categories.map((category) => String(category || '').toLowerCase().trim()).filter(Boolean)))
+      : [];
+    const safeTotal = Math.max(0, Number(totalCount) || 0);
+    if (!normalized.length || safeTotal <= 0) return [];
+
+    const counts = {};
+    for (const category of normalized) {
+      const seeded = initialCounts?.[category];
+      counts[category] = Number.isFinite(Number(seeded)) ? Number(seeded) : 0;
+    }
+
+    const plan = [];
+    while (plan.length < safeTotal) {
+      const ordered = this._sortCategoriesByRepresentation(
+        normalized,
+        counts,
+        `${shuffleKey}:${plan.length}`
+      );
+      if (!ordered.length) break;
+      for (const category of ordered) {
+        if (plan.length >= safeTotal) break;
+        plan.push(category);
+        counts[category] += 1;
+      }
+    }
+
+    return plan.slice(0, safeTotal);
+  }
+
+  _getUnusedVisualCodesForCategory(category) {
+    const pool = this._getCategoryVisualPool(category);
+    if (!pool.length) return [];
+    const usedCodes = this._getUsedVisualCodeSet();
+    return pool.filter((code) => !usedCodes.has(code));
+  }
+
+  _selectVisualCodeForCategory(category, options = {}) {
+    const normalizedCategory = String(category || '').toLowerCase().trim();
+    const pool = Array.isArray(options.pool) && options.pool.length
+      ? options.pool.map((code) => Number(code)).filter((code) => Number.isFinite(code))
+      : this._getCategoryVisualPool(normalizedCategory);
+    if (!pool.length) return null;
+
+    const excludeSet = options.excludeSet instanceof Set ? options.excludeSet : null;
+    if (this.variantEngine?.getNext) {
+      return this.variantEngine.getNext(
+        normalizedCategory,
+        pool.join(','),
+        pool,
+        { excludeSet }
+      );
+    }
+
+    const candidates = excludeSet && pool.some((code) => !excludeSet.has(code))
+      ? pool.filter((code) => !excludeSet.has(code))
+      : pool;
+    const selectedIndex = Math.floor(Math.random() * candidates.length);
+    return candidates[selectedIndex] ?? null;
+  }
+
   _getUsedVisualCodeSet() {
     const usedCodes = new Set();
     const capture = (value) => {
@@ -1058,36 +1209,74 @@ function purgeForbiddenNodePrimitives(visualRoot) {
   }
 
   _getAvailableVisualEntries(categoryHint = null) {
+    const normalizedCategoryHint = categoryHint ? String(categoryHint).toLowerCase().trim() : null;
+    const categories = normalizedCategoryHint
+      ? [normalizedCategoryHint]
+      : this._getValidSpawnCategories();
     const usedCodes = this._getUsedVisualCodeSet();
-    const normalizedCategoryHint = categoryHint
-      ? String(categoryHint).toLowerCase().trim()
-      : null;
+    const entries = [];
 
-    return Object.entries(NODE_VISUAL_REGISTRY)
-      .map(([codeStr, def]) => ({
-        visualCode: Number(codeStr),
-        category: def?.category || null,
-        definition: def
-      }))
-      .filter((entry) => (
-        Number.isFinite(entry.visualCode) &&
-        !usedCodes.has(entry.visualCode) &&
-        entry.category &&
-        (!normalizedCategoryHint || entry.category === normalizedCategoryHint)
-      ));
+    for (const category of categories) {
+      const pool = this._getCategoryVisualPool(category);
+      for (const visualCode of pool) {
+        if (usedCodes.has(visualCode)) continue;
+        const definition =
+          NODE_VISUAL_REGISTRY?.[visualCode] ||
+          NODE_VISUAL_REGISTRY?.[String(visualCode)] ||
+          null;
+        entries.push({ visualCode, category, definition });
+      }
+    }
+
+    return entries;
   }
 
   _resolveGrowthSpawnCandidate(categoryHint = null) {
-    let availableEntries = this._getAvailableVisualEntries(categoryHint);
-    if (!availableEntries.length && categoryHint) {
-      availableEntries = this._getAvailableVisualEntries();
-    }
-    if (!availableEntries.length) {
-      return null;
+    const normalizedHint = categoryHint ? String(categoryHint).toLowerCase().trim() : null;
+    const validCategories = this._getValidSpawnCategories();
+    if (!validCategories.length) return null;
+
+    const representation = this._getCategoryRepresentationCounts(validCategories);
+    const orderedCategories = normalizedHint && validCategories.includes(normalizedHint)
+      ? [
+          normalizedHint,
+          ...this._sortCategoriesByRepresentation(
+            validCategories.filter((category) => category !== normalizedHint),
+            representation,
+            'growth-fallback'
+          )
+        ]
+      : this._sortCategoriesByRepresentation(validCategories, representation, 'growth');
+
+    for (const category of orderedCategories) {
+      const unused = this._getUnusedVisualCodesForCategory(category);
+      if (!unused.length) continue;
+      const visualCode = this._selectVisualCodeForCategory(category, {
+        pool: unused,
+        excludeSet: this._getUsedVisualCodeSet()
+      });
+      if (Number.isFinite(Number(visualCode))) {
+        return {
+          category,
+          visualCode: Number(visualCode),
+          requireUniqueVisualCode: true
+        };
+      }
     }
 
-    const selectedIndex = Math.floor(Math.random() * availableEntries.length);
-    return availableEntries[selectedIndex] || null;
+    for (const category of orderedCategories) {
+      const pool = this._getCategoryVisualPool(category);
+      const visualCode = this._selectVisualCodeForCategory(category, { pool });
+      if (Number.isFinite(Number(visualCode))) {
+        return {
+          category,
+          visualCode: Number(visualCode),
+          requireUniqueVisualCode: false
+        };
+      }
+    }
+
+    return null;
   }
 
   getNodeCount() {
@@ -1103,8 +1292,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     if (this.spawningConfig && Number.isFinite(this.spawningConfig.targetPopulation)) {
       return this.spawningConfig.targetPopulation;
     }
-    const mode = (typeof window !== 'undefined' ? window.game?.currentMode : null) || this.currentMode || null;
-    return mode === 'chamber' ? 80 : 120;
+    return this._getModeDefaultPopulationTarget();
   }
 
   _createEpicLinkMaterial(opacity = 0, color = 0x9ffcff, extra = {}) {
@@ -1404,50 +1592,24 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     const MAX_INIT_NODES = 15;
     const desiredCount = Math.min(count || MAX_INIT_NODES, MAX_INIT_NODES);
     const positions = this.getNodePositions(environment, desiredCount);
-    const rotationStore = (typeof window !== 'undefined') ? (window.__spawnRotation = window.__spawnRotation || {}) : null;
-    const forcedInitCategories = ['mythic', 'prime'];
-    const forcedInitCount = Math.min(forcedInitCategories.length, desiredCount);
-    const forcedCategorySet = new Set(forcedInitCategories);
-    const regularTargetCount = Math.max(0, desiredCount - forcedInitCount);
-    console.warn('[FORCE SPAWN]', 'mythic + prime');
-    
-    // INIT cycle: unique category per batch, based on CATEGORY_POOLS (non-empty only)
-    const baseDeck = Object.keys(CATEGORY_POOLS || {})
-      .map(k => (k || '').trim().toLowerCase())
-      .filter(k => k.length > 0 && Array.isArray(CATEGORY_POOLS[k]) && CATEGORY_POOLS[k].length > 0)
-      .filter(k => !forcedCategorySet.has(k));
-    const uniqueBaseDeck = Array.from(new Set(baseDeck));
-
-    const shuffleDeck = (arr) => {
-      const deck = arr.slice();
-      for (let i = deck.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [deck[i], deck[j]] = [deck[j], deck[i]];
-      }
-      return deck;
-    };
-
-    let deck = shuffleDeck(uniqueBaseDeck);
-    let deckIndex = 0;
-    const nextInitCategory = () => {
-      if (deck.length === 0) {
-        console.warn('[SpawnInit] CATEGORY_POOLS empty; cannot select category');
-        return null;
-      }
-      if (deckIndex >= deck.length) {
-        deck = shuffleDeck(uniqueBaseDeck);
-        deckIndex = 0;
-      }
-      return deck[deckIndex++];
-    };
-
-    this.hardSpawnCap = desiredCount; // enforce across runtime systems
+    const runSeed = ((Date.now() >>> 0) ^ Math.floor(Math.random() * 0xffffffff)) >>> 0;
+    this.setSpawnSeed(runSeed);
+    const validCategories = this._getValidSpawnCategories();
+    const initCategoryPlan = this._buildBalancedCategoryPlan(
+      desiredCount,
+      validCategories,
+      null,
+      `init:${environment}:${runSeed}`
+    );
+    this._lastInitSpawnPlan = initCategoryPlan.slice();
+    this.initSpawnCap = desiredCount;
+    this.hardSpawnCap = desiredCount;
     let spawned = 0;
     let attempts = 0;
     const maxAttempts = desiredCount * 3;
     const batchSpawnEntries = [];
 
-    while (spawned < regularTargetCount && attempts < maxAttempts) {
+    while (spawned < desiredCount && attempts < maxAttempts) {
       // Generate per-node position to avoid modulo overlap
       let pos;
       if (spawned < positions.length) {
@@ -1469,7 +1631,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         (Math.random() - 0.5) * j,
         (Math.random() - 0.5) * j
       ));
-      const category = nextInitCategory();
+      const category = initCategoryPlan[spawned] || initCategoryPlan[attempts] || null;
       attempts++;
       if (!category) break;
       const isSpecial = false; // special rule disabled during INIT to preserve unique categories
@@ -1578,89 +1740,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       }
     }
 
-    // DEBUG FORCE SPAWN (deterministic tail phase):
-    // Always reserve and fill the tail with mythic + prime when capacity allows.
-    console.warn('[FORCE SPAWN DEBUG]', {
-      desiredCount,
-      regularTargetCount,
-      forcedInitCount,
-      spawnedBeforeForced: spawned
-    });
-    for (const forcedCategory of forcedInitCategories) {
-      if (spawned >= desiredCount) break;
-      console.warn('[FORCE SPAWN EXEC]', forcedCategory);
-
-      let forcedSpawned = false;
-      for (let forceAttempt = 1; forceAttempt <= 2 && !forcedSpawned; forceAttempt++) {
-        const forcedPos = (spawned < positions.length)
-          ? positions[spawned].clone()
-          : new THREE.Vector3(
-              (Math.random() - 0.5) * 20,
-              2 + Math.random() * 6,
-              (Math.random() - 0.5) * 20
-            );
-        const forceOptions = {
-          isExtreme: false,
-          extremeArchetype: null,
-          extremeTier: 1,
-          archetypeKey: forcedCategory
-        };
-        const node = this.createNode(forcedCategory, forcedPos, spawned, false, forceOptions);
-        if (!node || node.userData?.visualFailed === true) {
-          console.warn('[FORCE SPAWN FAIL]', forcedCategory, { attempt: forceAttempt, reason: this._lastSpawnResult?.reason });
-          continue;
-        }
-
-        const finalized = this._finalizeSpawnedNode(node, forcedCategory, forcedPos);
-        if (!finalized || !finalized.node) {
-          console.warn('[FORCE SPAWN FAIL]', forcedCategory, { attempt: forceAttempt, reason: 'FINALIZE_NULL' });
-          continue;
-        }
-
-        const finalizedNode = finalized.node;
-        this._runPostSpawnObservers(finalizedNode, {
-          source: 'createNodes.force',
-          category: forcedCategory,
-          position: forcedPos,
-          archetype: forcedCategory
-        });
-
-        spawned++;
-        const ud = finalizedNode.userData || {};
-        const identity = findSpawnIdentity(finalizedNode);
-        const visualCodeSelected = identity.visualCode ?? ud.visualCode;
-        const spawnResultCode =
-          this._lastSpawnResult?.visualCode ??
-          visualCodeSelected ??
-          ud.visualCode ??
-          ud.spawnCycle?.visualCode ??
-          ud.enhancedNodeModelBinding?.visualCode;
-        const spawnRegistryEntry =
-          NODE_VISUAL_REGISTRY?.[Number(spawnResultCode)] ||
-          NODE_VISUAL_REGISTRY?.[String(spawnResultCode)] ||
-          null;
-        const spawnEntry = {
-          category: identity.category ?? forcedCategory,
-          visualCode: visualCodeSelected ?? spawnResultCode ?? '??',
-          factoryName: identity.factoryName ?? ud.factoryName ?? spawnRegistryEntry?.factoryName ?? 'unknown',
-          nodeId: ud.nodeId || ud.id || finalizedNode.uuid,
-          source: 'AINodes.createNodes'
-        };
-        batchSpawnEntries.push(spawnEntry);
-        NodeSpawnLogger.logSpawn(spawnEntry);
-        if (__diag) __diag.logged++;
-        console.warn('[FORCE SPAWN SUCCESS]', forcedCategory, {
-          visualCode: spawnEntry.visualCode,
-          factoryName: spawnEntry.factoryName,
-          nodeId: spawnEntry.nodeId
-        });
-        forcedSpawned = true;
-      }
-      if (!forcedSpawned) {
-        console.warn('[FORCE SPAWN GIVEUP]', forcedCategory);
-      }
-    }
-
     // Hard trim: if any legacy path over-produced nodes, keep only the first init batch.
     if (Array.isArray(this.nodes) && this.nodes.length > desiredCount) {
       const overflow = this.nodes.slice(desiredCount);
@@ -1695,6 +1774,19 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         window.__ATOMA_LAST_INIT_SPAWN_BATCH = batchSummary;
         window.__ATOMA_LAST_INIT_SPAWN_SUMMARY = categorySummary;
       }
+      const visualCodes = batchSummary.map((entry) => entry.code).filter((code) => Number.isFinite(Number(code))).map((code) => Number(code));
+      const uniqueVisualCodes = new Set(visualCodes);
+      this._lastInitSpawnSummary = {
+        runSeed,
+        environment,
+        desiredCount,
+        spawnedCount: batchSummary.length,
+        categoriesUsed: Object.keys(categorySummary),
+        categoryCounts: categorySummary,
+        visualCodes,
+        duplicateVisualCount: Math.max(0, visualCodes.length - uniqueVisualCodes.size),
+        batch: batchSummary
+      };
       console.warn(
         `[InitSpawnBatch] env=${environment} total=${batchSummary.length} categories=${Object.entries(categorySummary).map(([cat, count]) => `${cat}=${count}`).join(', ')}`
       );
@@ -1704,9 +1796,9 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     }
     NodeSpawnLogger.logBatchSummary(batchSpawnEntries, 'AINodes.createNodes');
     if (this.spawningConfig) {
-      this.spawningConfig.targetPopulation = desiredCount;
-      this.spawningConfig.maxNodesTarget = desiredCount;
-      this.spawningConfig.spawnThreshold = 0; // never auto-grow beyond target
+      this.spawningConfig.targetPopulation = this._getModeDefaultPopulationTarget();
+      this.spawningConfig.maxNodesTarget = Math.max(this.spawningConfig.maxNodesTarget ?? 0, desiredCount + 1);
+      this.spawningConfig.spawnThreshold = 0.7;
       this.spawningConfig.needsRearm = false;
       if (this.spawnGrowthState) {
         this.spawnGrowthState.linksSinceSpawn = 0;
@@ -1714,7 +1806,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         this.spawnGrowthState.lastObservedActiveLinks = 0;
         this.spawnGrowthState.lastTimeSpawnAt = Date.now();
       }
-      this.spawningConfig.disableRuntimeSpawn = true; // HARD OFF after init
+      this.spawningConfig.disableRuntimeSpawn = true;
     }
     // Hard stop any queued runtime spawns/visuals
     this.spawnRequestQueue = [];
@@ -1728,7 +1820,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // Create potential connections between nearby nodes
     this.createNodeConnections();
 
-    // Keep runtime spawning disabled after init
     if (this.spawningConfig) {
       this.spawningConfig.needsRearm = false;
     }
@@ -1941,10 +2032,9 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       return null;
     };
 
-    // ========== VISUAL CODE SELECTION: deterministic per-category counter ==========
+    // ========== VISUAL CODE SELECTION: run-scoped shuffled bag authority ==========
     let poolCategory = String(safeCategory || '').toLowerCase().trim();
-    const rotationStore = (typeof window !== 'undefined') ? (window.__spawnRotation = window.__spawnRotation || {}) : null;
-    let pool = EnhancedNodeModels.getCategoryPool(poolCategory);
+    let pool = this._getCategoryVisualPool(poolCategory);
     if (!Array.isArray(pool) || pool.length === 0) {
       this._lastSpawnResult = { ok: false, reason: 'POOL_EMPTY', category: poolCategory };
       const logKey = `POOL_EMPTY:${poolCategory}`;
@@ -1967,35 +2057,26 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       
       return null;
     }
+    const excludeSet = this._getUsedVisualCodeSet();
     const counterKey = String(poolCategory || canonicalCategory || 'input');
-    if (this._variantCounterByCategory[counterKey] === undefined) {
-      const stored = rotationStore ? rotationStore[counterKey] : undefined;
-      if (Number.isFinite(stored)) {
-        this._variantCounterByCategory[counterKey] = stored;
-      } else if (Number.isFinite(this.spawnState.seed)) {
-        this._variantCounterByCategory[counterKey] = this.spawnState.seed;
-      } else {
-        this._variantCounterByCategory[counterKey] = Math.floor(Math.random() * pool.length);
-      }
-    }
-    const counter = this._variantCounterByCategory[counterKey];
-
-    const idx = Number.isFinite(counter) ? (counter % pool.length) : 0;
+    const idx = 0;
 
     if (shouldLogSpawn()) {
       logSpawnDebugThrottled('spawnDebug:pool', 1000, () => {
         console.debug('[SPAWN_DEBUG]', {
           category,
-          counter,
           poolLen: pool.length,
           idx,
-          poolValue: pool[idx],
+          poolValue: pool[0],
           pool
         });
       });
     }
 
-    let selectedVisualCode = forcedVisualCode ?? pool[idx];
+    let selectedVisualCode = forcedVisualCode ?? this._selectVisualCodeForCategory(poolCategory, {
+      pool,
+      excludeSet
+    });
     
     // Runtime logging for category spawn debugging
     if (window.ATOMA_FLAGS?.debug?.spawnCategory === true) {
@@ -2004,28 +2085,12 @@ function purgeForbiddenNodePrimitives(visualRoot) {
           category: canonicalCategory,
           poolCategory: poolCategory,
           poolLen: pool.length,
-          counter,
           idx,
           selectedVisualCode,
           availableFactories: CATEGORY_POOLS[poolCategory] || [],
           timestamp: Date.now()
         });
       });
-    }
-    
-    // Error-category anti-stuck selection:
-    // use a shuffled per-category bag so repeated spawns don't keep picking one visual.
-    if (forcedVisualCode == null && counterKey === 'error' && pool.length > 1) {
-      let bag = this._categoryVariantBags.get(counterKey);
-      if (!Array.isArray(bag) || bag.length === 0) {
-        bag = [...pool];
-        for (let i = bag.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [bag[i], bag[j]] = [bag[j], bag[i]];
-        }
-      }
-      selectedVisualCode = bag.shift();
-      this._categoryVariantBags.set(counterKey, bag);
     }
     finalVisualCode = selectedVisualCode;
 
@@ -2198,9 +2263,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       console.warn('[NODE_REJECT] Empty visual root');
       return failClosedVisual(nodeModel, 'Empty visual root');
     }
-    // Advance per-category spawn rotation only after successful canonical visual build/validation.
-    this._variantCounterByCategory[counterKey] = counter + 1;
-    if (rotationStore) rotationStore[counterKey] = this._variantCounterByCategory[counterKey];
     nodeModel.position.copy(position);
     debugCheckGeometry(nodeModel, 'after_spawn');
     
@@ -4571,8 +4633,25 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       const req = this.spawnRequestQueue.shift();
       // Acquire token to allow spawnNode() to execute
       this._spawnUpdateToken = true;
-      this.#spawnNode(req.category, req.position ?? null, req.archetype, req.options || {});
-      this._spawnUpdateToken = false;
+      try {
+        this.#spawnNode(req.category, req.position ?? null, req.archetype, req.options || {});
+      } catch (error) {
+        this.spawnStats.failures = (this.spawnStats.failures || 0) + 1;
+        this._lastSpawnResult = {
+          ok: false,
+          stage: 'queue-execution',
+          reason: 'SPAWN_QUEUE_EXECUTION_ERROR',
+          category: req?.category ?? null,
+          error: error?.message || String(error)
+        };
+        console.error('[AINodes] Runtime spawn request failed and was dropped', {
+          reason: req?.reason ?? 'unspecified',
+          category: req?.category ?? null,
+          error: error?.message || error
+        });
+      } finally {
+        this._spawnUpdateToken = false;
+      }
       processed++;
     }
     spawnDiagnostics.report('processSpawnRequests.exit', { processed });
@@ -4746,6 +4825,8 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     const forcedUniqueKey = forceArchetype
       ? this._getUniqueArchetypeKey(category, forceArchetype)
       : null;
+    const registryKey = this._getRegistryKey(category, forceArchetype || archetypeKey);
+    const unifiedUniqueKey = forcedUniqueKey || this._getUniqueArchetypeKey(category, forceArchetype || archetypeKey);
     
     // ========== FIX 3: SIMPLE VISUAL REJECTION ==========
     // Reject nodes with simple/fallback visuals (primitive spheres only)
@@ -5050,7 +5131,11 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     });
     if (__diag) __diag.logged++;
 
-    nodeSpawnRegistry.registerSpawn(newNode, 'AINodes.spawnNode');
+    const spawnRegistry =
+      (typeof globalThis !== 'undefined' ? globalThis.nodeSpawnRegistry : null) ||
+      (typeof window !== 'undefined' ? window.nodeSpawnRegistry : null) ||
+      null;
+    spawnRegistry?.registerSpawn?.(newNode, 'AINodes.spawnNode');
     
     // ========== STEP 8: ACTIVATION LOGIC (SYNC) ==========
     // ATOMA NAMING ENGINE 1.0: Assign naming code
@@ -5174,12 +5259,79 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     const s = Number(seed);
     this.spawnState.seed = Number.isFinite(s) ? s : 0;
     this._variantCounterByCategory = {};
+    this._categoryVariantBags = new Map();
+    this.variantEngine?.resetRun?.(this.spawnState.seed || Date.now());
+  }
+
+  armRuntimeSpawningAfterInit(currentTime = Date.now()) {
+    const now = Number.isFinite(Number(currentTime)) ? Number(currentTime) : Date.now();
+    const runtimeTarget = this._getModeDefaultPopulationTarget();
+    this.initSpawnCap = this.getNodeCount();
+    this.hardSpawnCap = null;
+    this.setSpawnPhase('RUNTIME');
+
+    if (this.spawningConfig) {
+      this.spawningConfig.disableRuntimeSpawn = false;
+      this.spawningConfig.needsRearm = false;
+      this.spawningConfig.targetPopulation = runtimeTarget;
+      this.spawningConfig.maxNodesTarget = Math.max(this.spawningConfig.maxNodesTarget ?? 0, this.getNodeCount() + 1);
+    }
+
+    if (this.spawnGrowthState) {
+      this.spawnGrowthState.linksSinceSpawn = 0;
+      this.spawnGrowthState.linkSpawnMilestone = 0;
+      this.spawnGrowthState.lastObservedActiveLinks = 0;
+      this.spawnGrowthState.lastTimeSpawnAt = now;
+    }
   }
 
   getSpawnDeterminismState() {
+    const variantStatus = this.variantEngine?.getStatus?.() || null;
     return {
       seed: this.spawnState.seed || 0,
-      counters: { ...this._variantCounterByCategory }
+      counters: { ...this._variantCounterByCategory },
+      variantEngine: variantStatus
+    };
+  }
+
+  getInitSpawnSummary() {
+    return this._lastInitSpawnSummary
+      ? {
+          ...this._lastInitSpawnSummary,
+          batch: Array.isArray(this._lastInitSpawnSummary.batch) ? this._lastInitSpawnSummary.batch.slice() : []
+        }
+      : null;
+  }
+
+  getSpawnStatus() {
+    const runtimeCap = Number.isFinite(this.hardSpawnCap)
+      ? this.hardSpawnCap
+      : (this.spawningConfig?.targetPopulation ?? this._getModeDefaultPopulationTarget());
+    return {
+      phase: this.spawnState?.phase || 'UNKNOWN',
+      nodeCount: this.getNodeCount(),
+      initSpawnCap: this.initSpawnCap,
+      runtimeCap,
+      activeLinkMilestone: this.spawnGrowthState?.linkSpawnMilestone ?? 0,
+      lastObservedActiveLinks: this.spawnGrowthState?.lastObservedActiveLinks ?? 0,
+      lastTimeTriggerAt: this.spawnGrowthState?.lastTimeSpawnAt ?? null,
+      disableRuntimeSpawn: this.spawningConfig?.disableRuntimeSpawn === true,
+      targetPopulation: this.spawningConfig?.targetPopulation ?? null,
+      maxNodesTarget: this.spawningConfig?.maxNodesTarget ?? null,
+      runSeed: this.spawnState?.seed ?? 0,
+      queuedRequests: this.spawnRequestQueue?.length ?? 0
+    };
+  }
+
+  getSpawnDistribution() {
+    const categories = this._getValidSpawnCategories();
+    const categoryCounts = this._getCategoryRepresentationCounts(categories);
+    return {
+      runSeed: this.spawnState?.seed ?? 0,
+      categoryCounts,
+      remainingBagSizes: this.variantEngine?.getStatus?.().remainingBagSizes || {},
+      initPlan: Array.isArray(this._lastInitSpawnPlan) ? this._lastInitSpawnPlan.slice() : [],
+      initSummary: this.getInitSpawnSummary()
     };
   }
 
@@ -5312,7 +5464,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       category: spawnCategory,
       options: {
         forcedVisualCode: spawnCandidate.visualCode,
-        requireUniqueVisualCode: true,
+        requireUniqueVisualCode: spawnCandidate.requireUniqueVisualCode !== false,
         spawnPlacementOptions: {
           minDistanceToPlayer: 8,
           minDistanceBetweenNodes: 5.5,
