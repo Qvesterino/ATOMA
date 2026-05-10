@@ -11,6 +11,7 @@
 import * as Tone from 'tone';
 
 const WORLD_MACRO_STATE_DEFAULT = 'DORMANT';
+const HAS_TONE_STUB = Reflect.get(Tone, '__ATOMA_TONE_STUB__') === true;
 
 const WORLD_MACRO_AUDIO_PROFILES = {
     DORMANT: {
@@ -165,7 +166,7 @@ export class AtomaAudioSystem {
         this.storageKey = 'atoma.audio.enabled';
         this.enabled = this._readEnabledPreference();
         this.lastTriggerAt = new Map();
-        this.audioBackend = Tone.__ATOMA_TONE_STUB__ ? 'fallback' : 'real-tone';
+        this.audioBackend = HAS_TONE_STUB ? 'fallback' : 'real-tone';
         this.lastStartError = null;
         this._audioWarnings = new Set();
         this._worldContext = {

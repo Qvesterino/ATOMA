@@ -315,10 +315,22 @@ class ProbabilityCloudsRenderer {
     _initializeParticleSystem() {
         // Create shared buffer geometry
         this.particleGeometry = new THREE.BufferGeometry();
-        this.particleGeometry.setAttribute('position', new THREE.Float32Array(this.config.maxParticles * 3));
-        this.particleGeometry.setAttribute('color', new THREE.Float32Array(this.config.maxParticles * 3));
-        this.particleGeometry.setAttribute('alpha', new THREE.Float32Array(this.config.maxParticles));
-        this.particleGeometry.setAttribute('size', new THREE.Float32Array(this.config.maxParticles));
+        this.particleGeometry.setAttribute(
+            'position',
+            new THREE.BufferAttribute(new Float32Array(this.config.maxParticles * 3), 3)
+        );
+        this.particleGeometry.setAttribute(
+            'color',
+            new THREE.BufferAttribute(new Float32Array(this.config.maxParticles * 3), 3)
+        );
+        this.particleGeometry.setAttribute(
+            'alpha',
+            new THREE.BufferAttribute(new Float32Array(this.config.maxParticles), 1)
+        );
+        this.particleGeometry.setAttribute(
+            'size',
+            new THREE.BufferAttribute(new Float32Array(this.config.maxParticles), 1)
+        );
 
         // Initialize particle data arrays
         for (let i = 0; i < this.config.maxParticles; i++) {

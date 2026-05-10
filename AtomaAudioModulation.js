@@ -36,6 +36,7 @@
  */
 
 import * as Tone from 'tone';
+const HAS_TONE_STUB = Reflect.get(Tone, '__ATOMA_TONE_STUB__') === true;
 
 /**
  * SAFE_AUDIO_FLOOR: Minimum audible system presence
@@ -52,7 +53,7 @@ export class AtomaAudioModulation {
     constructor(audioSystem) {
         this.audioSystem = audioSystem;
         this.enabled = true;
-        this.backend = Tone.__ATOMA_TONE_STUB__ ? 'fallback' : 'real-tone';
+        this.backend = HAS_TONE_STUB ? 'fallback' : 'real-tone';
         
         // Current metric values (smoothed)
         this.smoothedSynergy = 0;

@@ -7,6 +7,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, __dirname, '');
   const useToneStub = env.ATOMA_USE_TONE_STUB === '1';
+  const pagesBase =
+    env.ATOMA_BASE_PATH ||
+    (env.GITHUB_ACTIONS === 'true' && env.GITHUB_REPOSITORY
+      ? `/${env.GITHUB_REPOSITORY.split('/')[1]}/`
+      : '/');
 
   const alias = [
     {
@@ -27,6 +32,7 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
+    base: pagesBase,
     resolve: {
       alias
     }

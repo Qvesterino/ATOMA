@@ -3,10 +3,12 @@
   "version": "1.0.0",
   "type": "module",
   "private": true,
-  "scripts": {
-    "test": "vitest run",
-    "dev": "vite"
-  },
+"scripts": {
+  "test": "vitest run",
+  "dev": "vite",
+  "build": "vite build",
+  "preview": "vite preview"
+},
   "devDependencies": {
     "three": "^0.183.2",
     "vitest": "^1.5.0"
