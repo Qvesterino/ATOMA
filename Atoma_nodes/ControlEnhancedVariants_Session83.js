@@ -431,9 +431,9 @@ export class ControlEnhancedVariants {
         });
       }
 
-      // Add central command core (brightest point)
+      // Add central command nexus (matrix-aligned, no ritual icosahedron silhouette)
       const centerNode = nodePositions[Math.floor(nodePositions.length / 2)];
-      const coreGeometry = new THREE.IcosahedronGeometry(0.15, 1);
+      const coreGeometry = new THREE.BoxGeometry(0.22, 0.12, 0.22);
       const coreMaterial = new THREE.MeshStandardMaterial({
         color: color,
         metalness: 0.95,
@@ -443,8 +443,26 @@ export class ControlEnhancedVariants {
       });
       const core = new THREE.Mesh(coreGeometry, coreMaterial);
       core.position.set(centerNode.x, centerNode.y, centerNode.z);
+      core.rotation.set(0.28, Math.PI / 4, -0.12);
+      core.scale.set(1.0, 0.72, 1.0);
       core.userData.isMatrixCore = true;
+      core.userData.visualCoreImmutable = true;
       group.add(core);
+
+      const coreOutline = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.BoxGeometry(0.26, 0.15, 0.26)),
+        new THREE.LineBasicMaterial({
+          color,
+          transparent: true,
+          opacity: 0.34
+        })
+      );
+      coreOutline.position.copy(core.position);
+      coreOutline.rotation.copy(core.rotation);
+      coreOutline.scale.copy(core.scale).multiplyScalar(1.03);
+      coreOutline.userData.isMatrixCore = true;
+      coreOutline.userData.visualCoreImmutable = true;
+      group.add(coreOutline);
 
       group.userData.visualCoreImmutable = true;
       group.userData.nodeGeometryName = 'CONTROL_COMMAND_MATRIX';

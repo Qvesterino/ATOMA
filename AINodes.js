@@ -478,8 +478,8 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     this._logger = createLogger('AINodes');
 
     // Spawn range helpers for fallback recovery
-    this.minSpawnDistance = 15;
-    this.maxSpawnDistance = 55;
+    this.minSpawnDistance = 10;
+    this.maxSpawnDistance = 40;
     
     // [INTERACTION AUTHORITY] Disable raycasting on visual-only meshes
     // This ensures visual meshes NEVER block node selection raycasts

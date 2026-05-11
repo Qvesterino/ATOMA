@@ -18514,42 +18514,183 @@ export class EnhancedNodeModels {
   }
 
   /**
-   * Integration Node 2: Square frame with crossing beams
+   * Integration Node 2: Interwoven Knot Matrix
    */
   static createIntegrationNode2(group, color) {
-    const frameGeometry = new THREE.BoxGeometry(1, 1, 0.1);
-    const material = new THREE.MeshStandardMaterial({
-      transparent: false,
-      opacity: 1,
-      depthWrite: true,
-      depthTest: true,
-      side: THREE.FrontSide,
-      color: color,
-      metalness: 0.6,
-      roughness: 0.4,
-      emissive: color,
-      emissiveIntensity: 0.2
+    try {
+      const nodeKey = group?.userData?.nodeId || String(color || 314);
+      const seed = Math.abs(hashString(nodeKey)) || 314;
+      const rng = _mythicSeededRng(seed);
+      const root = new THREE.Group();
+      root.name = 'INTEGRATION_INTERWOVEN_MATRIX';
+      root.userData.visualVariant = 'INTEGRATION_INTERWOVEN_MATRIX_V1';
+      root.userData.integrationVariant = 'KNOT_WEAVE';
+      root.userData.nodeGeometryName = 'INTEGRATION_INTERWOVEN_MATRIX';
+      root.userData.visualReady = true;
 
-    });
-    const frame = new THREE.Mesh(frameGeometry, material.clone());
-    frame.userData.visualLayer = 'CORE';
-    group.add(frame);
+      const knotMaterial = new THREE.MeshStandardMaterial({
+        color,
+        metalness: 0.74,
+        roughness: 0.24,
+        emissive: color,
+        emissiveIntensity: 0.28,
+        transparent: true,
+        opacity: 0.92
+      });
+      const innerMaterial = new THREE.MeshStandardMaterial({
+        color,
+        metalness: 0.88,
+        roughness: 0.12,
+        emissive: color,
+        emissiveIntensity: 0.42,
+        transparent: true,
+        opacity: 0.85
+      });
+      const lineMaterial = new THREE.LineBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.42
+      });
 
-    // Crossing beams
-    const beamGeometry = new THREE.BoxGeometry(1.2, 0.1, 0.1);
-    
-    // Horizontal beam
-    const hBeam = new THREE.Mesh(beamGeometry, material.clone());
-    hBeam.userData.visualLayer = 'INTERNAL';
-    group.add(hBeam);
+      const markMesh = (mesh, layer = 'CORE') => {
+        if (!mesh) return;
+        mesh.userData = mesh.userData || {};
+        mesh.userData.visualLayer = layer;
+        mesh.userData.visualCoreImmutable = true;
+        mesh.userData.isInteractive = true;
+      };
 
-    // Vertical beam
-    const vBeam = new THREE.Mesh(beamGeometry, material.clone());
-    vBeam.rotation.z = Math.PI / 2;
-    vBeam.userData.visualLayer = 'INTERNAL';
-    group.add(vBeam);
+      const primaryLoop = new THREE.Mesh(
+        new THREE.TorusKnotGeometry(0.42, 0.075, 180, 20, 2, 3),
+        knotMaterial.clone()
+      );
+      primaryLoop.name = 'PrimaryWeaveLoop';
+      primaryLoop.rotation.set(0.32, -0.48, 0.22);
+      primaryLoop.scale.set(1.06, 0.92, 1.0);
+      markMesh(primaryLoop, 'CORE');
+      root.add(primaryLoop);
 
-    return group;
+      const secondaryLoop = new THREE.Mesh(
+        new THREE.TorusKnotGeometry(0.34, 0.052, 160, 16, 3, 5),
+        knotMaterial.clone()
+      );
+      secondaryLoop.name = 'SecondaryWeaveLoop';
+      secondaryLoop.rotation.set(-0.68, 0.34, -0.54);
+      secondaryLoop.scale.set(0.94, 1.04, 0.88);
+      secondaryLoop.material.emissiveIntensity = 0.22;
+      markMesh(secondaryLoop, 'INTERNAL');
+      root.add(secondaryLoop);
+
+      const tertiaryRibbon = new THREE.Mesh(
+        new THREE.TorusKnotGeometry(0.28, 0.034, 144, 12, 2, 5),
+        innerMaterial
+      );
+      tertiaryRibbon.name = 'TertiarySignalRibbon';
+      tertiaryRibbon.rotation.set(0.94, 0.18, 0.42);
+      tertiaryRibbon.scale.set(0.96, 0.82, 1.08);
+      markMesh(tertiaryRibbon, 'INTERNAL');
+      root.add(tertiaryRibbon);
+
+      const claspCore = new THREE.Mesh(
+        new THREE.OctahedronGeometry(0.18, 1),
+        new THREE.MeshStandardMaterial({
+          color,
+          metalness: 0.92,
+          roughness: 0.08,
+          emissive: color,
+          emissiveIntensity: 0.56
+        })
+      );
+      claspCore.name = 'InterlockClaspCore';
+      claspCore.rotation.set(0.24, 0.58, -0.14);
+      claspCore.scale.set(1.0, 0.74, 0.88);
+      markMesh(claspCore, 'CORE');
+      root.add(claspCore);
+
+      const claspEdges = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.OctahedronGeometry(0.205, 0)),
+        new THREE.LineBasicMaterial({
+          color,
+          transparent: true,
+          opacity: 0.38
+        })
+      );
+      claspEdges.name = 'InterlockClaspEdges';
+      claspEdges.rotation.copy(claspCore.rotation);
+      claspEdges.scale.copy(claspCore.scale).multiplyScalar(1.02);
+      claspEdges.userData = { visualLayer: 'OVERLAY', visualCoreImmutable: true };
+      root.add(claspEdges);
+
+      const orbitCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0.62, -0.08, 0.0),
+        new THREE.Vector3(0.2, 0.34, 0.42),
+        new THREE.Vector3(-0.46, 0.16, 0.18),
+        new THREE.Vector3(-0.54, -0.18, -0.26),
+        new THREE.Vector3(0.1, -0.34, -0.48),
+        new THREE.Vector3(0.62, -0.08, 0.0)
+      ], true, 'catmullrom', 0.5);
+      const orbit = new THREE.Mesh(
+        new THREE.TubeGeometry(orbitCurve, 56, 0.018, 6, true),
+        new THREE.MeshBasicMaterial({
+          color,
+          transparent: true,
+          opacity: 0.3
+        })
+      );
+      orbit.name = 'TopologyOrbitAccent';
+      orbit.rotation.set(0.1 + rng() * 0.12, -0.18 + rng() * 0.08, 0.04);
+      orbit.userData = { visualLayer: 'AURA', visualCoreImmutable: true, isIntegrationOrbit: true };
+      root.add(orbit);
+
+      const cageGeo = new THREE.BoxGeometry(1.2, 1.0, 1.1);
+      const cagePositions = cageGeo.attributes.position;
+      for (let i = 0; i < cagePositions.count; i++) {
+        cagePositions.setXYZ(
+          i,
+          cagePositions.getX(i) + (rng() - 0.5) * 0.07,
+          cagePositions.getY(i) + (rng() - 0.5) * 0.07,
+          cagePositions.getZ(i) + (rng() - 0.5) * 0.07
+        );
+      }
+      cageGeo.computeVertexNormals();
+      const cage = new THREE.LineSegments(new THREE.EdgesGeometry(cageGeo), lineMaterial);
+      cage.name = 'TopologyCageAccent';
+      cage.rotation.set(0.2, -0.26, 0.14);
+      cage.scale.set(0.98, 0.9, 0.92);
+      cage.userData = { visualLayer: 'AURA', visualCoreImmutable: true };
+      root.add(cage);
+
+      root.traverse((obj) => {
+        if (obj?.isMesh || obj?.isLineSegments) {
+          obj.userData = obj.userData || {};
+          obj.userData.ignoreWaveColor = true;
+          if (obj.isMesh) {
+            obj.raycast = obj.raycast || THREE.Mesh.prototype.raycast;
+          }
+          const materialRefs = Array.isArray(obj.material) ? obj.material : (obj.material ? [obj.material] : []);
+          for (const material of materialRefs) {
+            material.userData = {
+              ...(material.userData || {}),
+              wavePatchMode: 'DEFAULT',
+              ignoreWaveColor: true
+            };
+          }
+        }
+      });
+
+      group.userData = group.userData || {};
+      group.userData.nodeGeometryName = 'INTEGRATION_INTERWOVEN_MATRIX';
+      group.userData.visualReady = true;
+      group.add(root);
+      return group;
+    } catch (err) {
+      console.error('[NodeVisualAbort]', {
+        model: 'createIntegrationNode2',
+        category: 'integration',
+        reason: err?.message || err
+      });
+      return null;
+    }
   }
 
   /**
@@ -32871,6 +33012,75 @@ static createAnalyticsNode2(group, color) {
       mist.frustumCulled = false;
       auraGroup.add(mist);
       emotionalRoot.add(auraGroup);
+
+      const crownGroup = new THREE.Group();
+      crownGroup.name = 'ASCENSION_CROWN_GROUP';
+      const crownPetalGeo = new THREE.ConeGeometry(0.085, 0.42, 6, 1, true);
+      const crownPetalMat = new THREE.MeshStandardMaterial({
+        color,
+        metalness: 0.42,
+        roughness: 0.28,
+        emissive: color,
+        emissiveIntensity: 0.36,
+        transparent: true,
+        opacity: 0.72,
+        side: THREE.DoubleSide
+      });
+      const petalCount = 5;
+      for (let i = 0; i < petalCount; i++) {
+        const petal = new THREE.Mesh(crownPetalGeo, crownPetalMat.clone());
+        const angle = (i / petalCount) * Math.PI * 2 + 0.28;
+        const radius = 0.22 + (i === 2 ? 0.08 : 0);
+        petal.name = `AscensionPetal_${i + 1}`;
+        petal.position.set(
+          Math.cos(angle) * radius,
+          0.38 + (i === 2 ? 0.14 : 0.05 * rng()),
+          Math.sin(angle) * radius * 0.78
+        );
+        petal.rotation.set(
+          -0.28 - rng() * 0.16,
+          angle,
+          0.22 + (rng() - 0.5) * 0.24
+        );
+        petal.scale.set(0.72 + rng() * 0.18, 1.0 + rng() * 0.24, 0.72 + rng() * 0.12);
+        petal.userData = { visualCoreImmutable: true, visualLayer: 'AURA', isEmotionalCrownPetal: true };
+        crownGroup.add(petal);
+
+        const petalEdges = new THREE.LineSegments(
+          new THREE.EdgesGeometry(crownPetalGeo),
+          new THREE.LineBasicMaterial({
+            color,
+            transparent: true,
+            opacity: 0.24
+          })
+        );
+        petalEdges.name = `AscensionPetalEdges_${i + 1}`;
+        petalEdges.position.copy(petal.position);
+        petalEdges.rotation.copy(petal.rotation);
+        petalEdges.scale.copy(petal.scale).multiplyScalar(1.01);
+        petalEdges.userData = { visualCoreImmutable: true, visualLayer: 'OVERLAY' };
+        crownGroup.add(petalEdges);
+      }
+
+      const ritualFilamentCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-0.1, 0.12, -0.18),
+        new THREE.Vector3(0.12, 0.34, -0.28),
+        new THREE.Vector3(0.34, 0.56, -0.08),
+        new THREE.Vector3(0.24, 0.78, 0.18),
+        new THREE.Vector3(-0.08, 0.88, 0.24)
+      ]);
+      const ritualFilament = new THREE.Mesh(
+        new THREE.TubeGeometry(ritualFilamentCurve, 40, 0.018, 5, false),
+        new THREE.MeshBasicMaterial({
+          color,
+          transparent: true,
+          opacity: 0.36
+        })
+      );
+      ritualFilament.name = 'RitualFilamentAccent';
+      ritualFilament.userData = { visualCoreImmutable: true, visualLayer: 'AURA', ignoreWaveColor: true };
+      crownGroup.add(ritualFilament);
+      emotionalRoot.add(crownGroup);
 
       // TENDRILS
       const tendrilGroup = new THREE.Group();

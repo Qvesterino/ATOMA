@@ -251,6 +251,12 @@ test('link-created growth notification no longer hides behind currentTier gating
   assert(source.includes('linkTier: currentTier'));
 });
 
+test('AINodes default spawn ring is tightened to 10-40 meters', () => {
+  const source = fs.readFileSync(new URL('../AINodes.js', import.meta.url), 'utf8');
+  assert(source.includes('this.minSpawnDistance = 10;'));
+  assert(source.includes('this.maxSpawnDistance = 40;'));
+});
+
 for (const { name, fn } of tests) {
   try {
     fn();

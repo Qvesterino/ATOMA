@@ -608,6 +608,15 @@ export class InputSensoryEnhanced {
         transparent: true,
         opacity: 0.85
       });
+      const tipBranchMat = new THREE.MeshStandardMaterial({
+        color: color,
+        metalness: 0.78,
+        roughness: 0.12,
+        emissive: color,
+        emissiveIntensity: 0.56,
+        transparent: true,
+        opacity: 0.72
+      });
 
       for (let i = 0; i < bristleCount; i++) {
         const bristlePoints = [];
@@ -644,6 +653,41 @@ export class InputSensoryEnhanced {
         bristle.userData.visualCoreImmutable = true;
         
         group.add(bristle);
+
+        if (i % 2 === 0) {
+          const tipPoint = curve.getPoint(0.96);
+          const tipDirection = curve.getTangent(0.98).normalize();
+          const baseNormal = new THREE.Vector3(-tipDirection.z, tipDirection.x, tipDirection.y * 0.2);
+          if (baseNormal.lengthSq() < 0.0001) {
+            baseNormal.set(0, 1, 0);
+          }
+          baseNormal.normalize();
+          const sideNormal = new THREE.Vector3().crossVectors(tipDirection, baseNormal).normalize();
+          const tipRadius = bristleRadius * 0.52;
+          const branchLength = 0.18 + Math.random() * 0.08;
+
+          [-1, 1].forEach((sign, branchIndex) => {
+            const branchMid = tipPoint.clone()
+              .add(tipDirection.clone().multiplyScalar(branchLength * 0.36))
+              .add(sideNormal.clone().multiplyScalar(sign * (0.06 + Math.random() * 0.02)));
+            const branchEnd = tipPoint.clone()
+              .add(tipDirection.clone().multiplyScalar(branchLength))
+              .add(sideNormal.clone().multiplyScalar(sign * (0.12 + Math.random() * 0.04)))
+              .add(baseNormal.clone().multiplyScalar(0.03 + Math.random() * 0.02));
+            const branchCurve = new THREE.CatmullRomCurve3([
+              tipPoint.clone(),
+              branchMid,
+              branchEnd
+            ]);
+            const branchGeo = new THREE.TubeGeometry(branchCurve, 8, tipRadius, 4, false);
+            const branch = new THREE.Mesh(branchGeo, tipBranchMat.clone());
+            branch.userData.isTactileTipBranch = true;
+            branch.userData.parentBristleIndex = i;
+            branch.userData.branchIndex = branchIndex;
+            branch.userData.visualCoreImmutable = true;
+            group.add(branch);
+          });
+        }
       }
 
       group.userData.visualCoreImmutable = true;
