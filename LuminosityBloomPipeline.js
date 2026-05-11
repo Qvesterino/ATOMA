@@ -99,6 +99,10 @@ export class LuminosityBloomPipeline {
     this.bloomPass?.onWindowResize?.(width, height);
   }
 
+  restoreRenderState(camera = this.camera) {
+    return this.bloomPass?.restorePendingCameraLayerMask?.(camera) === true;
+  }
+
   toggle() {
     this.enabled = !this.enabled;
     if (this.enabled) {

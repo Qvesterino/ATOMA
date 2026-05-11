@@ -267,6 +267,14 @@ export class BloomPass {
     camera.layers.mask = mask;
   }
 
+  restorePendingCameraLayerMask(camera = this.camera) {
+    const pendingMask = this._pendingBloomCameraLayerMask;
+    if (!Number.isInteger(pendingMask)) return false;
+    this._restoreCameraLayerMask(camera, pendingMask);
+    this._pendingBloomCameraLayerMask = null;
+    return true;
+  }
+
   markBloomTarget(object, recursive = true) {
     if (!object) return;
     object.userData = object.userData || {};
@@ -1363,6 +1371,10 @@ export class PostProcessingPipeline {
 
   updateSceneMetrics(metrics = null) {
     this.sceneMetrics = metrics ? { ...metrics } : null;
+  }
+
+  restoreRenderState(camera = this.camera) {
+    return this.bloomPass?.restorePendingCameraLayerMask?.(camera) === true;
   }
 
   /**

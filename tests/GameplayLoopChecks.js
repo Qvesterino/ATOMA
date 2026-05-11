@@ -259,6 +259,14 @@ test('applyDominancePulseModulation bridges dominance payload into existing halo
   assertNear(modulated.pulseStreak, 0.22);
 });
 
+test('SafeQuantumIllusionsPack1 demo containment disables afterPaths and exposes status truth', () => {
+  const source = fs.readFileSync(new URL('../SafeQuantumIllusionsPack1.js', import.meta.url), 'utf8');
+  assert(source.includes('afterPaths: {\n        enabled: false,'));
+  assert(source.includes("this._clearIllusionType('afterPaths');"));
+  assert(source.includes('getStatus() {'));
+  assert(source.includes('active: stats.byType?.afterPaths ?? 0'));
+});
+
 test('repo runtime truth points browser validation to Vite 5173 and keeps 5500 as non-canonical fallback', () => {
   const toolsText = fs.readFileSync(new URL('../TOOLS.md', import.meta.url), 'utf8');
   const memoryText = fs.readFileSync(new URL('../MEMORY.md', import.meta.url), 'utf8');

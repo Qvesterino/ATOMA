@@ -12893,6 +12893,8 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
 
         try {
             this.standingWaveRenderer?.syncTrapZones?.(deltaTime);
+            this.postProcessing?.restoreRenderState?.(this.camera);
+            this.luminosityBloom?.restoreRenderState?.(this.camera);
 
             const liveMetrics = typeof window !== 'undefined' ? (window.__ATOMA_LIVE_METRICS__ || null) : null;
 
@@ -12925,15 +12927,19 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                         if (!op) continue;
 
                         const opStart = performance.now();
-                        if (typeof op.before === 'function') {
-                          op.before();
-                        }
+                        let beforeApplied = false;
+                        try {
+                            if (typeof op.before === 'function') {
+                                op.before();
+                                beforeApplied = true;
+                            }
 
-                        this.renderer.setRenderTarget(op.target ?? null);
-                        this.renderer.render(op.scene ?? this.scene, op.camera ?? this.camera);
-
-                        if (typeof op.after === 'function') {
-                          op.after();
+                            this.renderer.setRenderTarget(op.target ?? null);
+                            this.renderer.render(op.scene ?? this.scene, op.camera ?? this.camera);
+                        } finally {
+                            if (beforeApplied && typeof op.after === 'function') {
+                                op.after();
+                            }
                         }
 
                         const opDuration = performance.now() - opStart;
@@ -12991,6 +12997,8 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                 );
             }
         } catch (err) {
+            this.postProcessing?.restoreRenderState?.(this.camera);
+            this.luminosityBloom?.restoreRenderState?.(this.camera);
             renderAuditContext.status = 'error';
             renderAuditContext.error = err?.message || String(err);
             this.gpuSanity?.endRenderAudit?.({

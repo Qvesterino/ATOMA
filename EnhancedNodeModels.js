@@ -43400,32 +43400,229 @@ static createAnalyticsNode2(group, color) {
   }
 
   /**
-   * EXTREME variant: Chrono Ripper (archetypeId: 11)
-   * Maps to CONTROL category
+   * THRONE OF GRID — Crystalline throne-like structure with vertical command spires
+   * and grid-plane base. Mythic AI authority without external pack dependencies.
    */
   static createExtremeControl1(group, color) {
     try {
-      const tempNode = new THREE.Group();
-      tempNode.visualGroup = new THREE.Group();
-      
-      const extremeGroup = this.extremeNodePack.createChronoRipper(tempNode, null);
-      if (!extremeGroup) {
-        console.error('[VisualBuildFail]', { archetype: 'extreme-control-1', category: 'control', reason: 'NoMesh' });
-        return group;
+
+      // ── Throne Base — wide grid plane ─────────────────────────────────
+      const baseGeo = new THREE.BoxGeometry(0.9, 0.05, 0.9);
+      const baseMat = new THREE.MeshStandardMaterial({
+        color: color,
+        metalness: 0.92,
+        roughness: 0.08,
+        emissive: color,
+        emissiveIntensity: 0.45
+      });
+      const base = new THREE.Mesh(baseGeo, baseMat);
+      base.position.y = -0.38;
+      base.userData.isThroneBase = true;
+      base.userData.visualCoreImmutable = true;
+      group.add(base);
+
+      // Base edge glow
+      const baseOutline = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.BoxGeometry(0.93, 0.06, 0.93)),
+        new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.4 })
+      );
+      baseOutline.position.y = -0.38;
+      baseOutline.userData.visualCoreImmutable = true;
+      group.add(baseOutline);
+
+      // Grid lines on base surface
+      const gridMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.2 });
+      for (let i = -3; i <= 3; i++) {
+        const lineGeo = new THREE.BoxGeometry(0.008, 0.003, 0.9);
+        const line = new THREE.Mesh(lineGeo, gridMat);
+        line.position.set(i * 0.12, -0.355, 0);
+        line.userData.visualCoreImmutable = true;
+        group.add(line);
+
+        const zLineGeo = new THREE.BoxGeometry(0.9, 0.003, 0.008);
+        const zLine = new THREE.Mesh(zLineGeo, gridMat);
+        zLine.position.set(0, -0.355, i * 0.12);
+        zLine.userData.visualCoreImmutable = true;
+        group.add(zLine);
       }
-      
-      group.add(extremeGroup);
-      tempNode.userData.extremeArchetype = 11;
-      
+
+      // ── Central Throne Pillar ─────────────────────────────────────────
+      const pillarGeo = new THREE.CylinderGeometry(0.06, 0.09, 0.65, 8);
+      const pillarMat = new THREE.MeshStandardMaterial({
+        color: color,
+        metalness: 0.95,
+        roughness: 0.05,
+        emissive: color,
+        emissiveIntensity: 0.6
+      });
+      const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+      pillar.position.y = -0.08;
+      pillar.userData.isThronePillar = true;
+      pillar.userData.visualCoreImmutable = true;
+      group.add(pillar);
+
+      // Pillar crystal cap (octagonal)
+      const capGeo = new THREE.OctahedronGeometry(0.1, 0);
+      const capMat = new THREE.MeshStandardMaterial({
+        color: color,
+        metalness: 0.9,
+        roughness: 0.06,
+        emissive: color,
+        emissiveIntensity: 1.0
+      });
+      const cap = new THREE.Mesh(capGeo, capMat);
+      cap.position.y = 0.36;
+      cap.scale.y = 0.7;
+      cap.userData.isThroneCap = true;
+      cap.userData.visualCoreImmutable = true;
+      group.add(cap);
+
+      // ── 4 Corner Command Spires ───────────────────────────────────────
+      const spirePositions = [
+        new THREE.Vector3(0.32, 0, 0.32),
+        new THREE.Vector3(-0.32, 0, 0.32),
+        new THREE.Vector3(0.32, 0, -0.32),
+        new THREE.Vector3(-0.32, 0, -0.32)
+      ];
+
+      const spireMat = new THREE.MeshStandardMaterial({
+        color: color,
+        metalness: 0.88,
+        roughness: 0.1,
+        emissive: color,
+        emissiveIntensity: 0.65
+      });
+
+      spirePositions.forEach((pos, si) => {
+        // Spire shaft
+        const shaftGeo = new THREE.CylinderGeometry(0.018, 0.025, 0.55, 6);
+        const shaft = new THREE.Mesh(shaftGeo, spireMat);
+        shaft.position.set(pos.x, pos.y + 0.1, pos.z);
+        shaft.userData.isSpire = true;
+        shaft.userData.spireIndex = si;
+        shaft.userData.visualCoreImmutable = true;
+        group.add(shaft);
+
+        // Spire tip crystal
+        const tipGeo = new THREE.OctahedronGeometry(0.035, 0);
+        const tipMat = new THREE.MeshStandardMaterial({
+          color: color,
+          metalness: 0.92,
+          roughness: 0.04,
+          emissive: color,
+          emissiveIntensity: 1.3
+        });
+        const tip = new THREE.Mesh(tipGeo, tipMat);
+        tip.position.set(pos.x, pos.y + 0.46, pos.z);
+        tip.userData.isSpireTip = true;
+        tip.userData.visualCoreImmutable = true;
+        group.add(tip);
+
+        // Spire base ring
+        const ringGeo = new THREE.TorusGeometry(0.045, 0.008, 6, 16);
+        const ringMat = new THREE.MeshStandardMaterial({
+          color: color,
+          metalness: 0.85,
+          roughness: 0.12,
+          emissive: color,
+          emissiveIntensity: 0.5
+        });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.position.set(pos.x, pos.y + 0.02, pos.z);
+        ring.rotation.x = Math.PI / 2;
+        ring.userData.isSpireBaseRing = true;
+        ring.userData.visualCoreImmutable = true;
+        group.add(ring);
+      });
+
+      // ── Throne Backrest — two vertical crystal bars ─────────────────────
+      const backMat = new THREE.MeshStandardMaterial({
+        color: color,
+        metalness: 0.9,
+        roughness: 0.08,
+        emissive: color,
+        emissiveIntensity: 0.55
+      });
+
+      const backBarGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.5, 8);
+      [-0.18, 0.18].forEach((bx, bi) => {
+        const backBar = new THREE.Mesh(backBarGeo, backMat);
+        backBar.position.set(bx, 0.12, -0.32);
+        backBar.userData.isBackBar = true;
+        backBar.userData.backIndex = bi;
+        backBar.userData.visualCoreImmutable = true;
+        group.add(backBar);
+
+        // Top finial
+        const finialGeo = new THREE.OctahedronGeometry(0.04, 0);
+        const finial = new THREE.Mesh(finialGeo, spireMat);
+        finial.position.set(bx, 0.43, -0.32);
+        finial.userData.isFinial = true;
+        finial.userData.visualCoreImmutable = true;
+        group.add(finial);
+      });
+
+      // Horizontal back crest bar
+      const crestGeo = new THREE.BoxGeometry(0.44, 0.04, 0.04);
+      const crest = new THREE.Mesh(crestGeo, backMat);
+      crest.position.set(0, 0.38, -0.32);
+      crest.userData.isCrestBar = true;
+      crest.userData.visualCoreImmutable = true;
+      group.add(crest);
+
+      // ── Armrests — low connecting bars ────────────────────────────────
+      [-0.32, 0.32].forEach((ax, ai) => {
+        const armGeo = new THREE.CylinderGeometry(0.018, 0.018, 0.28, 6);
+        const arm = new THREE.Mesh(armGeo, backMat);
+        arm.rotation.z = Math.PI / 2;
+        arm.position.set(ax, -0.02, 0.1);
+        arm.userData.isArmrest = true;
+        arm.userData.armIndex = ai;
+        arm.userData.visualCoreImmutable = true;
+        group.add(arm);
+
+        // Armrest end caps
+        const capGeo2 = new THREE.SphereGeometry(0.025, 8, 8);
+        [-0.16, 0.16].forEach((ox) => {
+          const cap2 = new THREE.Mesh(capGeo2, backMat);
+          cap2.position.set(ax + ox, -0.02, 0.1);
+          cap2.userData.visualCoreImmutable = true;
+          group.add(cap2);
+        });
+      });
+
+      // ── Command Beacon — top emissive crystal ───────────────────────────
+      const beaconGeo = new THREE.OctahedronGeometry(0.08, 1);
+      const beaconMat = new THREE.MeshStandardMaterial({
+        color: color,
+        metalness: 0.5,
+        roughness: 0.2,
+        emissive: color,
+        emissiveIntensity: 2.0
+      });
+      const beacon = new THREE.Mesh(beaconGeo, beaconMat);
+      beacon.position.y = 0.55;
+      beacon.userData.isCommandBeacon = true;
+      beacon.userData.visualCoreImmutable = true;
+      group.add(beacon);
+
+      // Beacon glow ring
+      const beaconRingGeo = new THREE.TorusGeometry(0.14, 0.006, 6, 24);
+      const beaconRing = new THREE.Mesh(
+        beaconRingGeo,
+        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.8, transparent: true, opacity: 0.5 })
+      );
+      beaconRing.position.y = 0.55;
+      beaconRing.userData.visualCoreImmutable = true;
+      group.add(beaconRing);
+
+      group.userData.visualCoreImmutable = true;
+      group.userData.nodeGeometryName = 'CONTROL_THRONE_OF_GRID';
+
       return group;
     } catch (err) {
-      console.error('[NodeVisualAbort]', {
-        model: 'createExtremeControl1',
-        category: 'control',
-        reason: 'Visual build failed — fallback visuals are forbidden',
-        error: err
-      });
-      return null;
+      console.error('[ThroneOfGrid:Abort]', { model: 'createExtremeControl1', category: 'control', reason: err?.message || err });
+      return group;
     }
   }
 }

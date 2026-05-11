@@ -65,6 +65,7 @@ export class SafeQuantumIllusionsPack1 {
     this.lastLegendaryCount = 0;
     this.runtimeEnabled = true;
     this.echoSpawnCooldown = 0;
+    this._afterPathsPruned = false;
 
     // CPU optimization: spawn/condition logic throttled to ~10Hz
     // Animation (updateAllIllusions) stays at full 30Hz for smooth visuals
@@ -151,7 +152,7 @@ export class SafeQuantumIllusionsPack1 {
         opacityRange: [0.08, 0.25]
       },
       afterPaths: {
-        enabled: true,
+        enabled: false,
         maxActive: 25,
         lifetime: [0.2, 0.4],
         opacityRange: [0.1, 0.25]
@@ -431,6 +432,15 @@ export class SafeQuantumIllusionsPack1 {
     if (!this.runtimeEnabled) return;
     
     if (!this.scene) return;
+
+    if (!this.config.afterPaths.enabled) {
+      if (!this._afterPathsPruned) {
+        this._clearIllusionType('afterPaths');
+        this._afterPathsPruned = true;
+      }
+    } else {
+      this._afterPathsPruned = false;
+    }
 
     // Decay dramaturgy modulation (every tick — cheap)
     this._decayDramaturgyModulation(deltaTime);
@@ -2043,12 +2053,32 @@ export class SafeQuantumIllusionsPack1 {
     sigil.add(accents);
     return sigil;
   }
+
+  _clearIllusionType(type) {
+    const entries = this.registry.getIllusionsByType(type);
+    for (let i = entries.length - 1; i >= 0; i--) {
+      this.registry.unregisterIllusion(type, i);
+    }
+  }
   
   /**
    * Get illusion statistics
    */
   getStats() {
     return this.registry.getStats();
+  }
+
+  getStatus() {
+    const stats = this.registry.getStats();
+    return {
+      runtimeEnabled: this.runtimeEnabled,
+      mode: this.mode,
+      afterPaths: {
+        enabled: !!this.config.afterPaths?.enabled,
+        active: stats.byType?.afterPaths ?? 0
+      },
+      stats
+    };
   }
   
   /**
