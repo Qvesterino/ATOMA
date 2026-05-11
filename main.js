@@ -493,6 +493,7 @@ if (typeof window !== 'undefined') {
 
       release: {
         demoProfile: releaseContainmentProfile.demoProfile,
+        disableWaveShaderStack: releaseContainmentProfile.systems.waveShaderStack.disabledByPolicy === true,
         disableSynergyChainReaction: releaseContainmentProfile.systems.synergyChainReaction.disabledByPolicy === true
       }
     };
@@ -501,6 +502,7 @@ if (typeof window !== 'undefined') {
     window.ATOMA_LOG_LEVEL = window.ATOMA_FLAGS.debug.logLevel;
     window.ATOMA_DISABLE_SYNERGY_SHADER_STACK = window.ATOMA_FLAGS?.visual?.disableSynergyShaderStacks ?? false;
     window.ATOMA_DEMO_RELEASE_PROFILE = window.ATOMA_FLAGS?.release?.demoProfile ?? true;
+    window.ATOMA_DISABLE_WAVE_SHADER_STACK = window.ATOMA_FLAGS?.release?.disableWaveShaderStack ?? true;
     window.ATOMA_DISABLE_SYNERGY_CHAIN_REACTION = window.ATOMA_FLAGS?.release?.disableSynergyChainReaction ?? true;
     window.__ATOMA_RELEASE_CONTAINMENT_PROFILE__ = () => getAtomaReleaseContainmentProfile(window);
     
@@ -1367,10 +1369,12 @@ import { MetricInterpretationLayer_v1, setupMetricInterpretationConsoleAPI } fro
 import { WorldRuntime_v1 } from './WorldRuntime_v1.js';
 // import { FXRuntime_v1 } from './FXRuntime_v1.js';
 
-const waveDynamicsPack = new WaveDynamicsShaderPack_v1({
-    enableDebug: false,
-    enableWarnings: true
-});
+function createWaveDynamicsPack() {
+    return new WaveDynamicsShaderPack_v1({
+        enableDebug: false,
+        enableWarnings: true
+    });
+}
 
 // ============================================================================
 // EXTRACTION PACK V1.2 — RUNTIME ORCHESTRATION (NODE EDITOR & UI)
@@ -5290,30 +5294,33 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => {
             this.aiNodes?.updateEdgeCageDistanceFade?.(dt, this.camera);
         }, 'visual.edgeCageDistanceFade');
-        this.frameScheduler.register('visual', (deltaTime) => {
-            if (this.waveShaderBridge) {
-                const nodes =
-                    this.aiNodes?.nodes ||
-                    this.nodes ||
-                    this.nodeList ||
-                    [];
-                const links = this.linkingSystem?.links || [];
-                this.waveShaderBridge.update(deltaTime, {
-                    nodes,
-                    links
-                });
-            }
-        }, 'visual.waveShaderBridge');
-        this.frameScheduler.register('visual', (dt) => {
-            if (this.waveTravelShaderPack) {
-                this.waveTravelShaderPack.update(dt);
-            }
-        }, 'visual.waveTravelShaderPack');
-        this.frameScheduler.register('visual', (dt) => {
-            if (this.waveDynamicsShaderPack) {
-                this.waveDynamicsShaderPack.update(dt);
-            }
-        }, 'visual.waveDynamicsShaderPack');
+        if (window.ATOMA_FLAGS?.release?.disableWaveShaderStack !== true) {
+            this.frameScheduler.register('visual', (deltaTime) => {
+                if (this.waveShaderBridge) {
+                    const nodes =
+                        this.aiNodes?.nodes ||
+                        this.nodes ||
+                        this.nodeList ||
+                        [];
+                    const links = this.linkingSystem?.links || [];
+                    this.waveShaderBridge.update(deltaTime, {
+                        nodes,
+                        links
+                    });
+                }
+            }, 'visual.waveShaderBridge');
+            this.frameScheduler.register('visual', (dt) => {
+                if (this.waveTravelShaderPack) {
+                    this.waveTravelShaderPack.update(dt);
+                }
+            }, 'visual.waveTravelShaderPack');
+            this.frameScheduler.register('visual', (dt) => {
+                if (this.waveDynamicsShaderPack) {
+                    this.waveDynamicsShaderPack.update(dt);
+                }
+            }, 'visual.waveDynamicsShaderPack');
+            markReleaseContainmentRuntime(this, 'waveShaderStack', { scheduled: true, enabled: true });
+        }
         this.frameScheduler.register('visual', (dt) => {
             if (this.synergyTravelingWaveFX) {
                 this.synergyTravelingWaveFX.update(dt, this.time || 0);
@@ -7446,43 +7453,54 @@ window.__ATOMA_SCENE__ = this.scene;
             this.cascadeToWaveBridge = null;
         }
 
-        try {
-            this.waveShaderBridge = new WaveShaderBridge_v1({
-                renderer: this.renderer,
-                scene: this.scene,
-                waveEngine: this.waveInterferenceEngine,
-                maxSources: 8
-            });
-            console.log('[main.js] WaveShaderBridge_v1 initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] WaveShaderBridge_v1 failed:', err);
-        }
+        const waveShaderStackDisabledByPolicy = window.ATOMA_FLAGS?.release?.disableWaveShaderStack === true;
+        if (!waveShaderStackDisabledByPolicy) {
+            try {
+                this.waveShaderBridge = new WaveShaderBridge_v1({
+                    renderer: this.renderer,
+                    scene: this.scene,
+                    waveEngine: this.waveInterferenceEngine,
+                    maxSources: 8
+                });
+                markReleaseContainmentRuntime(this, 'waveShaderStack', { initialized: true, enabled: true });
+                console.log('[main.js] WaveShaderBridge_v1 initialized ✓');
+            } catch (err) {
+                console.warn('[main.js] WaveShaderBridge_v1 failed:', err);
+            }
 
-        try {
-            this.waveShaderMaterialPatch = new WaveShaderMaterialPatch_v1({
-                enableDebug: false,
-                enableWarnings: false
-            });
-            console.log('[main] WaveShaderMaterialPatch initialized');
-        } catch (err) {
-            console.warn('[main.js] WaveShaderMaterialPatch_v1 failed:', err);
-        }
+            try {
+                this.waveShaderMaterialPatch = new WaveShaderMaterialPatch_v1({
+                    enableDebug: false,
+                    enableWarnings: false
+                });
+                console.log('[main] WaveShaderMaterialPatch initialized');
+            } catch (err) {
+                console.warn('[main.js] WaveShaderMaterialPatch_v1 failed:', err);
+            }
 
-        try {
-            this.waveTravelShaderPack = new WaveTravelShaderPack_v1({
-                enableDebug: false,
-                enableWarnings: false
-            });
-            console.log('[main] WaveTravelShaderPack initialized');
-        } catch (err) {
-            console.warn('[main.js] WaveTravelShaderPack_v1 failed:', err);
-        }
+            try {
+                this.waveTravelShaderPack = new WaveTravelShaderPack_v1({
+                    enableDebug: false,
+                    enableWarnings: false
+                });
+                console.log('[main] WaveTravelShaderPack initialized');
+            } catch (err) {
+                console.warn('[main.js] WaveTravelShaderPack_v1 failed:', err);
+            }
 
-        try {
-            this.waveDynamicsShaderPack = waveDynamicsPack;
-            console.log('[main.js] WaveDynamicsShaderPack_v1 initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] WaveDynamicsShaderPack_v1 failed:', err);
+            try {
+                this.waveDynamicsShaderPack = createWaveDynamicsPack();
+                console.log('[main.js] WaveDynamicsShaderPack_v1 initialized ✓');
+            } catch (err) {
+                console.warn('[main.js] WaveDynamicsShaderPack_v1 failed:', err);
+            }
+        } else {
+            this.waveShaderBridge = null;
+            this.waveShaderMaterialPatch = null;
+            this.waveTravelShaderPack = null;
+            this.waveDynamicsShaderPack = null;
+            markReleaseContainmentRuntime(this, 'waveShaderStack', { initialized: false, scheduled: false, enabled: false });
+            console.log('[main.js] Wave shader stack disabled via release containment policy');
         }
 
         try {
@@ -8801,7 +8819,7 @@ window.__ATOMA_SCENE__ = this.scene;
                 logPrograms('after-first-node', this.renderer);
                 __loggedFirstSpawn = true;
             }
-            if (this.waveDynamicsShaderPack && node) {
+            if (window.ATOMA_FLAGS?.release?.disableWaveShaderStack !== true && this.waveDynamicsShaderPack && node) {
                 this.waveDynamicsShaderPack.applyToNode(node, 'SYNERGY');
             }
             // Emit canonical node.spawned event for event-driven systems
@@ -8867,7 +8885,9 @@ window.__ATOMA_SCENE__ = this.scene;
         }
         if (this.linkingSystem?.conduitRenderer) {
             this.linkingSystem.conduitRenderer.waveShaderBridge =
-                this.waveShaderBridge || this.linkingSystem.conduitRenderer.waveShaderBridge;
+                window.ATOMA_FLAGS?.release?.disableWaveShaderStack === true
+                    ? null
+                    : (this.waveShaderBridge || this.linkingSystem.conduitRenderer.waveShaderBridge);
         }
         if (this.linkRendererConduit && this.linkResonanceFlowSystem) {
             this.linkRendererConduit.linkResonanceFlowSystem = this.linkResonanceFlowSystem;
@@ -9168,9 +9188,18 @@ window.__ATOMA_SCENE__ = this.scene;
             this.linkingSystem.__visualOrphanCleanupBound = true;
         }
         if (this.linkingSystem?.conduitRenderer) {
-            this.linkingSystem.conduitRenderer.waveShaderBridge = this.waveShaderBridge || this.linkingSystem.conduitRenderer.waveShaderBridge;
-            this.linkingSystem.conduitRenderer.waveTravelShaderPack = this.waveTravelShaderPack || this.linkingSystem.conduitRenderer.waveTravelShaderPack;
-            this.linkingSystem.conduitRenderer.waveDynamicsShaderPack = this.waveDynamicsShaderPack || this.linkingSystem.conduitRenderer.waveDynamicsShaderPack;
+            this.linkingSystem.conduitRenderer.waveShaderBridge =
+                window.ATOMA_FLAGS?.release?.disableWaveShaderStack === true
+                    ? null
+                    : (this.waveShaderBridge || this.linkingSystem.conduitRenderer.waveShaderBridge);
+            this.linkingSystem.conduitRenderer.waveTravelShaderPack =
+                window.ATOMA_FLAGS?.release?.disableWaveShaderStack === true
+                    ? null
+                    : (this.waveTravelShaderPack || this.linkingSystem.conduitRenderer.waveTravelShaderPack);
+            this.linkingSystem.conduitRenderer.waveDynamicsShaderPack =
+                window.ATOMA_FLAGS?.release?.disableWaveShaderStack === true
+                    ? null
+                    : (this.waveDynamicsShaderPack || this.linkingSystem.conduitRenderer.waveDynamicsShaderPack);
             this.linkingSystem.conduitRenderer.setTravelingWaveFX?.(this.synergyTravelingWaveFX);
         }
         const enableSynergyHighway3D = window?.ATOMA_FLAGS?.visual?.synergyHighway3D ?? true;
@@ -9380,10 +9409,10 @@ window.__ATOMA_SCENE__ = this.scene;
         ) {
             logPrograms('pre-warmup', this.renderer);
             warmUpArchetypeShaders(this.renderer, {
-                waveShaderBridge: this.waveShaderBridge,
-                waveShaderMaterialPatch: this.waveShaderMaterialPatch,
-                waveTravelShaderPack: this.waveTravelShaderPack,
-                waveDynamicsShaderPack: this.waveDynamicsShaderPack
+                waveShaderBridge: window.ATOMA_FLAGS?.release?.disableWaveShaderStack === true ? null : this.waveShaderBridge,
+                waveShaderMaterialPatch: window.ATOMA_FLAGS?.release?.disableWaveShaderStack === true ? null : this.waveShaderMaterialPatch,
+                waveTravelShaderPack: window.ATOMA_FLAGS?.release?.disableWaveShaderStack === true ? null : this.waveTravelShaderPack,
+                waveDynamicsShaderPack: window.ATOMA_FLAGS?.release?.disableWaveShaderStack === true ? null : this.waveDynamicsShaderPack
             });
             logPrograms('post-warmup', this.renderer);
         }
@@ -9402,113 +9431,7 @@ window.__ATOMA_SCENE__ = this.scene;
         // Enable runtime spawning after init batch
         this.aiNodes.armRuntimeSpawningAfterInit?.(Date.now());
 
-        // Wave shader stacks: register/patch/apply after nodes exist (pre-link usage)
-        try {
-            const getConduitLinkMaterials = (link) => {
-                const materials = [];
-                const conduitState = link?.group?.userData?.conduitState;
-
-                if (conduitState?.skinMesh?.material) {
-                    materials.push(conduitState.skinMesh.material);
-                }
-
-                if (Array.isArray(conduitState?.strands)) {
-                    for (const strand of conduitState.strands) {
-                        if (strand?.material) {
-                            materials.push(strand.material);
-                        }
-                    }
-                }
-
-                if (!materials.length && link?.material) {
-                    const legacyMaterials = Array.isArray(link.material) ? link.material : [link.material];
-                    for (const material of legacyMaterials) {
-                        if (material) materials.push(material);
-                    }
-                }
-
-                return [...new Set(materials)];
-            };
-
-            if (this.waveShaderBridge && this.aiNodes?.nodes) {
-                for (const node of this.aiNodes.nodes) {
-                    const mats = node?.material
-                        ? (Array.isArray(node.material) ? node.material : [node.material])
-                        : [];
-                    mats.forEach(mat => this.waveShaderBridge?.registerNodeMaterial?.(mat, 'DEFAULT'));
-                }
-                console.log('[main.js] Wave Shader Bridge: Node materials registered ✓');
-            }
-            if (this.waveShaderBridge && this.nodeLinking?.links) {
-                for (const link of this.nodeLinking.links) {
-                    const mats = getConduitLinkMaterials(link);
-                    mats.forEach(mat => this.waveShaderBridge?.registerLinkMaterial?.(mat, 'DEFAULT'));
-                }
-                console.log('[main.js] Wave Shader Bridge: Link materials registered ✓');
-            }
-        } catch (err) {
-            console.warn('[main.js] Wave Shader Bridge material registration error:', err);
-        }
-
-        try {
-            if (this.waveShaderMaterialPatch && this.aiNodes?.nodes) {
-                for (const node of this.aiNodes.nodes) {
-                    const mats = node?.material
-                        ? (Array.isArray(node.material) ? node.material : [node.material])
-                        : [];
-                    mats.forEach(mat => this.waveShaderMaterialPatch?.patch?.(mat, 'DEFAULT'));
-                }
-                console.log('[main.js] Wave Shader Material Patch: Node materials patched ✓');
-            }
-            if (this.waveShaderMaterialPatch && this.nodeLinking?.links) {
-                for (const link of this.nodeLinking.links) {
-                    const mats = getConduitLinkMaterials(link);
-                    mats.forEach(mat => this.waveShaderMaterialPatch?.patch?.(mat, 'SYNERGY'));
-                }
-                console.log('[main.js] Wave Shader Material Patch: Link materials patched ✓');
-            }
-        } catch (err) {
-            console.warn('[main.js] Wave Shader Material Patch patching error:', err);
-        }
-
-        try {
-            if (this.waveTravelShaderPack && this.aiNodes?.nodes) {
-                for (const node of this.aiNodes.nodes) {
-                    const mats = node?.material
-                        ? (Array.isArray(node.material) ? node.material : [node.material])
-                        : [];
-                    mats.forEach(mat => this.waveTravelShaderPack?.register?.(mat, 'TRAVEL_LINEAR'));
-                }
-                console.log('[main.js] Wave Travel Shader Pack: Node materials registered ✓');
-            }
-            if (this.waveTravelShaderPack && this.nodeLinking?.links) {
-                for (const link of this.nodeLinking.links) {
-                    const mats = getConduitLinkMaterials(link);
-                    mats.forEach(mat => this.waveTravelShaderPack?.register?.(mat, 'TRAVEL_INTERFERENCE'));
-                }
-                console.log('[main.js] Wave Travel Shader Pack: Link materials registered ✓');
-            }
-        } catch (err) {
-            console.warn('[main.js] Wave Travel Shader Pack registration error:', err);
-        }
-
-        try {
-            if (this.waveDynamicsShaderPack && this.aiNodes?.nodes) {
-                for (const node of this.aiNodes.nodes) {
-                    this.waveDynamicsShaderPack.applyToNode(node, 'SYNERGY');
-                }
-                console.log('[main.js] Wave Dynamics Shader Pack: Node materials applied ✓');
-            }
-            if (this.waveDynamicsShaderPack && this.nodeLinking?.links) {
-                for (const link of this.nodeLinking.links) {
-                    const mats = getConduitLinkMaterials(link);
-                    mats.forEach(mat => this.waveDynamicsShaderPack?.applyToMaterial?.(mat, 'SYNERGY'));
-                }
-                console.log('[main.js] Wave Dynamics Shader Pack: Link materials applied ✓');
-            }
-        } catch (err) {
-            console.warn('[main.js] Wave Dynamics Shader Pack application error:', err);
-        }
+        // Wave shader stack is release-contained for demo; keep baseline link rendering only.
 
         // Hook audio feedback to link events
         const originalCreateLink = this.linkingSystem.createLink.bind(this.linkingSystem);
@@ -12122,27 +12045,9 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
 
         // REMOVED: synergyCascadeFXBridge regGuard — moved to LEGACY/april (2026-04-22)
 
-
-
-        regGuard('waveShaderBridge', 'visual.waveShaderBridge', (deltaTime) => {
-            if (this.waveShaderBridge) {
-                const nodes =
-                    this.aiNodes?.nodes ||
-                    this.nodes ||
-                    this.nodeList ||
-                    [];
-                const links = this.linkingSystem?.links || [];
-                this.waveShaderBridge.update(deltaTime, {
-                    nodes,
-                    links
-                });
-            }
-        });
         regGuard('edgeCageDistanceFade', 'visual.edgeCageDistanceFade', (dt) => {
             this.aiNodes?.updateEdgeCageDistanceFade?.(dt, this.camera);
         });
-        regGuard('waveTravelShaderPack', 'visual.waveTravelShaderPack', (dt) => this.waveTravelShaderPack?.update?.(dt));
-        regGuard('waveDynamicsShaderPack', 'visual.waveDynamicsShaderPack', (dt) => this.waveDynamicsShaderPack?.update?.(dt));
         regGuard('synergyTravelingWaveFX', 'visual.synergyTravelingWaveFX', (dt) => this.synergyTravelingWaveFX?.update?.(dt, this.time || 0));
         regGuard('synergyHighwayVisuals3D', 'visual.synergyHighwayVisuals3D', (dt) => {
             if (!this.synergyHighwayVisuals3D) return;
@@ -17335,6 +17240,12 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
 
     getReleaseContainmentStatus() {
         const runtime = this._releaseContainmentRuntime || createAtomaReleaseContainmentRuntimeState();
+        markReleaseContainmentRuntime(this, 'waveShaderStack', {
+            enabled: this.waveShaderBridge !== null
+                || this.waveShaderMaterialPatch !== null
+                || this.waveTravelShaderPack !== null
+                || this.waveDynamicsShaderPack !== null,
+        });
         markReleaseContainmentRuntime(this, 'synergyChainReaction', {
             enabled: this.synergyChainReaction?.enabled === true,
         });

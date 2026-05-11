@@ -307,8 +307,11 @@ test('release containment policy defaults to demo-disabled synergy chain reactio
   const profile = ensureAtomaReleaseContainmentGlobals(target);
 
   assert.strictEqual(target.ATOMA_DEMO_RELEASE_PROFILE, true);
+  assert.strictEqual(target.ATOMA_DISABLE_WAVE_SHADER_STACK, true);
   assert.strictEqual(target.ATOMA_DISABLE_SYNERGY_CHAIN_REACTION, true);
   assert.strictEqual(profile.systems.synapticGating.policy, 'support-only');
+  assert.strictEqual(profile.systems.waveShaderStack.policy, 'disabled');
+  assert.strictEqual(profile.systems.waveShaderStack.disabledByPolicy, true);
   assert.strictEqual(profile.systems.synergyChainReaction.policy, 'disabled');
   assert.strictEqual(profile.systems.synergyChainReaction.disabledByPolicy, true);
 });
@@ -316,17 +319,21 @@ test('release containment policy defaults to demo-disabled synergy chain reactio
 test('release containment status merges runtime truth with central policy', () => {
   const scope = {
     ATOMA_DEMO_RELEASE_PROFILE: true,
+    ATOMA_DISABLE_WAVE_SHADER_STACK: true,
     ATOMA_DISABLE_SYNERGY_CHAIN_REACTION: true,
   };
   const status = buildAtomaReleaseContainmentStatus(scope, {
     synapticGating: { initialized: true, scheduled: true, enabled: true },
     competitionDominance: { initialized: true, scheduled: true, enabled: true },
+    waveShaderStack: { initialized: false, scheduled: false, enabled: false },
     synergyChainReaction: { initialized: false, scheduled: false, enabled: false },
   });
 
   assert.strictEqual(status.systems.synapticGating.classification, 'ACTIVE AS SUPPORT');
   assert.strictEqual(status.systems.synapticGating.initialized, true);
   assert.strictEqual(status.systems.competitionDominance.scheduled, true);
+  assert.strictEqual(status.systems.waveShaderStack.disabledByPolicy, true);
+  assert.strictEqual(status.systems.waveShaderStack.enabled, false);
   assert.strictEqual(status.systems.synergyChainReaction.disabledByPolicy, true);
   assert.strictEqual(status.systems.synergyChainReaction.scheduled, false);
 });
@@ -336,6 +343,34 @@ test('main.js applies demo containment gate to synergy chain reaction wiring', (
   assert(source.includes('ATOMA_DISABLE_SYNERGY_CHAIN_REACTION'), 'expected demo containment flag alias in main.js');
   assert(source.includes('SynergyChainReaction_v1 disabled by demo release containment policy'), 'expected explicit chain reaction containment log');
   assert(source.includes("window.__ATOMA_RELEASE_CONTAINMENT_STATUS__"), 'expected runtime release containment status helper');
+});
+
+test('main.js applies demo containment gate to the wave shader stack wiring', () => {
+  const source = fs.readFileSync(new URL('../main.js', import.meta.url), 'utf8');
+  assert(source.includes('disableWaveShaderStack'), 'expected release flag for wave shader stack');
+  assert(source.includes('Wave shader stack disabled via release containment policy'), 'expected explicit wave shader containment log');
+  assert(source.includes("window.ATOMA_FLAGS?.release?.disableWaveShaderStack === true ? null : this.waveShaderBridge"), 'expected conduit wave bridge gating');
+  assert(source.includes("window.ATOMA_FLAGS?.release?.disableWaveShaderStack !== true && this.waveDynamicsShaderPack && node"), 'expected createNode wave dynamics guard');
+});
+
+test('integration 314 no longer carries the wireframe topology cage accent', () => {
+  const source = fs.readFileSync(new URL('../EnhancedNodeModels.js', import.meta.url), 'utf8');
+  assert(source.includes('static createIntegrationNode2(group, color)'));
+  assert(!source.includes("cage.name = 'TopologyCageAccent';"), 'wireframe cage accent should stay removed from integration 314');
+});
+
+test('control fallback factories tolerate invalid incoming groups instead of aborting on group.add', () => {
+  const source = fs.readFileSync(new URL('../EnhancedNodeModels.js', import.meta.url), 'utf8');
+  assert(source.includes("const rootGroup = group && typeof group.add === 'function' ? group : new THREE.Group();"));
+  assert(source.includes('rootGroup.add(controlRoot);'));
+  assert(source.includes('return rootGroup;'));
+});
+
+test('storage 510 obelisk cache exposes stronger focal accents instead of plain monolith read', () => {
+  const source = fs.readFileSync(new URL('../Atoma_nodes/StorageNodesVisual_Session116.js', import.meta.url), 'utf8');
+  assert(source.includes('SignalPilaster_A'));
+  assert(source.includes('CrownHaloBracket'));
+  assert(source.includes('VaultKeystone'));
 });
 
 test('Network Time stays forward below canonical global.synergy.high threshold', () => {

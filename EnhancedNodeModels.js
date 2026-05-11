@@ -18642,24 +18642,6 @@ export class EnhancedNodeModels {
       orbit.userData = { visualLayer: 'AURA', visualCoreImmutable: true, isIntegrationOrbit: true };
       root.add(orbit);
 
-      const cageGeo = new THREE.BoxGeometry(1.2, 1.0, 1.1);
-      const cagePositions = cageGeo.attributes.position;
-      for (let i = 0; i < cagePositions.count; i++) {
-        cagePositions.setXYZ(
-          i,
-          cagePositions.getX(i) + (rng() - 0.5) * 0.07,
-          cagePositions.getY(i) + (rng() - 0.5) * 0.07,
-          cagePositions.getZ(i) + (rng() - 0.5) * 0.07
-        );
-      }
-      cageGeo.computeVertexNormals();
-      const cage = new THREE.LineSegments(new THREE.EdgesGeometry(cageGeo), lineMaterial);
-      cage.name = 'TopologyCageAccent';
-      cage.rotation.set(0.2, -0.26, 0.14);
-      cage.scale.set(0.98, 0.9, 0.92);
-      cage.userData = { visualLayer: 'AURA', visualCoreImmutable: true };
-      root.add(cage);
-
       root.traverse((obj) => {
         if (obj?.isMesh || obj?.isLineSegments) {
           obj.userData = obj.userData || {};
@@ -23777,6 +23759,10 @@ static createAnalyticsNode2(group, color) {
    */
   static createControlNodeStyled_v2(group, index, color) {
     try {
+      const rootGroup = group && typeof group.add === 'function' ? group : new THREE.Group();
+      if (rootGroup !== group && group?.userData && typeof group.userData === 'object') {
+        rootGroup.userData = { ...group.userData };
+      }
       const geometries = _getControlV2Geometries();
       const materials = _getControlV2Materials(color);
       const controlRoot = new THREE.Group();
@@ -23856,8 +23842,8 @@ static createAnalyticsNode2(group, color) {
       controlRoot.userData.controlV2SpirePulseSpeed = 1.25;
       controlRoot.userData.controlV2SpirePulseAmp = 0.02;
       controlRoot.userData.visualReady = true;
-      group.add(controlRoot);
-      return group;
+      rootGroup.add(controlRoot);
+      return rootGroup;
     } catch (err) {
       console.error('[ControlV2Abort]', { reason: err?.message || err });
       return null;
@@ -23878,6 +23864,10 @@ static createAnalyticsNode2(group, color) {
    */
   static createControlNodeStyled_v2_Legacy(group, index, color) {
     try {
+      const rootGroup = group && typeof group.add === 'function' ? group : new THREE.Group();
+      if (rootGroup !== group && group?.userData && typeof group.userData === 'object') {
+        rootGroup.userData = { ...group.userData };
+      }
       const geometries = _getControlV2Geometries_Legacy();
       const materials = _getControlV2Materials_Legacy(color);
       const controlRoot = new THREE.Group();
@@ -23972,8 +23962,8 @@ static createAnalyticsNode2(group, color) {
       controlRoot.add(overrideGroup);
 
       controlRoot.userData.visualReady = true;
-      group.add(controlRoot);
-      return group;
+      rootGroup.add(controlRoot);
+      return rootGroup;
     } catch (err) {
       console.error('[ControlV2Abort]', { reason: err?.message || err });
       return null;
@@ -43405,221 +43395,143 @@ static createAnalyticsNode2(group, color) {
    */
   static createExtremeControl1(group, color) {
     try {
-
-      // ── Throne Base — wide grid plane ─────────────────────────────────
-      const baseGeo = new THREE.BoxGeometry(0.9, 0.05, 0.9);
-      const baseMat = new THREE.MeshStandardMaterial({
-        color: color,
-        metalness: 0.92,
-        roughness: 0.08,
-        emissive: color,
-        emissiveIntensity: 0.45
+      const rootGroup = group && typeof group.add === 'function' ? group : new THREE.Group();
+      if (rootGroup !== group && group?.userData && typeof group.userData === 'object') {
+        rootGroup.userData = { ...group.userData };
+      }
+      // ── Shared materials (massively reduces per-node material count) ──
+      const matBody = new THREE.MeshStandardMaterial({
+        color: color, metalness: 0.9, roughness: 0.1,
+        emissive: color, emissiveIntensity: 0.6
       });
-      const base = new THREE.Mesh(baseGeo, baseMat);
+      const matGlow = new THREE.MeshStandardMaterial({
+        color: color, metalness: 0.5, roughness: 0.15,
+        emissive: color, emissiveIntensity: 1.4
+      });
+      const matLine = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35 });
+
+      // ── Throne Base ───────────────────────────────────────────────────
+      const base = new THREE.Mesh(
+        new THREE.BoxGeometry(0.9, 0.05, 0.9),
+        matBody
+      );
       base.position.y = -0.38;
       base.userData.isThroneBase = true;
       base.userData.visualCoreImmutable = true;
-      group.add(base);
+      rootGroup.add(base);
 
-      // Base edge glow
+      // Single base outline (no grid lines — too expensive for the visual value)
       const baseOutline = new THREE.LineSegments(
         new THREE.EdgesGeometry(new THREE.BoxGeometry(0.93, 0.06, 0.93)),
-        new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.4 })
+        matLine
       );
       baseOutline.position.y = -0.38;
       baseOutline.userData.visualCoreImmutable = true;
-      group.add(baseOutline);
-
-      // Grid lines on base surface
-      const gridMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.2 });
-      for (let i = -3; i <= 3; i++) {
-        const lineGeo = new THREE.BoxGeometry(0.008, 0.003, 0.9);
-        const line = new THREE.Mesh(lineGeo, gridMat);
-        line.position.set(i * 0.12, -0.355, 0);
-        line.userData.visualCoreImmutable = true;
-        group.add(line);
-
-        const zLineGeo = new THREE.BoxGeometry(0.9, 0.003, 0.008);
-        const zLine = new THREE.Mesh(zLineGeo, gridMat);
-        zLine.position.set(0, -0.355, i * 0.12);
-        zLine.userData.visualCoreImmutable = true;
-        group.add(zLine);
-      }
+      rootGroup.add(baseOutline);
 
       // ── Central Throne Pillar ─────────────────────────────────────────
-      const pillarGeo = new THREE.CylinderGeometry(0.06, 0.09, 0.65, 8);
-      const pillarMat = new THREE.MeshStandardMaterial({
-        color: color,
-        metalness: 0.95,
-        roughness: 0.05,
-        emissive: color,
-        emissiveIntensity: 0.6
-      });
-      const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+      const pillar = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.06, 0.09, 0.65, 6), // reduced from 8
+        matBody
+      );
       pillar.position.y = -0.08;
       pillar.userData.isThronePillar = true;
       pillar.userData.visualCoreImmutable = true;
-      group.add(pillar);
+      rootGroup.add(pillar);
 
-      // Pillar crystal cap (octagonal)
-      const capGeo = new THREE.OctahedronGeometry(0.1, 0);
-      const capMat = new THREE.MeshStandardMaterial({
-        color: color,
-        metalness: 0.9,
-        roughness: 0.06,
-        emissive: color,
-        emissiveIntensity: 1.0
-      });
-      const cap = new THREE.Mesh(capGeo, capMat);
+      const cap = new THREE.Mesh(
+        new THREE.OctahedronGeometry(0.1, 0),
+        matGlow
+      );
       cap.position.y = 0.36;
       cap.scale.y = 0.7;
       cap.userData.isThroneCap = true;
       cap.userData.visualCoreImmutable = true;
-      group.add(cap);
+      rootGroup.add(cap);
 
       // ── 4 Corner Command Spires ───────────────────────────────────────
       const spirePositions = [
-        new THREE.Vector3(0.32, 0, 0.32),
-        new THREE.Vector3(-0.32, 0, 0.32),
-        new THREE.Vector3(0.32, 0, -0.32),
-        new THREE.Vector3(-0.32, 0, -0.32)
+        new THREE.Vector3(0.32, 0.1, 0.32),
+        new THREE.Vector3(-0.32, 0.1, 0.32),
+        new THREE.Vector3(0.32, 0.1, -0.32),
+        new THREE.Vector3(-0.32, 0.1, -0.32)
       ];
 
-      const spireMat = new THREE.MeshStandardMaterial({
-        color: color,
-        metalness: 0.88,
-        roughness: 0.1,
-        emissive: color,
-        emissiveIntensity: 0.65
-      });
+      const shaftGeo = new THREE.CylinderGeometry(0.018, 0.025, 0.55, 5); // reduced from 6
+      const tipGeo = new THREE.OctahedronGeometry(0.035, 0);
 
       spirePositions.forEach((pos, si) => {
-        // Spire shaft
-        const shaftGeo = new THREE.CylinderGeometry(0.018, 0.025, 0.55, 6);
-        const shaft = new THREE.Mesh(shaftGeo, spireMat);
-        shaft.position.set(pos.x, pos.y + 0.1, pos.z);
+        const shaft = new THREE.Mesh(shaftGeo, matBody);
+        shaft.position.copy(pos);
         shaft.userData.isSpire = true;
         shaft.userData.spireIndex = si;
         shaft.userData.visualCoreImmutable = true;
-        group.add(shaft);
+        rootGroup.add(shaft);
 
-        // Spire tip crystal
-        const tipGeo = new THREE.OctahedronGeometry(0.035, 0);
-        const tipMat = new THREE.MeshStandardMaterial({
-          color: color,
-          metalness: 0.92,
-          roughness: 0.04,
-          emissive: color,
-          emissiveIntensity: 1.3
-        });
-        const tip = new THREE.Mesh(tipGeo, tipMat);
-        tip.position.set(pos.x, pos.y + 0.46, pos.z);
+        const tip = new THREE.Mesh(tipGeo, matGlow);
+        tip.position.set(pos.x, pos.y + 0.36, pos.z);
         tip.userData.isSpireTip = true;
         tip.userData.visualCoreImmutable = true;
-        group.add(tip);
-
-        // Spire base ring
-        const ringGeo = new THREE.TorusGeometry(0.045, 0.008, 6, 16);
-        const ringMat = new THREE.MeshStandardMaterial({
-          color: color,
-          metalness: 0.85,
-          roughness: 0.12,
-          emissive: color,
-          emissiveIntensity: 0.5
-        });
-        const ring = new THREE.Mesh(ringGeo, ringMat);
-        ring.position.set(pos.x, pos.y + 0.02, pos.z);
-        ring.rotation.x = Math.PI / 2;
-        ring.userData.isSpireBaseRing = true;
-        ring.userData.visualCoreImmutable = true;
-        group.add(ring);
+        rootGroup.add(tip);
       });
 
-      // ── Throne Backrest — two vertical crystal bars ─────────────────────
-      const backMat = new THREE.MeshStandardMaterial({
-        color: color,
-        metalness: 0.9,
-        roughness: 0.08,
-        emissive: color,
-        emissiveIntensity: 0.55
-      });
-
-      const backBarGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.5, 8);
+      // ── Throne Backrest — two vertical bars + crest ───────────────────
+      const backBarGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.5, 6); // reduced from 8
       [-0.18, 0.18].forEach((bx, bi) => {
-        const backBar = new THREE.Mesh(backBarGeo, backMat);
+        const backBar = new THREE.Mesh(backBarGeo, matBody);
         backBar.position.set(bx, 0.12, -0.32);
         backBar.userData.isBackBar = true;
         backBar.userData.backIndex = bi;
         backBar.userData.visualCoreImmutable = true;
-        group.add(backBar);
-
-        // Top finial
-        const finialGeo = new THREE.OctahedronGeometry(0.04, 0);
-        const finial = new THREE.Mesh(finialGeo, spireMat);
-        finial.position.set(bx, 0.43, -0.32);
-        finial.userData.isFinial = true;
-        finial.userData.visualCoreImmutable = true;
-        group.add(finial);
+        rootGroup.add(backBar);
       });
 
-      // Horizontal back crest bar
-      const crestGeo = new THREE.BoxGeometry(0.44, 0.04, 0.04);
-      const crest = new THREE.Mesh(crestGeo, backMat);
+      const crest = new THREE.Mesh(
+        new THREE.BoxGeometry(0.44, 0.04, 0.04),
+        matBody
+      );
       crest.position.set(0, 0.38, -0.32);
       crest.userData.isCrestBar = true;
       crest.userData.visualCoreImmutable = true;
-      group.add(crest);
+      rootGroup.add(crest);
 
-      // ── Armrests — low connecting bars ────────────────────────────────
+      // ── Armrests — low connecting bars (no end caps) ──────────────────
+      const armGeo = new THREE.CylinderGeometry(0.018, 0.018, 0.28, 5); // reduced from 6
       [-0.32, 0.32].forEach((ax, ai) => {
-        const armGeo = new THREE.CylinderGeometry(0.018, 0.018, 0.28, 6);
-        const arm = new THREE.Mesh(armGeo, backMat);
+        const arm = new THREE.Mesh(armGeo, matBody);
         arm.rotation.z = Math.PI / 2;
         arm.position.set(ax, -0.02, 0.1);
         arm.userData.isArmrest = true;
         arm.userData.armIndex = ai;
         arm.userData.visualCoreImmutable = true;
-        group.add(arm);
-
-        // Armrest end caps
-        const capGeo2 = new THREE.SphereGeometry(0.025, 8, 8);
-        [-0.16, 0.16].forEach((ox) => {
-          const cap2 = new THREE.Mesh(capGeo2, backMat);
-          cap2.position.set(ax + ox, -0.02, 0.1);
-          cap2.userData.visualCoreImmutable = true;
-          group.add(cap2);
-        });
+        rootGroup.add(arm);
       });
 
-      // ── Command Beacon — top emissive crystal ───────────────────────────
-      const beaconGeo = new THREE.OctahedronGeometry(0.08, 1);
-      const beaconMat = new THREE.MeshStandardMaterial({
-        color: color,
-        metalness: 0.5,
-        roughness: 0.2,
-        emissive: color,
-        emissiveIntensity: 2.0
-      });
-      const beacon = new THREE.Mesh(beaconGeo, beaconMat);
+      // ── Command Beacon — top emissive crystal ─────────────────────────
+      const beacon = new THREE.Mesh(
+        new THREE.OctahedronGeometry(0.08, 1),
+        new THREE.MeshStandardMaterial({
+          color, metalness: 0.5, roughness: 0.2,
+          emissive: color, emissiveIntensity: 2.0
+        })
+      );
       beacon.position.y = 0.55;
       beacon.userData.isCommandBeacon = true;
       beacon.userData.visualCoreImmutable = true;
-      group.add(beacon);
+      rootGroup.add(beacon);
 
-      // Beacon glow ring
-      const beaconRingGeo = new THREE.TorusGeometry(0.14, 0.006, 6, 24);
       const beaconRing = new THREE.Mesh(
-        beaconRingGeo,
-        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.8, transparent: true, opacity: 0.5 })
+        new THREE.TorusGeometry(0.14, 0.006, 5, 16), // reduced from 6,24
+        matGlow
       );
       beaconRing.position.y = 0.55;
       beaconRing.userData.visualCoreImmutable = true;
-      group.add(beaconRing);
+      rootGroup.add(beaconRing);
 
-      group.userData.visualCoreImmutable = true;
-      group.userData.nodeGeometryName = 'CONTROL_THRONE_OF_GRID';
+      rootGroup.userData.visualCoreImmutable = true;
+      rootGroup.userData.nodeGeometryName = 'CONTROL_THRONE_OF_GRID';
 
-      return group;
+      return rootGroup;
     } catch (err) {
       console.error('[ThroneOfGrid:Abort]', { model: 'createExtremeControl1', category: 'control', reason: err?.message || err });
       return group;

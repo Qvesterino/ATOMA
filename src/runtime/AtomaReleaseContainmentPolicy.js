@@ -29,6 +29,12 @@ const STATIC_SYSTEM_POLICY = Object.freeze({
     policy: 'active',
     reason: 'Dominance now provides readable aura and pulse differentiation.',
   }),
+  waveShaderStack: Object.freeze({
+    classification: 'DISABLED FOR DEMO',
+    policy: 'disabled',
+    reason: 'Wave shader material patching creates expensive compile-time shader variants with low demo-critical payoff.',
+    flagName: 'ATOMA_DISABLE_WAVE_SHADER_STACK',
+  }),
   synergyChainReaction: Object.freeze({
     classification: 'DISABLED FOR DEMO',
     policy: 'disabled',
@@ -50,9 +56,15 @@ function readSynergyChainReactionDisable(scope) {
   return scope.ATOMA_DISABLE_SYNERGY_CHAIN_REACTION ?? demoProfile;
 }
 
+function readWaveShaderStackDisable(scope) {
+  const demoProfile = readDemoProfile(scope);
+  return scope.ATOMA_DISABLE_WAVE_SHADER_STACK ?? demoProfile;
+}
+
 export function ensureAtomaReleaseContainmentGlobals(scope = globalThis) {
   const target = getGlobalScope(scope);
   target.ATOMA_DEMO_RELEASE_PROFILE = readDemoProfile(target);
+  target.ATOMA_DISABLE_WAVE_SHADER_STACK = readWaveShaderStackDisable(target);
   target.ATOMA_DISABLE_SYNERGY_CHAIN_REACTION = readSynergyChainReactionDisable(target);
   return getAtomaReleaseContainmentProfile(target);
 }
@@ -60,6 +72,7 @@ export function ensureAtomaReleaseContainmentGlobals(scope = globalThis) {
 export function getAtomaReleaseContainmentProfile(scope = globalThis) {
   const target = getGlobalScope(scope);
   const demoProfile = readDemoProfile(target);
+  const disableWaveShaderStack = readWaveShaderStackDisable(target);
   const disableSynergyChainReaction = readSynergyChainReactionDisable(target);
 
   return {
@@ -71,6 +84,14 @@ export function getAtomaReleaseContainmentProfile(scope = globalThis) {
       synapticGating: { ...STATIC_SYSTEM_POLICY.synapticGating },
       synapticSpecialization: { ...STATIC_SYSTEM_POLICY.synapticSpecialization },
       competitionDominance: { ...STATIC_SYSTEM_POLICY.competitionDominance },
+      waveShaderStack: {
+        ...STATIC_SYSTEM_POLICY.waveShaderStack,
+        disabledByPolicy: Boolean(disableWaveShaderStack),
+        policy: disableWaveShaderStack ? 'disabled' : 'active',
+        classification: disableWaveShaderStack
+          ? STATIC_SYSTEM_POLICY.waveShaderStack.classification
+          : 'ACTIVE + EXPERIMENTAL',
+      },
       synergyChainReaction: {
         ...STATIC_SYSTEM_POLICY.synergyChainReaction,
         disabledByPolicy: Boolean(disableSynergyChainReaction),
@@ -91,6 +112,7 @@ export function createAtomaReleaseContainmentRuntimeState() {
     synapticGating: { initialized: false, scheduled: false },
     synapticSpecialization: { initialized: false, scheduled: false },
     competitionDominance: { initialized: false, scheduled: false },
+    waveShaderStack: { initialized: false, scheduled: false, enabled: false },
     synergyChainReaction: { initialized: false, scheduled: false },
   };
 }

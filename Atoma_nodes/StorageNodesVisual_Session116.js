@@ -901,6 +901,10 @@ export class StorageNodesVisual {
         accessLock: null,
         accessSeal: null,
         supportShells: [],
+        signalPilasters: [],
+        accessRibs: [],
+        crownHalo: null,
+        keystone: null,
         dustPoints: null
       };
 
@@ -1033,6 +1037,24 @@ export class StorageNodesVisual {
         refs.armorPlates.push(plate);
       });
 
+      const pilasterSpecs = [
+        { name: 'SignalPilaster_A', position: [-0.28, 0.18, 0.06], rotation: [0.08, -0.06, 0.1], scale: [0.34, 1.42, 0.28] },
+        { name: 'SignalPilaster_B', position: [0.24, 0.14, -0.04], rotation: [-0.06, 0.08, -0.08], scale: [0.28, 1.22, 0.24] }
+      ];
+
+      pilasterSpecs.forEach((spec, index) => {
+        const pilaster = makeMesh(obeliskGroup, geometries.plateGeometry, materials.crownMat, spec.name, {
+          position: spec.position,
+          rotation: spec.rotation,
+          scale: spec.scale,
+          renderOrder: archOrder + 2
+        });
+        pilaster.userData.isBastionSignalPilaster = true;
+        pilaster.userData.pilasterIndex = index;
+        captureBaseTransforms(pilaster);
+        refs.signalPilasters.push(pilaster);
+      });
+
       const crownCap = makeMesh(obeliskGroup, geometries.plateGeometry, materials.crownMat, 'BastionCrownCap', {
         position: [0.02, 0.78, 0.02],
         rotation: [0.08, 0.16, -0.08],
@@ -1061,6 +1083,23 @@ export class StorageNodesVisual {
         captureBaseTransforms(fragment);
         refs.crownFragments.push(fragment);
       });
+
+      const crownHalo = makeMesh(
+        obeliskGroup,
+        new THREE.TorusGeometry(0.22, 0.016, 8, 24),
+        materials.accessGlowMat,
+        'CrownHaloBracket',
+        {
+          position: [0.02, 0.7, 0.01],
+          rotation: [Math.PI / 2 - 0.18, 0.16, 0.08],
+          scale: [1.16, 0.74, 1.0],
+          renderOrder: archOrder + 4,
+          ignoreWaveColor: true
+        }
+      );
+      crownHalo.userData.isBastionCrownHalo = true;
+      captureBaseTransforms(crownHalo);
+      refs.crownHalo = crownHalo;
 
       const bastionGroup = new THREE.Group();
       bastionGroup.name = 'BASTION_GROUP';
@@ -1163,6 +1202,36 @@ export class StorageNodesVisual {
       accessSeal.userData.isBastionAccessSeal = true;
       captureBaseTransforms(accessSeal);
       refs.accessSeal = accessSeal;
+
+      const accessRibSpecs = [
+        { name: 'AccessRib_A', position: [0.0, 0.28, 0.025], rotation: [0.0, 0.08, 0.0], scale: [0.82, 0.42, 0.92] },
+        { name: 'AccessRib_B', position: [0.0, -0.28, 0.025], rotation: [0.0, -0.04, 0.0], scale: [0.74, 0.32, 0.84] }
+      ];
+
+      accessRibSpecs.forEach((spec, index) => {
+        const rib = makeMesh(accessGroup, geometries.accessSealGeometry, materials.seamMat, spec.name, {
+          position: spec.position,
+          rotation: spec.rotation,
+          scale: spec.scale,
+          renderOrder: archOrder + 9,
+          ignoreWaveColor: true
+        });
+        rib.userData.isBastionAccessRib = true;
+        rib.userData.ribIndex = index;
+        captureBaseTransforms(rib);
+        refs.accessRibs.push(rib);
+      });
+
+      const keystone = makeMesh(accessGroup, geometries.supportShellGeometry, materials.accessGlowMat, 'VaultKeystone', {
+        position: [0.0, 0.04, 0.08],
+        rotation: [0.24, 0.38, -0.12],
+        scale: [0.34, 0.44, 0.3],
+        renderOrder: archOrder + 10,
+        ignoreWaveColor: true
+      });
+      keystone.userData.isBastionKeystone = true;
+      captureBaseTransforms(keystone);
+      refs.keystone = keystone;
 
       const auraGroup = new THREE.Group();
       auraGroup.name = 'AURA_GROUP';
