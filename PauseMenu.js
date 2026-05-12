@@ -18,8 +18,9 @@ import {
     getLoreSectionById,
     getLoreSections,
 } from './LoreRegistry.js';
+import { ATOMA_VERSION } from './src/config/version.js';
 
-const PAUSE_BUILD_LABEL = 'v0.x';
+const PAUSE_BUILD_LABEL = ATOMA_VERSION;
 
 function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));

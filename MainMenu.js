@@ -5,6 +5,7 @@ import {
     getLoreSectionById,
     getLoreSections,
 } from './LoreRegistry.js';
+import { ATOMA_VERSION } from './src/config/version.js';
 
 const MENU_PROFILE_STORAGE_KEY = 'atoma.menu.profile.v1';
 const MENU_SNAPSHOT_STORAGE_KEY = 'atoma.menu.snapshot.v1';
@@ -12,7 +13,7 @@ const MENU_DEV_UNLOCK_STORAGE_KEY = 'atoma.dev.unlockMaps';
 const MENU_STYLE_ID = 'atoma-main-menu-style';
 const MENU_PROFILE_VERSION = 1;
 const MENU_SNAPSHOT_VERSION = 1;
-const MENU_BUILD_LABEL = 'v0.x';
+const MENU_BUILD_LABEL = ATOMA_VERSION;
 const VISUAL_LEVELS = ['LOW', 'MEDIUM', 'HIGH'];
 const SOUND_LEVELS = [0, 20, 40, 60, 80, 100];
 const DEFAULT_SETTINGS = Object.freeze({

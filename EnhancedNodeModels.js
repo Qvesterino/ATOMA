@@ -18497,18 +18497,6 @@ export class EnhancedNodeModels {
     orbit.rotation.x = 0.1;
     root.add(orbit);
 
-    // Wire chaos cage
-    const cageGeo = new THREE.BoxGeometry(1.4, 1.1, 0.9);
-    perturb(cageGeo, 0.08);
-    const cageEdges = new THREE.LineSegments(new THREE.EdgesGeometry(cageGeo), new THREE.LineBasicMaterial({
-      color,
-      transparent: true,
-      opacity: 0.3
-    }));
-    cageEdges.scale.set(1.08, 1.0, 0.9);
-    cageEdges.userData.visualLayer = 'INTERNAL';
-    root.add(cageEdges);
-
     group.add(root);
     return group;
   }
@@ -41606,34 +41594,141 @@ static createAnalyticsNode2(group, color) {
   }
 
   /**
-   * EXTREME variant: Fractal Bloom (archetypeId: 3)
-   * Maps to PROCESS category
+   * PARANORMAL FORGE — Mythic AI process node
+   * Asymmetric torus-knot core with 3 unequal forge arms, tilted rune ring,
+   * wireframe containment shell, base vortex ring, and mist aura.
+   * Self-contained inline — no external pack dependency.
+   * PERFORMANCE: 11 meshes, 3 shared materials.
    */
   static createExtremeProcess1(group, color) {
     try {
-      const tempNode = new THREE.Group();
-      tempNode.visualGroup = new THREE.Group();
-      
-      const extremeGroup = this.extremeNodePack.createFractalBloom(tempNode, null);
-      if (!extremeGroup) {
-        if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
-          console.error('[VisualBuildFail]', { archetype: 'extreme-process-1', category: 'process', reason: 'NoMesh' });
-        }
-        return group;
-      }
-      
-      group.add(extremeGroup);
-      tempNode.userData.extremeArchetype = 3;
-      
+      // ── Shared materials ──────────────────────────────────────────────
+      const matBody = new THREE.MeshStandardMaterial({
+        color: color, metalness: 0.88, roughness: 0.1,
+        emissive: color, emissiveIntensity: 0.6
+      });
+      const matGlow = new THREE.MeshStandardMaterial({
+        color: color, metalness: 0.5, roughness: 0.15,
+        emissive: color, emissiveIntensity: 1.6
+      });
+      const matAura = new THREE.MeshStandardMaterial({
+        color: color, metalness: 0.1, roughness: 0.8,
+        emissive: color, emissiveIntensity: 0.2,
+        transparent: true, opacity: 0.1,
+        side: THREE.FrontSide, depthWrite: false
+      });
+
+      // ── Core: Asymmetric Torus Knot ───────────────────────────────────
+      const core = new THREE.Mesh(
+        new THREE.TorusKnotGeometry(0.12, 0.035, 48, 6, 2, 3),
+        new THREE.MeshStandardMaterial({
+          color: color, metalness: 0.6, roughness: 0.2,
+          emissive: color, emissiveIntensity: 2.0
+        })
+      );
+      core.userData.isForgeCore = true;
+      core.userData.visualCoreImmutable = true;
+      group.add(core);
+
+      // ── 3 Asymmetric Forge Arms ───────────────────────────────────────
+      const arms = [
+        { angle: 0,            length: 0.40, tilt: 0.15 },
+        { angle: Math.PI * 0.72, length: 0.32, tilt: -0.22 },
+        { angle: Math.PI * 1.39, length: 0.25, tilt: 0.30 }
+      ];
+
+      const armGeo = new THREE.CylinderGeometry(0.012, 0.022, 1.0, 5); // unit length, scaled per arm
+      const tipGeo = new THREE.OctahedronGeometry(0.03, 0);
+
+      arms.forEach((arm, ai) => {
+        const armMesh = new THREE.Mesh(armGeo, matBody);
+        // Scale to arm length
+        armMesh.scale.y = arm.length;
+        // Position: radially out from center, tilted
+        const dist = 0.15 + arm.length * 0.5;
+        armMesh.position.set(
+          Math.cos(arm.angle) * dist,
+          arm.tilt,
+          Math.sin(arm.angle) * dist
+        );
+        // Rotate to point outward radially
+        armMesh.rotation.z = -Math.cos(arm.angle) * 0.3;
+        armMesh.rotation.x = Math.sin(arm.angle) * 0.3;
+        armMesh.userData.isForgeArm = true;
+        armMesh.userData.armIndex = ai;
+        armMesh.userData.visualCoreImmutable = true;
+        group.add(armMesh);
+
+        // Arm tip crystal
+        const tipDist = 0.15 + arm.length + 0.04;
+        const tip = new THREE.Mesh(tipGeo, matGlow);
+        tip.position.set(
+          Math.cos(arm.angle) * tipDist,
+          arm.tilt * 1.3,
+          Math.sin(arm.angle) * tipDist
+        );
+        tip.userData.isArmTip = true;
+        tip.userData.armIndex = ai;
+        tip.userData.visualCoreImmutable = true;
+        group.add(tip);
+      });
+
+      // ── Rune Ring — tilted torus ──────────────────────────────────────
+      const runeRing = new THREE.Mesh(
+        new THREE.TorusGeometry(0.35, 0.008, 5, 24),
+        matBody
+      );
+      runeRing.rotation.x = Math.PI * 0.19; // ~35° tilt
+      runeRing.rotation.z = 0.12;
+      runeRing.userData.isRuneRing = true;
+      runeRing.userData.visualCoreImmutable = true;
+      group.add(runeRing);
+
+      // ── Containment Shell — wireframe icosahedron ─────────────────────
+      const shell = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(0.28, 1),
+        new THREE.MeshStandardMaterial({
+          color: color, metalness: 0.3, roughness: 0.5,
+          emissive: color, emissiveIntensity: 0.4,
+          wireframe: true, transparent: true, opacity: 0.35
+        })
+      );
+      shell.userData.isContainmentShell = true;
+      shell.userData.visualCoreImmutable = true;
+      group.add(shell);
+
+      // ── Base Vortex Ring ──────────────────────────────────────────────
+      const vortex = new THREE.Mesh(
+        new THREE.RingGeometry(0.15, 0.4, 12),
+        new THREE.MeshStandardMaterial({
+          color: color, metalness: 0.4, roughness: 0.4,
+          emissive: color, emissiveIntensity: 0.3,
+          transparent: true, opacity: 0.15,
+          side: THREE.DoubleSide, depthWrite: false
+        })
+      );
+      vortex.rotation.x = -Math.PI / 2 + 0.21; // tilted opposite to rune ring
+      vortex.position.y = -0.22;
+      vortex.userData.isVortexRing = true;
+      vortex.userData.visualCoreImmutable = true;
+      group.add(vortex);
+
+      // ── Paranormal Mist Aura ──────────────────────────────────────────
+      const mist = new THREE.Mesh(
+        new THREE.SphereGeometry(0.35, 8, 6),
+        matAura
+      );
+      mist.userData.isMistAura = true;
+      mist.userData.visualCoreImmutable = true;
+      group.add(mist);
+
+      group.userData.visualCoreImmutable = true;
+      group.userData.nodeGeometryName = 'PROCESS_PARANORMAL_FORGE';
+
       return group;
     } catch (err) {
-      console.error('[NodeVisualAbort]', {
-        model: 'createExtremeProcess1',
-        category: 'process',
-        reason: 'Visual build failed — fallback visuals are forbidden',
-        error: err
-      });
-      return null;
+      console.error('[ParanormalForge:Abort]', { model: 'createExtremeProcess1', category: 'process', reason: err?.message || err });
+      return group;
     }
   }
 
