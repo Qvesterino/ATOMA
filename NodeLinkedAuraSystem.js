@@ -172,6 +172,7 @@ export class NodeLinkedAuraSystem {
 
     // Reusable temp vector — eliminates per-vertex allocations in hot loop
     this._tmpVec3 = new THREE.Vector3();
+    this._linkCountByNode = new Map();
     // Frame counter for throttled normal recomputation
     this._frameCounter = 0;
 
@@ -297,6 +298,8 @@ export class NodeLinkedAuraSystem {
     if (shouldRunFlameMotion) {
       this._flameMotionAcc = 0;
     }
+
+    this._rebuildLinkCountCache();
     
     // Update existing auras and check for new nodes
     for (const node of nodes) {
@@ -330,14 +333,28 @@ export class NodeLinkedAuraSystem {
    * Get active link count for a node
    */
   getNodeLinkCount(node) {
-    if (!this.linkingSystem || !this.linkingSystem.links) return 0;
-    const links = this.linkingSystem.links;
-    let count = 0;
+    return this._linkCountByNode.get(node) || 0;
+  }
+
+  _rebuildLinkCountCache() {
+    this._linkCountByNode.clear();
+    const links = this.linkingSystem?.links;
+    if (!Array.isArray(links) || links.length === 0) return;
+
     for (let i = 0, len = links.length; i < len; i++) {
       const link = links[i];
-      if (link.active && (link.source === node || link.target === node)) count++;
+      if (!link?.active) continue;
+
+      const source = link.source || link.sourceNode || link.nodeA || null;
+      const target = link.target || link.targetNode || link.nodeB || null;
+
+      if (source) {
+        this._linkCountByNode.set(source, (this._linkCountByNode.get(source) || 0) + 1);
+      }
+      if (target) {
+        this._linkCountByNode.set(target, (this._linkCountByNode.get(target) || 0) + 1);
+      }
     }
-    return count;
   }
   
   /**
@@ -380,7 +397,7 @@ export class NodeLinkedAuraSystem {
         node.position,
         {
             radius: node.scale.x * 1.85,
-            segmentCount: 64
+            segmentCount: 48
         }
     );
     
@@ -487,7 +504,7 @@ export class NodeLinkedAuraSystem {
         node.position,
         {
           radius: node.scale.x * 1.85,
-          segmentCount: 64
+          segmentCount: 48
         }
       );
       

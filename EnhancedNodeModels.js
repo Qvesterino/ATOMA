@@ -23591,16 +23591,36 @@ static createAnalyticsNode2(group, color) {
   }
 
   /**
-   * AxiomCrystal: Vertical crystal monolith with sharp facets (CANONICAL)
-   * - Vertical elongation (height ~1.8x width)
-   * - 14 sharp facets, asymmetrical cuts (top/bottom NOT mirrored)
-   * - ~5° axial twist around Y-axis
-   * - Transmission material (IOR 1.45, transmission 0.9, roughness 0.1)
-   * - Internal color gradient: gold → amber → dark honey
-   * - IMMUTABLE: No material mutation, no state-based changes
+   * AXIOM SENTINEL — Mythic first-contact control node (CANONICAL)
+   * - Fractured crystal core with 14 asymmetric facets
+   * - Inner glow pillar (the axiom's heartbeat)
+   * - 3 asymmetric orbiting shards
+   * - Tilted ritual base ring
+   * - Fissure edge lines on crystal faces
+   * - Presence aura sphere
+   * - PERFORMANCE: 8 meshes, 4 materials
+   * - IMMUTABLE core crystal: no material mutation on the crystal body
    */
   static createAxiomCrystalNode(group, color) {
-    // Create vertical crystal using custom faceted geometry
+
+    // ── Shared materials ──────────────────────────────────────────────
+    const matGlow = new THREE.MeshStandardMaterial({
+      color: color, metalness: 0.5, roughness: 0.15,
+      emissive: color, emissiveIntensity: 1.8
+    });
+    const matBody = new THREE.MeshStandardMaterial({
+      color: color, metalness: 0.88, roughness: 0.1,
+      emissive: color, emissiveIntensity: 0.5
+    });
+    const matAura = new THREE.MeshStandardMaterial({
+      color: color, metalness: 0.1, roughness: 0.8,
+      emissive: color, emissiveIntensity: 0.15,
+      transparent: true, opacity: 0.08,
+      side: THREE.FrontSide, depthWrite: false
+    });
+    const matLine = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.4 });
+
+    // ── Crystal Core (original faceted geometry, upgraded material) ───
     const vertices = new Float32Array([
       // Base (asymmetrical - wider, irregular cuts)
       0.0, -0.9, 0.0,      // 0: center bottom
@@ -23610,7 +23630,7 @@ static createAnalyticsNode2(group, color) {
       -0.4, -0.9, 0.15,    // 4
       -0.3, -0.9, -0.25,   // 5
       0.15, -0.9, -0.35,   // 6
-      
+
       // Lower section (transition)
       0.32, -0.5, 0.0,     // 7
       0.22, -0.5, 0.28,    // 8
@@ -23618,51 +23638,23 @@ static createAnalyticsNode2(group, color) {
       -0.35, -0.5, 0.12,   // 10
       -0.28, -0.5, -0.22,  // 11
       0.12, -0.5, -0.32,   // 12
-      
+
       // Upper section (tighter - asymmetrical)
       0.2, 0.4, -0.05,     // 13
       0.18, 0.4, 0.15,     // 14
       -0.08, 0.4, 0.22,    // 15
       -0.25, 0.4, 0.05,    // 16
       -0.18, 0.4, -0.15,   // 17
-      
+
       // Top (sharp point - offset from center)
       -0.05, 0.9, 0.08     // 18: apex (asymmetrical)
     ]);
 
-    // Define faces (14 facets for fully faceted crystal)
     const indices = new Uint16Array([
-      // Base to lower section (6 radial faces - irregular)
-      0, 1, 7,
-      0, 7, 12,
-      0, 12, 6,
-      0, 6, 5,
-      0, 5, 4,
-      0, 4, 3,
-      0, 3, 2,
-      0, 2, 1,
-      
-      // Lower to upper section (5 radial faces)
-      7, 8, 14,
-      8, 9, 15,
-      9, 10, 16,
-      10, 11, 17,
-      11, 12, 13,
-      
-      // Upper to apex (5 top faces - asymmetrical point)
-      13, 14, 18,
-      14, 15, 18,
-      15, 16, 18,
-      16, 17, 18,
-      17, 13, 18,
-      
-      // Side connections (bridge lower to upper)
-      7, 14, 13,
-      8, 15, 14,
-      9, 16, 15,
-      10, 17, 16,
-      11, 13, 17,
-      12, 7, 13
+      0, 1, 7,  0, 7, 12,  0, 12, 6,  0, 6, 5,  0, 5, 4,  0, 4, 3,  0, 3, 2,  0, 2, 1,
+      7, 8, 14,  8, 9, 15,  9, 10, 16,  10, 11, 17,  11, 12, 13,
+      13, 14, 18,  14, 15, 18,  15, 16, 18,  16, 17, 18,  17, 13, 18,
+      7, 14, 13,  8, 15, 14,  9, 16, 15,  10, 17, 16,  11, 13, 17,  12, 7, 13
     ]);
 
     const geometry = new THREE.BufferGeometry();
@@ -23670,48 +23662,93 @@ static createAnalyticsNode2(group, color) {
     geometry.setIndex(new THREE.BufferAttribute(indices, 1));
     geometry.computeVertexNormals();
 
-    // Create transmission material with internal gradient
-    // Gold → Amber → Dark Honey internal color
-    const transmissionMaterial = new THREE.MeshPhysicalMaterial({
-      color: new THREE.Color(0xffd700).lerp(new THREE.Color(0xffb347), 0.5), // Gold-Amber base
-      transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
-      thickness: 0.8,
-      roughness: 0.1,
-      metalness: 0.0,
-      ior: 1.45,
-      reflectivity: 0.9,
+    // Crystal body material — upgraded emissive, keeps canonical feel
+    const crystalMaterial = new THREE.MeshStandardMaterial({
+      color: color,
+      metalness: 0.35,
+      roughness: 0.15,
+      emissive: color,
+      emissiveIntensity: 0.45,
       envMapIntensity: 1.0,
-      side: THREE.FrontSide,
-      // Internal color gradient simulation
-      emissive: new THREE.Color(0x8b6914), // Dark honey subtle glow
-      emissiveIntensity: 0.05
+      side: THREE.FrontSide
     });
-    
-    // Lock material from mutation
-    transmissionMaterial.userData.immutable = true;
-    Object.defineProperty(transmissionMaterial, 'userData', {
-      writable: false,
-      configurable: false
-    });
+    crystalMaterial.userData = crystalMaterial.userData || {};
+    crystalMaterial.userData.immutable = true;
 
-    const crystal = new THREE.Mesh(geometry, transmissionMaterial);
-    
-    // Apply ~5° axial twist around Y-axis
-    crystal.rotation.y = (5 * Math.PI) / 180; // 5 degrees
-
-    // Mark as immutable static geometry
+    const crystal = new THREE.Mesh(geometry, crystalMaterial);
+    crystal.rotation.y = (5 * Math.PI) / 180;
     crystal.userData.isStaticAxiomCrystal = true;
     crystal.userData.immutable = true;
     crystal.userData.noMaterialMutation = true;
-    
-    // CRITICAL: DO NOT freeze geometry or material
-    // Three.js needs extensibility to attach event listeners (_listeners)
-    // Immutability is enforced at API level via userData flags
-
+    crystal.userData.visualCoreImmutable = true;
     group.add(crystal);
-    group.userData.nodeGeometryName = 'CONTROL_AXIOM_CRYSTAL';
+
+    // ── Fissure Edge Lines ────────────────────────────────────────────
+    const fissureLines = new THREE.LineSegments(
+      new THREE.EdgesGeometry(geometry),
+      matLine
+    );
+    fissureLines.rotation.y = crystal.rotation.y;
+    fissureLines.userData.isFissureLines = true;
+    fissureLines.userData.visualCoreImmutable = true;
+    group.add(fissureLines);
+
+    // ── Inner Glow Pillar ─────────────────────────────────────────────
+    const pillar = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.04, 0.04, 1.2, 5),
+      matGlow
+    );
+    pillar.userData.isGlowPillar = true;
+    pillar.userData.visualCoreImmutable = true;
+    group.add(pillar);
+
+    // ── 3 Asymmetric Orbiting Shards ──────────────────────────────────
+    const shardConfigs = [
+      { angle: 0,             radius: 0.5,  y: 0.2,  scale: 1.0 },
+      { angle: Math.PI * 0.75, radius: 0.6,  y: -0.1, scale: 0.75 },
+      { angle: Math.PI * 1.44, radius: 0.45, y: 0.35, scale: 0.6 }
+    ];
+    const shardGeo = new THREE.TetrahedronGeometry(0.06, 0);
+
+    shardConfigs.forEach((cfg, si) => {
+      const shard = new THREE.Mesh(shardGeo, matGlow);
+      shard.position.set(
+        Math.cos(cfg.angle) * cfg.radius,
+        cfg.y,
+        Math.sin(cfg.angle) * cfg.radius
+      );
+      shard.scale.setScalar(cfg.scale);
+      shard.rotation.set(si * 1.2, si * 0.8, si * 0.5);
+      shard.userData.isOrbitShard = true;
+      shard.userData.shardIndex = si;
+      shard.userData.visualCoreImmutable = true;
+      group.add(shard);
+    });
+
+    // ── Ritual Base Ring ──────────────────────────────────────────────
+    const ritualRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.45, 0.01, 5, 20),
+      matBody
+    );
+    ritualRing.rotation.x = Math.PI / 2 + 0.26; // tilted ~15°
+    ritualRing.position.y = -0.65;
+    ritualRing.userData.isRitualRing = true;
+    ritualRing.userData.visualCoreImmutable = true;
+    group.add(ritualRing);
+
+    // ── Presence Aura ─────────────────────────────────────────────────
+    const aura = new THREE.Mesh(
+      new THREE.SphereGeometry(0.5, 8, 6),
+      matAura
+    );
+    aura.userData.isPresenceAura = true;
+    aura.userData.visualCoreImmutable = true;
+    group.add(aura);
+
+    group.userData.nodeGeometryName = 'CONTROL_AXIOM_SENTINEL';
     group.userData.isCanonicalControlNode = true;
-    
+    group.userData.visualCoreImmutable = true;
+
     return group;
   }
 

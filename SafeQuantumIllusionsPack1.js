@@ -151,7 +151,7 @@ export class SafeQuantumIllusionsPack1 {
         opacityRange: [0.08, 0.25]
       },
       afterPaths: {
-        enabled: true,
+        enabled: false,
         maxActive: 25,
         lifetime: [0.2, 0.4],
         opacityRange: [0.1, 0.25]
@@ -2049,6 +2049,16 @@ export class SafeQuantumIllusionsPack1 {
    */
   getStats() {
     return this.registry.getStats();
+  }
+
+  getStatus() {
+    const stats = this.registry?.getStats?.() || { byType: {} };
+    return {
+      afterPaths: {
+        enabled: this.config?.afterPaths?.enabled !== false,
+        active: stats.byType?.afterPaths ?? 0
+      }
+    };
   }
   
   /**

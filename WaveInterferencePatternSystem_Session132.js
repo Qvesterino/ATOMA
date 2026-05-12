@@ -377,11 +377,11 @@ export class WaveInterferencePatternSystem_Session132 {
             
             // Interference mesh rendering
             interferenceResolution: 16,       // Segments for interference mesh
-            maxInterferenceMeshes: 50,        // Pool size
+            maxInterferenceMeshes: 18,        // Pool size
             interferenceRenderOrder: VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE),
-            visualUpdateHz: 30,               // Explicit render pacing for this system
+            visualUpdateHz: 20,               // Explicit render pacing for this system
             beatMotionScale: 0.72,            // Slightly slower beat animation
-            spikeCount: 5,                    // Protrusions on the sphere (reduced for elegance)
+            spikeCount: 3,                    // Protrusions on the sphere (reduced for elegance)
             spikeLength: 0.55,                // Spike reach from center (shorter)
             spikeRadius: 0.07,                // Spike base radius (thinner)
             shellOpacity: 0.08,               // Thin structural shell (more subtle)
@@ -403,8 +403,8 @@ export class WaveInterferencePatternSystem_Session132 {
             
             // Performance
             enableLOD: true,                  // Distance-based culling
-            lodDistance: 35,                  // Culling distance
-            maxConcurrentInterferences: 15,   // Max active patterns per frame
+            lodDistance: 28,                  // Culling distance
+            maxConcurrentInterferences: 8,    // Max active patterns per frame
             
             // SUPERNATURAL UPGRADE: Prismatic Holographic parameters
             iridescenceThickness: 1.8,        // Thin-film thickness for spectral color cycling
@@ -430,6 +430,14 @@ export class WaveInterferencePatternSystem_Session132 {
         this.interferenceMeshPool = [];
         this._visualAccumulator = 0;
         this._visualStep = 1 / Math.max(1, this.config.visualUpdateHz);
+        this._networkStateAccumulator = 0;
+        this._networkStateStep = 1 / 10;
+        this._cachedNetworkState = {
+            avgHarmony: 0.5,
+            avgCorruption: 0.0,
+            avgInstability: 0.0,
+            avgSynergy: 0.5
+        };
         this._spikeDirections = this._buildSpikeDirections();
         this._cameraRef = globalThis?.__ATOMA_CAMERA__ ?? null;
         
@@ -476,10 +484,10 @@ export class WaveInterferencePatternSystem_Session132 {
         });
         
         // Redesigned: smaller, softer core; thinner shell; elegant proportions
-        this._coreGeometry = new THREE.SphereGeometry(0.32, 10, 10);
+        this._coreGeometry = new THREE.SphereGeometry(0.32, 8, 8);
         this._shellGeometry = new THREE.IcosahedronGeometry(0.52, 1);
         this._spikeGeometry = new THREE.ConeGeometry(0.06, this.config.spikeLength, 4, 1, false);
-        this._birthPulseGeometry = new THREE.TorusGeometry(0.72, 0.035, 6, 24);
+        this._birthPulseGeometry = new THREE.TorusGeometry(0.72, 0.035, 5, 18);
         
         // Pre-allocate interference mesh pool
         for (let i = 0; i < this.config.maxInterferenceMeshes; i++) {
@@ -1001,9 +1009,9 @@ export class WaveInterferencePatternSystem_Session132 {
             meshItem.birthTime = zone.birthTime;
             meshItem.birthSeeded = zone.birthSeeded === true;
             meshItem.birthSeedAge = Math.max(0, this.time - (zone.birthTime ?? this.time));
-            meshItem.baseColor = (zone.type === 'constructive'
+            meshItem.baseColor = zone.type === 'constructive'
                 ? this.config.constructiveColor
-                : this.config.destructiveColor).clone();
+                : this.config.destructiveColor;
 
             // Position mesh at convergence point
             meshItem.mesh.position.copy(zone.convergencePoint);
@@ -1088,7 +1096,13 @@ export class WaveInterferencePatternSystem_Session132 {
             meshIndex++;
         });
 
-        this.interferenceMeshes = this.interferenceMeshPool.filter(item => item.active);
+        this.interferenceMeshes.length = 0;
+        for (let i = 0, len = this.interferenceMeshPool.length; i < len; i++) {
+            const item = this.interferenceMeshPool[i];
+            if (item.active) {
+                this.interferenceMeshes.push(item);
+            }
+        }
     }
 
     /**
@@ -1117,30 +1131,18 @@ export class WaveInterferencePatternSystem_Session132 {
      */
     _modulateByNetworkState(deltaTime) {
         if (!this.aiNodes) return;
-        
-        const nodes = Array.isArray(this.aiNodes) ? this.aiNodes :
-                      this.aiNodes.nodes ? this.aiNodes.nodes :
-                      Object.values(this.aiNodes);
-        
-        // Calculate average network state
-        let avgHarmony = 0, avgCorruption = 0, avgInstability = 0, avgSynergy = 0;
-        let nodeCount = 0;
-        
-        nodes.forEach(node => {
-            if (!node) return;
-            avgHarmony += this._readCanonicalMetric(node, 'harmony', 0.5);
-            avgCorruption += this._readCanonicalMetric(node, 'corruption', 0.5);
-            avgInstability += this._readCanonicalMetric(node, 'instability', 0);
-            avgSynergy += this._readCanonicalMetric(node, 'synergy', 0.5);
-            nodeCount++;
-        });
-        
-        if (nodeCount > 0) {
-            avgHarmony /= nodeCount;
-            avgCorruption /= nodeCount;
-            avgInstability /= nodeCount;
-            avgSynergy /= nodeCount;
+        this._networkStateAccumulator += Math.max(0, Number(deltaTime) || 0);
+        if (this._networkStateAccumulator >= this._networkStateStep) {
+            this._networkStateAccumulator %= this._networkStateStep;
+            this._refreshCachedNetworkState();
         }
+        
+        const {
+            avgHarmony,
+            avgCorruption,
+            avgInstability,
+            avgSynergy
+        } = this._cachedNetworkState;
         
         // Modulate interference mesh properties
         this.interferenceMeshPool.forEach(meshItem => {
@@ -1165,6 +1167,45 @@ export class WaveInterferencePatternSystem_Session132 {
 
             this._applyInterferenceMaterialState(meshItem, modulation);
         });
+    }
+
+    _refreshCachedNetworkState() {
+        const nodes = Array.isArray(this.aiNodes) ? this.aiNodes :
+                      this.aiNodes.nodes ? this.aiNodes.nodes :
+                      Object.values(this.aiNodes);
+
+        let avgHarmony = 0;
+        let avgCorruption = 0;
+        let avgInstability = 0;
+        let avgSynergy = 0;
+        let nodeCount = 0;
+
+        for (let i = 0, len = nodes.length; i < len; i++) {
+            const node = nodes[i];
+            if (!node) continue;
+            avgHarmony += this._readCanonicalMetric(node, 'harmony', 0.5);
+            avgCorruption += this._readCanonicalMetric(node, 'corruption', 0.5);
+            avgInstability += this._readCanonicalMetric(node, 'instability', 0);
+            avgSynergy += this._readCanonicalMetric(node, 'synergy', 0.5);
+            nodeCount++;
+        }
+
+        if (nodeCount > 0) {
+            avgHarmony /= nodeCount;
+            avgCorruption /= nodeCount;
+            avgInstability /= nodeCount;
+            avgSynergy /= nodeCount;
+        } else {
+            avgHarmony = 0.5;
+            avgCorruption = 0.0;
+            avgInstability = 0.0;
+            avgSynergy = 0.5;
+        }
+
+        this._cachedNetworkState.avgHarmony = avgHarmony;
+        this._cachedNetworkState.avgCorruption = avgCorruption;
+        this._cachedNetworkState.avgInstability = avgInstability;
+        this._cachedNetworkState.avgSynergy = avgSynergy;
     }
 
     /**

@@ -15514,10 +15514,12 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                     peakDuration: 2.0,
                     dissipateTime: 1.5,
                     
-                    maxInterferenceMeshes: 50,
-                    maxConcurrentInterferences: 15,
+                    maxInterferenceMeshes: 18,
+                    maxConcurrentInterferences: 8,
                     enableLOD: true,
-                    lodDistance: 35
+                    lodDistance: 28,
+                    visualUpdateHz: 20,
+                    spikeCount: 3
                 }
             );
             this.wavePatternSystem = this.waveInterference;

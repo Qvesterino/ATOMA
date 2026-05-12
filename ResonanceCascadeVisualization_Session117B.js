@@ -153,6 +153,8 @@ export class ResonanceCascadeVisualization_Session117B {
     this._linkBirthCooldowns = new Map();
     this._sharedCascadeSphereGeometry = null;
     this._sharedCascadeRingGeometry = null;
+    this._influenceSampleAccumulator = 0;
+    this._influenceSampleInterval = 1 / 15;
     this._tmpNodeTint = new THREE.Color(0x4b1f78);
     this._tmpLinkTint = new THREE.Color(0x6a2ca0);
     this._boundHandleLinkCreated = this.handleLinkCreated.bind(this);
@@ -252,11 +254,11 @@ export class ResonanceCascadeVisualization_Session117B {
 
   _ensureCascadeVisualResources() {
     if (!this._sharedCascadeSphereGeometry) {
-      this._sharedCascadeSphereGeometry = new THREE.SphereGeometry(1, 14, 14);
+      this._sharedCascadeSphereGeometry = new THREE.SphereGeometry(1, 10, 10);
     }
 
     if (!this._sharedCascadeRingGeometry) {
-      this._sharedCascadeRingGeometry = new THREE.TorusGeometry(1, 0.033, 10, 64);
+      this._sharedCascadeRingGeometry = new THREE.TorusGeometry(1, 0.033, 8, 32);
     }
   }
 
@@ -410,8 +412,9 @@ export class ResonanceCascadeVisualization_Session117B {
       this._updateCascadeVisual(cascade);
     }
 
+    const activeCascadeSet = new Set(this.activeCascades);
     for (const [cascade, visual] of this.cascadeVisuals.entries()) {
-      if (this.activeCascades.includes(cascade)) continue;
+      if (activeCascadeSet.has(cascade)) continue;
       this._disposeCascadeVisual(visual);
       this.cascadeVisuals.delete(cascade);
     }
@@ -1164,32 +1167,38 @@ export class ResonanceCascadeVisualization_Session117B {
     this.activeCascades = activeCascades;
     this._syncCascadeVisuals();
 
-    if (Array.isArray(nodes) && this.activeCascades.length > 0) {
-      for (const node of nodes) {
-        if (!node?.position || !node?.userData) continue;
-        if (!this._nodeHasLinks(node)) continue;
-        let influence = 0;
-        for (const cascade of this.activeCascades) {
-          const distance = this._distanceToPosition(node.position, cascade.originPos);
-          influence = Math.max(influence, this._computeWaveInfluence(distance, cascade));
-        }
-        if (influence > 0.001) {
-          this._registerNodeVisual(node, influence);
+    this._influenceSampleAccumulator += Math.max(0, Number(deltaTime) || 0);
+    const shouldSampleInfluence = this._influenceSampleAccumulator >= this._influenceSampleInterval;
+    if (shouldSampleInfluence) {
+      this._influenceSampleAccumulator %= this._influenceSampleInterval;
+
+      if (Array.isArray(nodes) && this.activeCascades.length > 0) {
+        for (const node of nodes) {
+          if (!node?.position || !node?.userData) continue;
+          if (!this._nodeHasLinks(node)) continue;
+          let influence = 0;
+          for (const cascade of this.activeCascades) {
+            const distance = this._distanceToPosition(node.position, cascade.originPos);
+            influence = Math.max(influence, this._computeWaveInfluence(distance, cascade));
+          }
+          if (influence > 0.001) {
+            this._registerNodeVisual(node, influence);
+          }
         }
       }
-    }
 
-    if (Array.isArray(links) && this.activeCascades.length > 0) {
-      for (const link of links) {
-        const midpoint = this._getLinkMidpoint(link);
-        if (!midpoint || !link?.userData) continue;
-        let influence = 0;
-        for (const cascade of this.activeCascades) {
-          const distance = this._distanceToPosition(midpoint, cascade.originPos);
-          influence = Math.max(influence, this._computeWaveInfluence(distance, cascade));
-        }
-        if (influence > 0.001) {
-          this._registerLinkVisual(link, influence);
+      if (Array.isArray(links) && this.activeCascades.length > 0) {
+        for (const link of links) {
+          const midpoint = this._getLinkMidpoint(link);
+          if (!midpoint || !link?.userData) continue;
+          let influence = 0;
+          for (const cascade of this.activeCascades) {
+            const distance = this._distanceToPosition(midpoint, cascade.originPos);
+            influence = Math.max(influence, this._computeWaveInfluence(distance, cascade));
+          }
+          if (influence > 0.001) {
+            this._registerLinkVisual(link, influence);
+          }
         }
       }
     }

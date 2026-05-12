@@ -262,7 +262,7 @@ test('applyDominancePulseModulation bridges dominance payload into existing halo
 test('SafeQuantumIllusionsPack1 demo containment disables afterPaths and exposes status truth', () => {
   const source = fs.readFileSync(new URL('../SafeQuantumIllusionsPack1.js', import.meta.url), 'utf8');
   assert(source.includes('afterPaths: {\n        enabled: false,'));
-  assert(source.includes("this._clearIllusionType('afterPaths');"));
+  assert(source.includes("if (!this.config.afterPaths.enabled || !this.isModeActive('afterPaths')) return;"));
   assert(source.includes('getStatus() {'));
   assert(source.includes('active: stats.byType?.afterPaths ?? 0'));
 });
@@ -371,6 +371,35 @@ test('storage 510 obelisk cache exposes stronger focal accents instead of plain 
   assert(source.includes('SignalPilaster_A'));
   assert(source.includes('CrownHaloBracket'));
   assert(source.includes('VaultKeystone'));
+});
+
+test('NodeLinkedAuraSystem uses cached per-frame link counts instead of scanning links for every node', () => {
+  const source = fs.readFileSync(new URL('../NodeLinkedAuraSystem.js', import.meta.url), 'utf8');
+  assert(source.includes('this._linkCountByNode = new Map();'));
+  assert(source.includes('this._rebuildLinkCountCache();'));
+  assert(source.includes('return this._linkCountByNode.get(node) || 0;'));
+  assert(source.includes('segmentCount: 48'));
+});
+
+test('WaveInterferencePatternSystem runs on a lower demo budget and caches network modulation state', () => {
+  const source = fs.readFileSync(new URL('../WaveInterferencePatternSystem_Session132.js', import.meta.url), 'utf8');
+  const mainSource = fs.readFileSync(new URL('../main.js', import.meta.url), 'utf8');
+  assert(source.includes('maxInterferenceMeshes: 18'));
+  assert(source.includes('maxConcurrentInterferences: 8'));
+  assert(source.includes('visualUpdateHz: 20'));
+  assert(source.includes('spikeCount: 3'));
+  assert(source.includes('this._networkStateAccumulator = 0;'));
+  assert(source.includes('this._refreshCachedNetworkState()'));
+  assert(mainSource.includes('maxInterferenceMeshes: 18'));
+  assert(mainSource.includes('maxConcurrentInterferences: 8'));
+});
+
+test('ResonanceCascadeVisualization samples node and link influence at a lower cadence and uses lighter shared geometry', () => {
+  const source = fs.readFileSync(new URL('../ResonanceCascadeVisualization_Session117B.js', import.meta.url), 'utf8');
+  assert(source.includes('this._influenceSampleInterval = 1 / 15;'));
+  assert(source.includes('new THREE.SphereGeometry(1, 10, 10)'));
+  assert(source.includes('new THREE.TorusGeometry(1, 0.033, 8, 32)'));
+  assert(source.includes('const shouldSampleInfluence = this._influenceSampleAccumulator >= this._influenceSampleInterval;'));
 });
 
 test('Network Time stays forward below canonical global.synergy.high threshold', () => {
