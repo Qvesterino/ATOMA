@@ -1,4 +1,4 @@
-/**
+﻿/**
  * SYNERGY CASCADE PROPAGATION VISUALIZER v1.0
  * 
  * Real-time visualization of synergy energy flowing through linked networks
@@ -42,7 +42,12 @@ export class SynergyCascadeVisualizer {
     this.camera = camera;
     
     // UNIFIED CLEANUP CONTRACT - Track all created objects
-    this._createdObjects = [];
+    this._createdObjects = [];    
+    this._scratch = {
+      colors: Array.from({ length: 8 }, () => new THREE.Color()),
+      vectors: Array.from({ length: 6 }, () => new THREE.Vector3()),
+      _ci: 0, _vi: 0,
+    };
     
     // Cascade tracking
     this.activeCascades = [];        // Active cascade propagations
@@ -212,6 +217,7 @@ export class SynergyCascadeVisualizer {
    * Main update function - call once per frame
    */
   update(deltaTime) {
+    this._resetScratch();
     if (!this._semanticBus && globalThis?.semanticBus) {
       this.bindSemanticEvents();
     }
@@ -2598,21 +2604,21 @@ export class SynergyCascadeVisualizer {
     const tailStrength = Math.min(1, (history.trailIntensity || 0) * 0.92);
     const haloStrength = Math.min(1, envelope * 0.58 + tailStrength * 0.18 + crest * this.config.waveFrontCoreBoost);
 
-    const baseColor = this.config.cascadeColor.clone()
+    const baseColor = this._sc().copy(this.config.cascadeColor)
       .lerp(this.config.fadeColor, 0.06 + distance * 0.12)
       .lerp(this.config.waveColor, 0.22 + envelope * 0.40);
-    const headColor = this.config.waveColor.clone()
+    const headColor = this._sc().copy(this.config.waveColor)
       .lerp(this.config.shimmerAccentColor, 0.10 + crest * 0.18)
       .lerp(this.config.cascadeColor, 0.16 + envelope * 0.18);
-    const waveColor = this.config.waveColor.clone().lerp(this.config.cascadeColor, 0.22);
+    const waveColor = this._sc().copy(this.config.waveColor).lerp(this.config.cascadeColor, 0.22);
 
     if (baseMaterial.color) {
-      const targetColor = baseColor.clone().lerp(headColor, Math.min(1, envelope * 0.66 + crest * 0.28 * crestPulse + haloStrength * 0.18));
+      const targetColor = this._sc().copy(baseColor).lerp(headColor, Math.min(1, envelope * 0.66 + crest * 0.28 * crestPulse + haloStrength * 0.18));
       baseMaterial.color.copy(targetColor);
     }
 
     if (baseMaterial.emissive) {
-      const emissiveColor = waveColor.clone()
+      const emissiveColor = this._sc().copy(waveColor)
         .lerp(this.config.shimmerAccentColor, 0.08 + crest * 0.12)
         .lerp(this.config.cascadeColor, Math.max(0, 0.22 - envelope * 0.06));
       baseMaterial.emissive.copy(emissiveColor);
@@ -2650,8 +2656,8 @@ export class SynergyCascadeVisualizer {
     }
 
     if (material.emissive) {
-      const baseColor = this.config.cascadeColor.clone();
-      const glowColor = baseColor
+      const glowColor = this._sc().copy(this.config.cascadeColor)
+
         .lerp(this.config.waveColor, Math.min(1, trailIntensity * 0.48 + Math.max(0, breath - 0.9) * 0.18))
         .lerp(this.config.shimmerAccentColor, Math.min(0.18, trailIntensity * 0.08));
       material.emissive.copy(glowColor);
@@ -2696,9 +2702,9 @@ export class SynergyCascadeVisualizer {
     const trailIntensity = Math.min(1, (history.trailIntensity || 0) * 1.02);
 
     if (material.emissive) {
-      const baseColor = this.config.cascadeColor.clone().lerp(this.config.waveColor, 0.42 + intensity * 0.18);
-      const highlight = this.config.waveColor.clone().lerp(this.config.shimmerAccentColor, 0.32 + secondaryBand * 0.10);
-      const shimmerColor = baseColor.clone().lerp(highlight, Math.min(1, intensity * 0.28 + secondaryBand * 0.26));
+      const baseColor = this._sc().copy(this.config.cascadeColor).lerp(this.config.waveColor, 0.42 + intensity * 0.18);
+      const highlight = this._sc().copy(this.config.waveColor).lerp(this.config.shimmerAccentColor, 0.32 + secondaryBand * 0.10);
+      const shimmerColor = this._sc().copy(baseColor).lerp(highlight, Math.min(1, intensity * 0.28 + secondaryBand * 0.26));
 
       material.emissive.copy(shimmerColor);
       material.emissiveIntensity = Math.max(
@@ -2708,10 +2714,10 @@ export class SynergyCascadeVisualizer {
     }
 
     if (material.color) {
-      const colorShift = material.color.clone()
+      material.color
         .lerp(this.config.waveColor, Math.min(1, shimmerAmount * 0.12 + primaryBand * 0.06))
         .lerp(this.config.shimmerAccentColor, Math.min(0.12, secondaryBand * 0.10));
-      material.color.copy(colorShift);
+
     }
   }
   
@@ -2753,13 +2759,13 @@ export class SynergyCascadeVisualizer {
       ?? null;
     if (!this._isValidWorldPosition(startPos) || !this._isValidWorldPosition(targetPos)) return;
 
-    const forward = new THREE.Vector3().subVectors(targetPos, startPos);
+    const forward = this._sv().subVectors(targetPos, startPos);
     if (forward.lengthSq() <= 1e-8) return;
     forward.normalize();
-    const side = Math.abs(forward.y) < 0.9
-      ? new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize()
-      : new THREE.Vector3().crossVectors(forward, new THREE.Vector3(1, 0, 0)).normalize();
-    const up = new THREE.Vector3().crossVectors(side, forward).normalize();
+    const _upRef = Math.abs(forward.y) < 0.9 ? this._sv().set(0, 1, 0) : this._sv().set(1, 0, 0);
+    const side = this._sv().crossVectors(forward, _upRef).normalize();
+    const up = this._sv().crossVectors(side, forward).normalize();
+
     
     for (let i = 0; i < particleCount; i++) {
       const particle = this._getFlowPooledParticle();
@@ -2773,7 +2779,7 @@ export class SynergyCascadeVisualizer {
         ? Math.random()
         : Math.max(0, Math.min(1, basePos + scatter));
       
-      const position = new THREE.Vector3().lerpVectors(
+      const position = this._sv().lerpVectors(
         startPos,
         targetPos,
         lerpPos
@@ -2787,11 +2793,11 @@ export class SynergyCascadeVisualizer {
       particle.active = true;
       particle.lifetime = Math.max(forcedFlow ? 1.05 : 0.42, this.config.particleLifetime * flowScale * (forcedFlow ? flowLifetimeMultiplier : 1.0));
       particle.age = 0;
-      particle.velocity = new THREE.Vector3().subVectors(
+      particle.velocity = this._sv().subVectors(
         targetPos,
         startPos
       ).normalize().multiplyScalar(this.config.particleSpeed * propagation.intensity * (forcedFlow ? 1.35 * flowSpeedMultiplier : 1.0));
-      particle.drift = new THREE.Vector3(
+      particle.drift = this._sv().set(
         (Math.random() - 0.5) * (forcedFlow ? 0.085 : 0.105),
         (Math.random() - 0.5) * (forcedFlow ? 0.04 : 0.045),
         (Math.random() - 0.5) * (forcedFlow ? 0.085 : 0.105)
@@ -2806,11 +2812,11 @@ export class SynergyCascadeVisualizer {
         const hue = (this.config.spectralCascadeHue + Math.random() * this.config.spectralFlowHueSpread + spectralTime * 0.03) % 1.0;
         const sat = this.config.spectralSaturation + Math.random() * 0.1;
         const lit = this.config.spectralLightBase + particle.intensity * 0.2 + Math.random() * 0.1;
-        particle.color = new THREE.Color().setHSL(hue, sat, lit);
+        particle.color = this._sc().setHSL(hue, sat, lit);
       } else {
         particle.color = forcedFlow
-          ? this.config.cascadeColor.clone().lerp(this.config.waveColor, 0.24 + Math.random() * 0.30)
-          : this.config.waveColor.clone().lerp(this.config.cascadeColor, 0.46 + Math.random() * 0.24);
+          ? this._sc().copy(this.config.cascadeColor).lerp(this.config.waveColor, 0.24 + Math.random() * 0.30)
+          : this._sc().copy(this.config.waveColor).lerp(this.config.cascadeColor, 0.46 + Math.random() * 0.24);
       }
       particle.link = propagation.link ?? cascade?.link ?? null;
       particle.linkId = this._resolveLinkId(particle.link ?? propagation.linkId ?? cascade?.linkId ?? null);
@@ -2902,7 +2908,7 @@ export class SynergyCascadeVisualizer {
       particle.lifetime = burstLifetime;
       particle.age = 0;
       particle.velocity = direction.clone().multiplyScalar(burstSpeed);
-      particle.drift = new THREE.Vector3(
+      particle.drift = this._sv().set(
         (Math.random() - 0.5) * (forcedBurst ? 0.08 : 0.045),
         Math.random() * (forcedBurst ? 0.08 : 0.055),
         (Math.random() - 0.5) * (forcedBurst ? 0.08 : 0.045)
@@ -2914,7 +2920,7 @@ export class SynergyCascadeVisualizer {
         if (forcedBurst) {
           // Arcane burst: mystical violet to spectral white
           const burstHue = (this.config.spectralBurstHue + Math.random() * 0.12 + spectralTime * 0.05) % 1.0;
-          particle.color = new THREE.Color().setHSL(burstHue, 0.7 + Math.random() * 0.25, 0.5 + burstIntensity * 0.35);
+          particle.color = this._sc().setHSL(burstHue, 0.7 + Math.random() * 0.25, 0.5 + burstIntensity * 0.35);
         } else {
           // Spectral cascade burst
           const cascadeHue = (this.config.spectralCascadeHue + Math.random() * 0.2 + spectralTime * 0.03) % 1.0;
@@ -3227,7 +3233,7 @@ export class SynergyCascadeVisualizer {
       const wobbleZ = 1.0 + Math.cos((progress * 9.3) + ripple.wobbleSeed * 1.27) * wobbleStrength * 0.82;
       const crest = 1.0 + Math.exp(-Math.pow((progress - 0.18) / 0.16, 2.0)) * 0.32;
       const shellFade = Math.max(0.0, 1.0 - progress * 0.92);
-      const filamentColor = ripple.baseColor.clone()
+      const filamentColor = this._sc().copy(ripple.baseColor)
         .lerp(this.config.waveColor, Math.min(0.35, progress * 0.42))
         .lerp(this.config.shimmerAccentColor, Math.max(0.0, progress - 0.25) * 0.18);
       
@@ -3241,19 +3247,19 @@ export class SynergyCascadeVisualizer {
         const coreScale = ((radius * ripple.coreScale) / 0.01) * (1.0 + Math.sin((progress * 13.5) + ripple.wobbleSeed) * 0.025);
         ripple.coreMesh.scale.set(coreScale * wobbleX * 0.98, coreScale, coreScale * wobbleZ * 0.98);
         ripple.coreMesh.material.opacity = Math.max(0, Math.min(0.72, fadeRatio * fadeRatio * ripple.intensity * 0.92 * corePulse));
-        ripple.coreMesh.material.color.copy(filamentColor.clone().lerp(this.config.spectralRippleWarmTint, 0.24));
+        ripple.coreMesh.material.color.copy(this._sc().copy(filamentColor).lerp(this.config.spectralRippleWarmTint, 0.24));
       }
       if (ripple.haloMesh) {
         const haloScale = ((radius * ripple.haloScale) / 0.01) * (1.0 + Math.sin((progress * 6.0) + ripple.wobbleSeed * 0.5) * 0.03);
         ripple.haloMesh.scale.set(haloScale * wobbleX * 1.02, haloScale, haloScale * wobbleZ * 1.02);
         ripple.haloMesh.material.opacity = Math.max(0, Math.min(0.26, (fadeRatio * ripple.intensity * 0.44 * breath) + Math.max(0, 0.06 - progress * 0.04)));
-        ripple.haloMesh.material.color.copy(ripple.baseColor.clone().lerp(this.config.spectralRippleWarmTint, 0.55));
+        ripple.haloMesh.material.color.copy(this._sc().copy(ripple.baseColor).lerp(this.config.spectralRippleWarmTint, 0.55));
       }
       if (ripple.echoShellMesh) {
         const echoScale = ((radius * ripple.echoShellScale) / 0.01) * (1.0 + progress * 0.08);
         ripple.echoShellMesh.scale.set(echoScale * wobbleX * 1.04, echoScale, echoScale * wobbleZ * 1.04);
         ripple.echoShellMesh.material.opacity = Math.max(0, Math.min(0.18, shellFade * fadeRatio * ripple.intensity * 0.24));
-        ripple.echoShellMesh.material.color.copy(ripple.baseColor.clone().lerp(this.config.spectralRippleWarmTint, 0.78));
+        ripple.echoShellMesh.material.color.copy(this._sc().copy(ripple.baseColor).lerp(this.config.spectralRippleWarmTint, 0.78));
       }
       if (Array.isArray(ripple.fringeMeshes)) {
         for (let fringeIndex = 0; fringeIndex < ripple.fringeMeshes.length; fringeIndex += 1) {
@@ -3262,7 +3268,7 @@ export class SynergyCascadeVisualizer {
           const fringeScale = ((radius * ripple.fringeScale * (fringeMesh.userData.fringeScale || 1.0)) / 0.01) * (1.0 + progress * 0.04);
           fringeMesh.scale.set(fringeScale * wobbleX, fringeScale, fringeScale * wobbleZ);
           fringeMesh.material.opacity = Math.max(0, Math.min(0.16, fadeRatio * ripple.intensity * (0.11 - fringeIndex * 0.012) * breath));
-          const fringeColor = ripple.baseColor.clone().lerp(fringeMesh.userData.fringeTargetColor, 0.84).lerp(this.config.waveColor, progress * 0.18);
+          const fringeColor = this._sc().copy(ripple.baseColor).lerp(fringeMesh.userData.fringeTargetColor, 0.84).lerp(this.config.waveColor, progress * 0.18);
           fringeMesh.material.color.copy(fringeColor);
         }
       }
@@ -3575,7 +3581,12 @@ cascadeDebug.help()                - Show this help
         }
       }
     });
-    this._createdObjects = [];
+    this._createdObjects = [];    
+    this._scratch = {
+      colors: Array.from({ length: 8 }, () => new THREE.Color()),
+      vectors: Array.from({ length: 6 }, () => new THREE.Vector3()),
+      _ci: 0, _vi: 0,
+    };
 
     this.clearAllCascades();
     this._disposeBurstParticleSystem();

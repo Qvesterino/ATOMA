@@ -9309,6 +9309,7 @@ window.__ATOMA_SCENE__ = this.scene;
         // Corruption feedback visuals are owned by tier4GameplayIntegration.visuals.
         this.corruptionFeedback = null;
         this.corruptionVisualFX = new CorruptionVisualFX_v1(this.scene, this.aiNodes, false);
+        this.corruptionVisualFX.setEventBus?.(this.semanticBus);
 
         // Listen for corruption threshold events
         this._multiNetworkThresholdListener = (event) => {
@@ -10240,6 +10241,7 @@ window.__ATOMA_SCENE__ = this.scene;
                 null,  // CorruptionVisualFX reference (optional)
                 this.aiNodes
             );
+            this.t2CorruptionVisualIntegration.setEventBus?.(this.semanticBus);
             console.log('[main.js] T2_CorruptionVisualIntegration_v1 initialized ✓');
         } catch (err) {
             console.warn('[main.js] T2_CorruptionVisualIntegration_v1 initialization failed:', err);
@@ -10306,6 +10308,7 @@ window.__ATOMA_SCENE__ = this.scene;
 
             const sharedCorruptionFeedback = this.tier4GameplayIntegration.visuals || null;
             this.corruptionFeedback = sharedCorruptionFeedback;
+            this.corruptionFeedback?.setEventBus?.(this.semanticBus);
             this.corruptionFeedback?.setHarmonyFieldConsumer?.(this.t2HarmonyVisualConsumer);
 
             const conduitFeedback = this.linkingSystem?.conduitRenderer?.corruptionFeedbackVisuals;
@@ -13955,6 +13958,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         }
 
         this.systemStateOverlay = new SystemStateOverlay(this.scene, this.renderer, this.camera);
+        this.systemStateOverlay.setEventBus?.(this.semanticBus);
 
         // Setup console API
         window.toggleSystemStateOverlay = () => {
@@ -15657,6 +15661,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                 this.aiNodes,
                 this.linkingSystem
             );
+            this.criticalNodeFailure.setEventBus?.(this.semanticBus);
 
             this.cascadingRuptures.rebind({
                 linkingSystem: this.linkingSystem,

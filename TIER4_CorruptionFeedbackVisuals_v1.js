@@ -14,6 +14,7 @@
 
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 const CORRUPTION_SEED_VERTEX_SHADER = `
 varying vec2 vUv;
@@ -290,6 +291,8 @@ export class TIER4_CorruptionFeedbackVisuals {
     this.activeCorruptionSeeds = [];
     this.activeCascadeWarnings = [];
     this.harmonyFieldConsumer = config.harmonyFieldConsumer ?? null;
+
+    this._regDisposers = [];
 
     // LOD mode: HIGH, MEDIUM, LOW
     this.lodLevel = config.lodLevel ?? 'HIGH';
@@ -1109,7 +1112,73 @@ export class TIER4_CorruptionFeedbackVisuals {
   /**
    * Dispose resources
    */
+  setEventBus(semanticBus) {
+    this.semanticBus = semanticBus;
+    if (!this.semanticBus) return;
+    this._regDisposers = [];
+
+    const reg = (tag, handler) => {
+      const disposer = eventRegistrationRegistry.register('TIER4_CorruptionFeedbackVisuals', tag, handler, this.semanticBus);
+      this._regDisposers.push(disposer);
+    };
+
+    // link.corruption tiers → display corruption seed effect
+    this._onLinkCorruptionHigh = (p = {}) => {
+      const linkId = p?.linkId;
+      if (!linkId) return;
+      const link = this._findLinkById(linkId);
+      if (!link) return;
+      const node = link.source ?? link.sourceNode ?? link.from ?? link.nodeA ?? null;
+      if (node) {
+        this.displayCorruptionSeed(node, link);
+      }
+    };
+    this._onLinkCorruptionMid = (p = {}) => {
+      const linkId = p?.linkId;
+      if (!linkId) return;
+      const link = this._findLinkById(linkId);
+      if (!link) return;
+      const node = link.source ?? link.sourceNode ?? link.from ?? link.nodeA ?? null;
+      if (node && Math.random() < 0.5) { // 50% chance for mid tier
+        this.displayCorruptionSeed(node, link);
+      }
+    };
+    this._onLinkCorruptionLow = (p = {}) => {
+      const linkId = p?.linkId;
+      if (!linkId) return;
+      const link = this._findLinkById(linkId);
+      if (!link) return;
+      const node = link.source ?? link.sourceNode ?? link.from ?? link.nodeA ?? null;
+      if (node && Math.random() < 0.2) { // 20% chance for low tier
+        this.displayCorruptionSeed(node, link);
+      }
+    };
+
+    reg('link.corruption.high', this._onLinkCorruptionHigh);
+    reg('link.corruption.mid', this._onLinkCorruptionMid);
+    reg('link.corruption.low', this._onLinkCorruptionLow);
+  }
+
+  _findLinkById(linkId) {
+    if (!linkId) return null;
+    const idToken = String(linkId);
+    // Try to find via global linking system or window
+    const ls = this.linkingSystem || globalThis?.game?.linkingSystem || globalThis?.window?.game?.linkingSystem;
+    if (ls) {
+      const links = ls.getAllLinks?.() || ls.links || [];
+      for (const link of links) {
+        const lid = link?.userData?.id ?? link?.id ?? link?.uuid;
+        if (lid !== undefined && String(lid) === idToken) return link;
+      }
+    }
+    return null;
+  }
+
   dispose() {
+    if (eventRegistrationRegistry && typeof eventRegistrationRegistry.disposeOwner === 'function') {
+      eventRegistrationRegistry.disposeOwner('TIER4_CorruptionFeedbackVisuals');
+    }
+    this._regDisposers = [];
     this.clear();
 
     // UNIFIED CLEANUP CONTRACT - Remove and dispose all tracked objects

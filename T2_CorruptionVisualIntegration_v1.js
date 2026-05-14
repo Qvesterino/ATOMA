@@ -7,6 +7,7 @@
 
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 /**
  * Create an irregular corruption shard geometry.
@@ -166,14 +167,28 @@ export class T2_CorruptionVisualIntegration_v1 {
     return globalThis?.semanticBus || null;
   }
 
+  setEventBus(semanticBus) {
+    this.semanticBus = semanticBus;
+    if (!this.semanticBus) return;
+    this._bindSemanticBus();
+  }
+
   _bindSemanticBus() {
-    const bus = this._getSemanticBus();
+    const bus = this.semanticBus || this._getSemanticBus();
     if (!bus) return;
 
     const handleCorruptionSpike = (data = {}) => {
       this.triggerCorruptionPulse(data.nodeId, data.corruption);
     };
 
+    // Use EventRegistrationRegistry for canonical event tracking
+    if (eventRegistrationRegistry && typeof eventRegistrationRegistry.register === 'function') {
+      const disposer = eventRegistrationRegistry.register('T2_CorruptionVisualIntegration_v1', 'node.corruption.high', handleCorruptionSpike, bus);
+      this._semanticSubscriptions.push(disposer);
+      return;
+    }
+
+    // Fallback to direct bus subscription
     if (typeof bus.on === 'function') {
       bus.on('node.corruption.high', handleCorruptionSpike, { priority: bus.priority?.NORMAL });
       this._semanticSubscriptions.push(() => bus.off?.('node.corruption.high', handleCorruptionSpike));
@@ -639,6 +654,11 @@ export class T2_CorruptionVisualIntegration_v1 {
   }
 
   dispose() {
+    // Dispose all EventRegistrationRegistry handlers for this owner
+    if (eventRegistrationRegistry && typeof eventRegistrationRegistry.disposeOwner === 'function') {
+      eventRegistrationRegistry.disposeOwner('T2_CorruptionVisualIntegration_v1');
+    }
+
     const bus = this._getSemanticBus();
     if (bus) {
       for (const unsubscribe of this._semanticSubscriptions) {

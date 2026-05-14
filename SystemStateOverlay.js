@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RegionalHarmonyZones } from './RegionalHarmonyZones.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 // PHASE OFF-1: disable select unbounded motion while keeping visuals rendered
 const MOTION_OFF_PHASE1 = true;
@@ -66,6 +67,15 @@ export class SystemStateOverlay {
       synergy: 0,
       corruption: 0
     };
+
+    // Event-driven intensity multipliers (decay over time)
+    this._eventIntensity = {
+      harmony: 1.0,
+      synergy: 1.0,
+      corruption: 1.0
+    };
+    this._eventIntensityDecay = 0.95; // per-frame decay
+    this._regDisposers = [];
     
     // Layer objects
     this.layers = {
@@ -339,9 +349,9 @@ export class SystemStateOverlay {
    */
   updateHarmonyLayer() {
     if (!this.layers.harmony) return;
-    
+
     const harmonyMaterial = this.layers.harmony.material;
-    
+
     // Color mapping based on harmony
     let targetColor;
     if (this.metrics.harmony < 0.33) {
@@ -351,14 +361,16 @@ export class SystemStateOverlay {
     } else {
       targetColor = this.colors.harmonyHigh;
     }
-    
+
     // Smooth color transition
     harmonyMaterial.color.lerp(targetColor, 0.05);
-    
+
     // Breathing animation (more pronounced at low harmony)
     const breatheStrength = 1 - this.metrics.harmony;
     const breatheAmount = 0.02 + 0.04 * breatheStrength * Math.sin(this.time * 0.5);
-    harmonyMaterial.opacity = 0.08 + breatheAmount;
+    // Apply event-driven intensity multiplier
+    const eventBoost = this._eventIntensity.harmony;
+    harmonyMaterial.opacity = (0.08 + breatheAmount) * eventBoost;
   }
   
   /**
@@ -390,15 +402,17 @@ export class SystemStateOverlay {
    */
   updateCorruptionLayer() {
     if (!this.layers.corruptionDrift) return;
-    
+
     const corruptionMat = this.layers.corruptionDrift.material;
-    
+
     // Base color is muted purple-gray
     corruptionMat.color.copy(this.colors.corruptionMute);
-    
+
     // Opacity increases with corruption
     const corruptionOpacity = this.metrics.corruption * 0.15;
-    corruptionMat.opacity = corruptionOpacity;
+    // Apply event-driven intensity multiplier
+    const eventBoost = this._eventIntensity.corruption;
+    corruptionMat.opacity = corruptionOpacity * eventBoost;
     
     // Keep corruption layer anchored (no drifting position adds)
     if (!this.layers.corruptionDrift.userData.basePosition) {
@@ -420,24 +434,65 @@ export class SystemStateOverlay {
    */
   update(deltaTime, aiNodes, metrics) {
     if (!this.enabled) return;
-    
+
     this.time += deltaTime;
-    
+
     // Cache metrics
     this.metrics.harmony = Math.max(0, Math.min(1, metrics.harmony || 0));
     this.metrics.synergy = Math.max(0, Math.min(1, metrics.synergy || 0));
     this.metrics.corruption = Math.max(0, Math.min(1, metrics.corruption || 0));
-    
+
+    // Decay event-driven intensity multipliers
+    this._eventIntensity.harmony = 1.0 + (this._eventIntensity.harmony - 1.0) * this._eventIntensityDecay;
+    this._eventIntensity.synergy = 1.0 + (this._eventIntensity.synergy - 1.0) * this._eventIntensityDecay;
+    this._eventIntensity.corruption = 1.0 + (this._eventIntensity.corruption - 1.0) * this._eventIntensityDecay;
+
     // Update each layer
     this.updateHarmonyLayer();
     this.updateRegionalHarmonyZones(aiNodes, metrics);
     this.updateSynergyLayers();
     this.updateCorruptionLayer();
-    
+
     // Update synergy halos (less frequent)
     if (Math.floor(this.time * 30) % 5 === 0) { // Every ~5 frames
       this.updateSynergyHalos(aiNodes, this.metrics.synergy);
     }
+  }
+
+  setEventBus(semanticBus) {
+    this.semanticBus = semanticBus;
+    if (!this.semanticBus) return;
+    this._regDisposers = [];
+
+    const reg = (tag, handler) => {
+      const disposer = eventRegistrationRegistry.register('SystemStateOverlay', tag, handler, this.semanticBus);
+      this._regDisposers.push(disposer);
+    };
+
+    // global corruption tiers → boost corruption layer intensity
+    this._onGlobalCorruptionHigh = () => { this._eventIntensity.corruption = 2.5; };
+    this._onGlobalCorruptionMid = () => { this._eventIntensity.corruption = 1.8; };
+    this._onGlobalCorruptionLow = () => { this._eventIntensity.corruption = 1.3; };
+
+    // global harmony tiers → boost harmony layer intensity
+    this._onGlobalHarmonyHigh = () => { this._eventIntensity.harmony = 2.0; };
+    this._onGlobalHarmonyMid = () => { this._eventIntensity.harmony = 1.5; };
+    this._onGlobalHarmonyLow = () => { this._eventIntensity.harmony = 1.2; };
+
+    // global synergy tiers → boost synergy layer intensity
+    this._onGlobalSynergyHigh = () => { this._eventIntensity.synergy = 2.0; };
+    this._onGlobalSynergyMid = () => { this._eventIntensity.synergy = 1.5; };
+    this._onGlobalSynergyLow = () => { this._eventIntensity.synergy = 1.2; };
+
+    reg('global.corruption.high', this._onGlobalCorruptionHigh);
+    reg('global.corruption.mid', this._onGlobalCorruptionMid);
+    reg('global.corruption.low', this._onGlobalCorruptionLow);
+    reg('global.harmony.high', this._onGlobalHarmonyHigh);
+    reg('global.harmony.mid', this._onGlobalHarmonyMid);
+    reg('global.harmony.low', this._onGlobalHarmonyLow);
+    reg('global.synergy.high', this._onGlobalSynergyHigh);
+    reg('global.synergy.mid', this._onGlobalSynergyMid);
+    reg('global.synergy.low', this._onGlobalSynergyLow);
   }
   
   /**
@@ -527,6 +582,11 @@ export class SystemStateOverlay {
    * Cleanup and dispose of all overlay resources
    */
   dispose() {
+    if (eventRegistrationRegistry && typeof eventRegistrationRegistry.disposeOwner === 'function') {
+      eventRegistrationRegistry.disposeOwner('SystemStateOverlay');
+    }
+    this._regDisposers = [];
+
     // Remove harmony layer
     if (this.layers.harmony) {
       this.scene.remove(this.layers.harmony);

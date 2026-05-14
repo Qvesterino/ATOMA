@@ -1,4 +1,4 @@
-import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
+﻿import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 /**
  * PHASE 8: NETWORK RITUAL VISUAL ORCHESTRATION
@@ -799,14 +799,11 @@ if (state.stage === this.ritualStages.PRELUDE && elapsed > RITUAL_VISUAL_CONFIG.
    */
   _setupPollingFallback() {
     // Check periodically if rituals exist
-    setInterval(() => {
+    this._pollingInterval = setInterval(() => {
       if (!this.rituals) return;
 
-      // Try to access ritual state via polling
-      // This is a safe no-op if ritual system doesn't expose polling
       if (typeof this.rituals.getActiveRituals === 'function') {
-        const active = this.rituals.getActiveRituals();
-        // Could implement polling-based updates here
+        this.rituals.getActiveRituals();
       }
     }, 500);
   }
@@ -916,6 +913,7 @@ if (state.stage === this.ritualStages.PRELUDE && elapsed > RITUAL_VISUAL_CONFIG.
   }
 
   dispose() {
+    if (this._pollingInterval) { clearInterval(this._pollingInterval); this._pollingInterval = null; }
     // Registry cleanup
     if (Array.isArray(this._regDisposers)) {
       for (const d of this._regDisposers) {

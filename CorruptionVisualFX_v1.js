@@ -24,6 +24,7 @@
 import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 const CASCADE_CORRUPTION_THRESHOLD = 0.35;
 
@@ -100,9 +101,83 @@ export class CorruptionVisualFX_v1 {
     return globalThis?.semanticBus || null;
   }
 
+  setEventBus(semanticBus) {
+    this.semanticBus = semanticBus;
+    if (!this.semanticBus) return;
+    this._bindSemanticBus();
+  }
+
   _bindSemanticBus() {
-    // Corruption particle ownership moved to T2_CorruptionVisualIntegration_v1.
-    // Keep this shell free of semantic listeners to avoid duplicate particle spawns.
+    const bus = this.semanticBus || this._getSemanticBus();
+    if (!bus) return;
+
+    // Canonical corruption tiered event triggers for burst/flash effects
+    const reg = (tag, handler) => {
+      if (eventRegistrationRegistry && typeof eventRegistrationRegistry.register === 'function') {
+        const disposer = eventRegistrationRegistry.register('CorruptionVisualFX_v1', tag, handler, bus);
+        this._semanticSubscriptions.push([tag, handler, disposer]);
+      } else {
+        bus.on(tag, handler);
+        this._semanticSubscriptions.push([tag, handler, null]);
+      }
+    };
+
+    this._onNodeCorruptionHigh = (p = {}) => {
+      const nodeId = p?.nodeId;
+      if (nodeId !== undefined && nodeId !== null) {
+        this.triggerCorruptionPulse(nodeId);
+      }
+    };
+    this._onNodeCorruptionMid = (p = {}) => {
+      const nodeId = p?.nodeId;
+      if (nodeId !== undefined && nodeId !== null) {
+        this.triggerCorruptionPulse(nodeId);
+      }
+    };
+    this._onNodeCorruptionLow = (p = {}) => {
+      const nodeId = p?.nodeId;
+      if (nodeId !== undefined && nodeId !== null) {
+        // Low tier: subtle pulse only
+        const node = this._resolveNodeById(nodeId);
+        if (node) this._spawnChaosParticles(node, 0.05);
+      }
+    };
+
+    reg('node.corruption.high', this._onNodeCorruptionHigh);
+    reg('node.corruption.mid', this._onNodeCorruptionMid);
+    reg('node.corruption.low', this._onNodeCorruptionLow);
+  }
+
+  _spawnChaosParticles(nodeModel, intensity = 0.1) {
+    // Subtle chaos particle spawn for low-tier corruption events
+    if (!nodeModel || !nodeModel.position) return;
+    const state = this.getNodeVisualState(nodeModel);
+    const now = performance.now() * 0.001;
+    if (now - state.lastParticleEmitTime < 0.5) return; // cooldown
+    state.lastParticleEmitTime = now;
+    // Spawn minimal particles via existing particle system
+    if (this.particleRoot && this._particleGeometry) {
+      const count = Math.max(1, Math.floor(intensity * 3));
+      for (let i = 0; i < count; i++) {
+        const p = {
+          position: new THREE.Vector3(
+            nodeModel.position.x + (Math.random() - 0.5) * 0.5,
+            nodeModel.position.y + (Math.random() - 0.5) * 0.5,
+            nodeModel.position.z + (Math.random() - 0.5) * 0.5
+          ),
+          velocity: new THREE.Vector3(
+            (Math.random() - 0.5) * 0.3,
+            (Math.random() - 0.5) * 0.3 + 0.2,
+            (Math.random() - 0.5) * 0.3
+          ),
+          size: 0.03 + Math.random() * 0.04,
+          color: new THREE.Color(0.9, 0.1, 0.1),
+          life: 0.3 + Math.random() * 0.4,
+          maxLife: 0.3 + Math.random() * 0.4
+        };
+        this.activeParticles.push(p);
+      }
+    }
   }
 
   _resolveNodeById(nodeId) {
@@ -911,11 +986,20 @@ export class CorruptionVisualFX_v1 {
   }
 
   dispose() {
+    // Dispose all EventRegistrationRegistry handlers for this owner
+    if (eventRegistrationRegistry && typeof eventRegistrationRegistry.disposeOwner === 'function') {
+      eventRegistrationRegistry.disposeOwner('CorruptionVisualFX_v1');
+    }
+
     const bus = this._getSemanticBus();
     const off = bus?.off?.bind(bus) || bus?.unsubscribe?.bind(bus);
     if (off) {
-      for (const [eventName, handler] of this._semanticSubscriptions) {
-        off(eventName, handler);
+      for (const [eventName, handler, disposer] of this._semanticSubscriptions) {
+        if (typeof disposer === 'function') {
+          disposer();
+        } else {
+          off(eventName, handler);
+        }
       }
     }
     this._semanticSubscriptions = [];

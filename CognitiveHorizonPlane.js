@@ -1,6 +1,7 @@
-import * as THREE from 'three';
+﻿import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 const WORLD_BACKGROUND_ORDER = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_WORLD_BACKGROUND);
 const WORLD_OVERLAY_ORDER = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_WORLD_OVERLAY);
@@ -313,24 +314,10 @@ export class CognitiveHorizonPlane {
       this._applyResidueCoupling(payload);
     };
 
-    if (typeof bus.on === 'function') {
-      bus.on('environment.hazard.residueScar', handler);
-      this._semanticSubscriptions.push({
-        eventName: 'environment.hazard.residueScar',
-        handler,
-        method: 'off'
-      });
-      return;
-    }
-
-    if (typeof bus.subscribe === 'function') {
-      bus.subscribe('environment.hazard.residueScar', handler);
-      this._semanticSubscriptions.push({
-        eventName: 'environment.hazard.residueScar',
-        handler,
-        method: 'unsubscribe'
-      });
-    }
+    const disposer = eventRegistrationRegistry.register(
+      'CognitiveHorizonPlane', 'environment.hazard.residueScar', handler, bus
+    );
+    this._semanticSubscriptions.push(disposer);
   }
 
   _ensureResidueCouplingSubscription() {
@@ -343,15 +330,8 @@ export class CognitiveHorizonPlane {
   }
 
   _detachResidueCoupling() {
-    const bus = this.semanticBus;
-    if (!bus || !this._semanticSubscriptions.length) return;
-
-    for (const subscription of this._semanticSubscriptions) {
-      if (subscription.method === 'off' && typeof bus.off === 'function') {
-        bus.off(subscription.eventName, subscription.handler);
-      } else if (subscription.method === 'unsubscribe' && typeof bus.unsubscribe === 'function') {
-        bus.unsubscribe(subscription.eventName, subscription.handler);
-      }
+    for (const disposer of this._semanticSubscriptions) {
+      try { disposer(); } catch (_) {}
     }
     this._semanticSubscriptions = [];
   }

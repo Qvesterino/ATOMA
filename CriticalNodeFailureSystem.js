@@ -40,6 +40,7 @@
  */
 
 import * as THREE from 'three';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 // ============================================================================
 // CONFIGURATION
@@ -288,7 +289,90 @@ export class CriticalNodeFailureSystem {
         this.onLinksSevered = null; // (node, linkIds[]) => void
         this.onNodeIsolated = null; // (node) => void
 
+        this._regDisposers = [];
+
         if (this.debug) console.log('[CriticalNodeFailureSystem] Initialized (disabled by default)');
+    }
+
+    setEventBus(semanticBus) {
+        this.semanticBus = semanticBus;
+        if (!this.semanticBus) return;
+        this._regDisposers = [];
+
+        const reg = (tag, handler) => {
+            const disposer = eventRegistrationRegistry.register('CriticalNodeFailureSystem', tag, handler, this.semanticBus);
+            this._regDisposers.push(disposer);
+        };
+
+        // node.corruption tiers → immediate critical check
+        this._onNodeCorruptionHigh = (p = {}) => {
+            const nodeId = p?.nodeId;
+            if (!nodeId) return;
+            const node = this._findNodeById(nodeId);
+            if (!node || node.userData?.failureCountdown || this.isolatedNodes.has(nodeId)) return;
+            if (this.isNodeCritical(node)) {
+                this.initiateFailureCountdown(node, performance.now() / 1000);
+            }
+        };
+        this._onNodeCorruptionMid = (p = {}) => {
+            const nodeId = p?.nodeId;
+            if (!nodeId) return;
+            const node = this._findNodeById(nodeId);
+            if (!node || node.userData?.failureCountdown || this.isolatedNodes.has(nodeId)) return;
+            // Mid tier: pre-critical warning (corruption >= 0.5 but < 0.75)
+            const corruption = node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0;
+            if (corruption >= 0.5 && this._hasActiveLinks(node)) {
+                if (this.onFailureCountdownStart) {
+                    this.onFailureCountdownStart(node, CONFIG.FAILURE_COUNTDOWN_DURATION * 1.5); // longer warning
+                }
+            }
+        };
+        this._onNodeCorruptionLow = (p = {}) => {
+            const nodeId = p?.nodeId;
+            if (!nodeId) return;
+            const node = this._findNodeById(nodeId);
+            if (!node) return;
+            // Low tier: subtle stress indicator
+            if (node.userData) {
+                node.userData.stressIndicator = true;
+                setTimeout(() => { if (node.userData) node.userData.stressIndicator = false; }, 2000);
+            }
+        };
+
+        // node.stability.low → early warning for stability-critical nodes
+        this._onNodeStabilityLow = (p = {}) => {
+            const nodeId = p?.nodeId;
+            if (!nodeId) return;
+            const node = this._findNodeById(nodeId);
+            if (!node || node.userData?.failureCountdown || this.isolatedNodes.has(nodeId)) return;
+            const stability = node.userData?.metrics?.stability ?? 1.0;
+            if (stability <= CONFIG.STABILITY_CRITICAL && this.isNodeCritical(node)) {
+                this.initiateFailureCountdown(node, performance.now() / 1000);
+            }
+        };
+
+        reg('node.corruption.high', this._onNodeCorruptionHigh);
+        reg('node.corruption.mid', this._onNodeCorruptionMid);
+        reg('node.corruption.low', this._onNodeCorruptionLow);
+        reg('node.stability.low', this._onNodeStabilityLow);
+    }
+
+    _findNodeById(nodeId) {
+        if (!this.aiNodes) return null;
+        const nodes = this.aiNodes.nodes || [];
+        const idToken = String(nodeId);
+        for (const node of nodes) {
+            if (!node) continue;
+            const nid = node?.userData?.nodeId ?? node?.id ?? node?.uuid;
+            if (nid !== undefined && String(nid) === idToken) return node;
+        }
+        return null;
+    }
+
+    _hasActiveLinks(node) {
+        if (!this.linkingSystem) return false;
+        const links = this.linkingSystem.getNodeLinks?.(node);
+        return links && links.length > 0;
     }
 
     // ========================================================================
@@ -638,6 +722,10 @@ export class CriticalNodeFailureSystem {
     // ========================================================================
 
     dispose() {
+        if (eventRegistrationRegistry && typeof eventRegistrationRegistry.disposeOwner === 'function') {
+            eventRegistrationRegistry.disposeOwner('CriticalNodeFailureSystem');
+        }
+        this._regDisposers = [];
         this.activeFailures.forEach(f => f.reset());
         this.severVisuals.forEach(v => v.reset());
         this.severedLinks.clear();
