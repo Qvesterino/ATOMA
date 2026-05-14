@@ -124,7 +124,7 @@ async function loadModule(modulePath) {
   }
 
   try {
-    const module = await import(modulePath);
+    const module = await import(/* @vite-ignore */ modulePath);
     moduleCache.set(modulePath, module);
     return module;
   } catch (err) {
