@@ -23,6 +23,8 @@
  * - Network chaos level drives tonal dissonance
  */
 
+import { eventRegistrationRegistry } from '../Engine/EventRegistrationRegistry.js';
+
 export class HarmonicAudioReactivitySystem_Session135 {
     constructor(camera) {
         this.camera = camera;
@@ -335,6 +337,55 @@ export class HarmonicAudioReactivitySystem_Session135 {
         this.masterGain.gain.value = Math.max(0, Math.min(1, volume));
     }
     
+    // ========================================================================
+    // EVENT-DRIVEN TRIGGERS (canonical harmony tiered events)
+    // ========================================================================
+
+    setEventBus(semanticBus) {
+        this.semanticBus = semanticBus;
+        if (!this.semanticBus) return;
+
+        this._regDisposers = [];
+        const reg = (tag, handler) => {
+            const disposer = eventRegistrationRegistry.register('HarmonicAudioReactivitySystem_Session135', tag, handler, this.semanticBus);
+            this._regDisposers.push(disposer);
+        };
+
+        // Global harmony tiers → modulate ambient sound
+        this._onGlobalHarmonyHigh = (p = {}) => {
+            this.updateNetworkState(0.85, this.networkCorruption);
+        };
+        this._onGlobalHarmonyMid = (p = {}) => {
+            this.updateNetworkState(0.55, this.networkCorruption);
+        };
+        this._onGlobalHarmonyLow = (p = {}) => {
+            this.updateNetworkState(0.25, this.networkCorruption);
+        };
+        reg('global.harmony.high', this._onGlobalHarmonyHigh);
+        reg('global.harmony.mid', this._onGlobalHarmonyMid);
+        reg('global.harmony.low', this._onGlobalHarmonyLow);
+
+        // Node harmony high → healing tone
+        this._onNodeHarmonyHigh = (p = {}) => {
+            const pos = p?.position;
+            if (!pos) return;
+            const threePos = new THREE.Vector3(pos.x, pos.y, pos.z);
+            this.triggerHealingTone(threePos, 0.7);
+        };
+        reg('node.harmony.high', this._onNodeHarmonyHigh);
+
+        // Link corruption high → rupture sound
+        this._onLinkCorruptionHigh = (p = {}) => {
+            const pos = p?.position;
+            if (!pos) return;
+            const threePos = new THREE.Vector3(pos.x, pos.y, pos.z);
+            this.triggerRuptureSound(threePos, 0.8);
+        };
+        reg('link.corruption.high', this._onLinkCorruptionHigh);
+
+        console.log('[HarmonicAudioReactivitySystem_Session135] Event bus connected');
+    }
+
     /**
      * Clean up audio resources
      */

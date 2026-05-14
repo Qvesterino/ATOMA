@@ -38,6 +38,7 @@
  */
 
 import { applyMetricImpulse, setMetric } from './src/metrics/NodeMetricEngine.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 // === THREE SAFE LOADER ===
 let THREE_SAFE = null;
@@ -5214,6 +5215,108 @@ export class LinkCorruptionTransmission_v1 {
     };
 
     console.log('%c[LinkCorruptionTransmission_v1] Debug API ready at window.linkCorruptionDebug', 'color: #00ff00;');
+  }
+
+  // ========================================================================
+  // EVENT-DRIVEN TRIGGERS (canonical corruption tiered events)
+  // ========================================================================
+
+  setEventBus(semanticBus) {
+    this.semanticBus = semanticBus;
+    if (!this.semanticBus) return;
+
+    this._regDisposers = [];
+    const reg = (tag, handler) => {
+      const disposer = eventRegistrationRegistry.register('LinkCorruptionTransmission_v1', tag, handler, this.semanticBus);
+      this._regDisposers.push(disposer);
+    };
+
+    // Link corruption tiers → accelerate transmission
+    this._onLinkCorruptionHigh = (p = {}) => {
+      const linkId = p?.linkId;
+      if (!linkId) return;
+      const link = this._findLinkById(linkId);
+      if (!link) return;
+      this._injectCorruptionPulse(link, 0.25);
+    };
+    this._onLinkCorruptionMid = (p = {}) => {
+      const linkId = p?.linkId;
+      if (!linkId) return;
+      const link = this._findLinkById(linkId);
+      if (!link) return;
+      this._injectCorruptionPulse(link, 0.15);
+    };
+    this._onLinkCorruptionLow = (p = {}) => {
+      const linkId = p?.linkId;
+      if (!linkId) return;
+      const link = this._findLinkById(linkId);
+      if (!link) return;
+      this._injectCorruptionPulse(link, 0.05);
+    };
+    reg('link.corruption.high', this._onLinkCorruptionHigh);
+    reg('link.corruption.mid', this._onLinkCorruptionMid);
+    reg('link.corruption.low', this._onLinkCorruptionLow);
+
+    // Node corruption tiers → infect connected links
+    this._onNodeCorruptionHigh = (p = {}) => {
+      const nodeId = p?.nodeId;
+      if (!nodeId) return;
+      const node = this._findNodeById(nodeId);
+      if (!node) return;
+      this._infectNodeLinks(node, 0.2);
+    };
+    this._onNodeCorruptionMid = (p = {}) => {
+      const nodeId = p?.nodeId;
+      if (!nodeId) return;
+      const node = this._findNodeById(nodeId);
+      if (!node) return;
+      this._infectNodeLinks(node, 0.1);
+    };
+    reg('node.corruption.high', this._onNodeCorruptionHigh);
+    reg('node.corruption.mid', this._onNodeCorruptionMid);
+
+    console.log('[LinkCorruptionTransmission_v1] Event bus connected');
+  }
+
+  _findLinkById(linkId) {
+    if (!this.linkSystem?.links) return null;
+    return this.linkSystem.links.find(l => l.id === linkId || l.uuid === linkId) || null;
+  }
+
+  _findNodeById(nodeId) {
+    if (!this.aiNodes?.nodes) return null;
+    return this.aiNodes.nodes.find(n => n.id === nodeId || n.uuid === nodeId) || null;
+  }
+
+  _injectCorruptionPulse(link, amount) {
+    const linkData = this.linkCorruption.get(link);
+    if (!linkData) return;
+    linkData.level = Math.min(1.0, linkData.level + amount);
+    this.checkCascadeThresholds(link, linkData);
+  }
+
+  _infectNodeLinks(node, amount) {
+    if (!this.linkSystem?.links) return;
+    for (const link of this.linkSystem.links) {
+      const source = link?.source ?? link?.sourceNode ?? link?.from ?? null;
+      const target = link?.target ?? link?.targetNode ?? link?.to ?? null;
+      if (source === node || target === node) {
+        this._injectCorruptionPulse(link, amount);
+      }
+    }
+  }
+
+  dispose() {
+    if (Array.isArray(this._regDisposers)) {
+      for (const disposer of this._regDisposers) {
+        try { disposer(); } catch (_) {}
+      }
+      this._regDisposers.length = 0;
+    }
+    this.linkCorruption.clear();
+    this.activeCascades.clear();
+    this.activeHealingCascades.clear();
+    this.linkIntegrity.clear();
   }
 }
 

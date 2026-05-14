@@ -36,6 +36,8 @@
  * @version 1.0.0
  */
 
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
+
 // ============================================================================
 // PHASE ENUM
 // ============================================================================
@@ -75,7 +77,7 @@ const DRAMATURGY_PROFILES = Object.freeze({
 
   corruption: {
     label: 'Corruption Surge',
-    triggerEvents: ['network:corruptionSpread', 'node.corruption.high'],
+    triggerEvents: ['global.corruption.high', 'global.corruption.mid', 'global.corruption.low'],
     endEvents: ['topology.healing'],
     telegraph: { durationMs: 1200, intensity: 0.4 },
     escalation: { durationMs: 3000, intensity: 1.0 },
@@ -411,6 +413,23 @@ export class EventDramaturgyEngine {
   }
 
   /**
+   * Set or update the semantic bus reference.
+   * Re-subscribes if already initialized.
+   */
+  setEventBus(semanticBus) {
+    if (this.semanticBus === semanticBus) return;
+    const wasInitialized = this._initialized;
+    if (wasInitialized) {
+      this.dispose();
+      this._initialized = false;
+    }
+    this.semanticBus = semanticBus;
+    if (wasInitialized && this.semanticBus) {
+      this.init();
+    }
+  }
+
+  /**
    * Set or update the camera reference.
    */
   setCamera(camera) {
@@ -520,6 +539,12 @@ export class EventDramaturgyEngine {
    */
   dispose() {
     this._clearAllSequences();
+
+    // Dispose all EventRegistrationRegistry handlers for this owner
+    if (eventRegistrationRegistry && typeof eventRegistrationRegistry.disposeOwner === 'function') {
+      eventRegistrationRegistry.disposeOwner('EventDramaturgyEngine');
+    }
+
     for (const unsub of this._subscriptions) {
       try { unsub(); } catch (_) { /* ignore */ }
     }
@@ -596,6 +621,14 @@ export class EventDramaturgyEngine {
     const bus = this.semanticBus;
     if (!bus) return;
 
+    // Prefer EventRegistrationRegistry for canonical event tracking
+    if (eventRegistrationRegistry && typeof eventRegistrationRegistry.register === 'function') {
+      const disposer = eventRegistrationRegistry.register('EventDramaturgyEngine', eventName, handler, bus);
+      this._subscriptions.push(disposer);
+      return;
+    }
+
+    // Fallback to direct bus subscription
     if (typeof bus.subscribe === 'function') {
       const unsub = bus.subscribe(eventName, handler);
       if (typeof unsub === 'function') {

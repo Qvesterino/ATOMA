@@ -33,6 +33,7 @@
  */
 
 import * as THREE from 'three';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 const CASCADE_CORRUPTION_THRESHOLD = 0.35;
 
@@ -813,10 +814,64 @@ export class CascadingRuptureSystem {
     }
 
     // ========================================================================
+    // EVENT-DRIVEN TRIGGERS (canonical corruption tiered events)
+    // ========================================================================
+
+    setEventBus(semanticBus) {
+        this.semanticBus = semanticBus;
+        if (!this.semanticBus) return;
+
+        this._regDisposers = [];
+        const reg = (tag, handler) => {
+            const disposer = eventRegistrationRegistry.register('CascadingRuptureSystem', tag, handler, this.semanticBus);
+            this._regDisposers.push(disposer);
+        };
+
+        // Node corruption tiers → trigger cascade with appropriate energy
+        this._onNodeCorruptionHigh = (p = {}) => {
+            const nodeId = p?.nodeId;
+            if (!nodeId) return;
+            const node = this._findNodeById(nodeId);
+            if (!node) return;
+            this.triggerCascade(node, 0.9);
+        };
+        this._onNodeCorruptionMid = (p = {}) => {
+            const nodeId = p?.nodeId;
+            if (!nodeId) return;
+            const node = this._findNodeById(nodeId);
+            if (!node) return;
+            this.triggerCascade(node, 0.6);
+        };
+        this._onNodeCorruptionLow = (p = {}) => {
+            const nodeId = p?.nodeId;
+            if (!nodeId) return;
+            const node = this._findNodeById(nodeId);
+            if (!node) return;
+            this.triggerCascade(node, 0.3);
+        };
+        reg('node.corruption.high', this._onNodeCorruptionHigh);
+        reg('node.corruption.mid', this._onNodeCorruptionMid);
+        reg('node.corruption.low', this._onNodeCorruptionLow);
+
+        console.log('[CascadingRuptureSystem] Event bus connected');
+    }
+
+    _findNodeById(nodeId) {
+        if (!this.aiNodes) return null;
+        return this.aiNodes.find(n => this._getNodeId(n) === nodeId) || null;
+    }
+
+    // ========================================================================
     // CLEANUP
     // ========================================================================
 
     dispose() {
+        if (Array.isArray(this._regDisposers)) {
+            for (const disposer of this._regDisposers) {
+                try { disposer(); } catch (_) {}
+            }
+            this._regDisposers.length = 0;
+        }
         this.activeCascades.forEach(c => c.reset());
         this.visualEffects.forEach(e => e.reset());
         this.ruptureHistory.clear();

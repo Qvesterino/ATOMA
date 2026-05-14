@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { VisualHierarchyRegistry } from '../VisualHierarchyRegistry.js';
 import { projectHudMetrics } from '../SemanticMetricAdapter.js';
 import { LinkPointFXBase } from '../LinkPointFXBase.js';
+import { eventRegistrationRegistry } from '../Engine/EventRegistrationRegistry.js';
 
 function getAtomaVisualDebugMode() {
     const mode = (typeof window !== 'undefined' && window.__ATOMA_VISUAL_DEBUG_MODE__)
@@ -658,6 +659,62 @@ export class HealingParticleSystem_Session136 {
                 this.spawnParticle(this._tmpVec3A.copy(position), ringDir, color, ringSize, ringLife, time);
             }
         }
+    }
+
+    // ========================================================================
+    // EVENT-DRIVEN TRIGGERS (canonical harmony tiered events)
+    // ========================================================================
+
+    setEventBus(semanticBus) {
+        this.semanticBus = semanticBus;
+        if (!this.semanticBus) return;
+
+        this._regDisposers = [];
+        const reg = (tag, handler) => {
+            const disposer = eventRegistrationRegistry.register('HealingParticleSystem_Session136', tag, handler, this.semanticBus);
+            this._regDisposers.push(disposer);
+        };
+
+        // Node harmony high → celebration splash burst
+        this._onNodeHarmonyHigh = (p = {}) => {
+            const nodeId = p?.nodeId;
+            if (!nodeId) return;
+            const node = this._findNodeById(nodeId);
+            if (!node?.position) return;
+            const time = performance.now() / 1000;
+            this.emitSplash(node.position, 0.7, time);
+        };
+        reg('node.harmony.high', this._onNodeHarmonyHigh);
+
+        // Link harmony high → healing trail along link
+        this._onLinkHarmonyHigh = (p = {}) => {
+            const linkId = p?.linkId;
+            if (!linkId) return;
+            const link = this._findLinkById(linkId);
+            if (!link?.source?.position || !link?.target?.position) return;
+            const time = performance.now() / 1000;
+            const mid = new THREE.Vector3()
+                .addVectors(link.source.position, link.target.position)
+                .multiplyScalar(0.5);
+            const vel = new THREE.Vector3()
+                .subVectors(link.target.position, link.source.position)
+                .normalize()
+                .multiplyScalar(2.0);
+            this.emitHealingTrail(mid, vel, 0.6, time);
+        };
+        reg('link.harmony.high', this._onLinkHarmonyHigh);
+
+        console.log('[HealingParticleSystem_Session136] Event bus connected');
+    }
+
+    _findNodeById(nodeId) {
+        if (!this.scene?.userData?.world?.nodes) return null;
+        return this.scene.userData.world.nodes.find(n => n.id === nodeId || n.uuid === nodeId) || null;
+    }
+
+    _findLinkById(linkId) {
+        if (!this.scene?.userData?.world?.links) return null;
+        return this.scene.userData.world.links.find(l => l.id === linkId || l.uuid === linkId) || null;
     }
 
     getStats() {

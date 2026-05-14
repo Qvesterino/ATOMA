@@ -1245,15 +1245,11 @@ import { VisualHierarchyCorrectionSystem_v1 } from './_VisualHierarchyCorrection
 // DISABLED: 503 server error on file load - will recreate from inline
 // import { NodeSurfaceProtectionRule_v2 } from './NodeSurfaceProtectionRule_v2.js';
 
-// ============================================================================
-// PHASE 3C PERSONALITY SHADER BRIDGE (Week 3 - GPU Shader Integration)
-// ============================================================================
-import { PersonalityShaderBridge_v1 } from './PersonalityShaderBridge_v1.js';
+// REMOVED: PersonalityShaderBridge_v1 - moved to LEGACY/ (2026-05-14) - personalityVisual never written, dead shell
+// import { PersonalityShaderBridge_v1 } from './LEGACY/PersonalityShaderBridge_v1.js';
 
-// ============================================================================
-// PHASE 3C PERSONALITY SHADER EFFECTS PACK (Week 4 - Advanced Visual Polish)
-// ============================================================================
-import { PersonalityShaderEffects_Pack_v1 } from './PersonalityShaderEffects_Pack_v1.js';
+// REMOVED: PersonalityShaderEffects_Pack_v1 - moved to LEGACY/ (2026-05-14) - was enabled=false dormant-unwired
+// import { PersonalityShaderEffects_Pack_v1 } from './LEGACY/PersonalityShaderEffects_Pack_v1.js';
 
 // ============================================================================
 // PHASE 3C PERFORMANCE MODE (Centralized FX scaling controller)
@@ -1271,10 +1267,8 @@ import { AdaptivePerformanceMonitor_v1 } from './AdaptivePerformanceMonitor_v1.j
 // ============================================================================
 import { FXPerformanceSmoothTransition_v1 } from './FXPerformanceSmoothTransition_v1.js';
 
-// ============================================================================
-// PHASE 3C PERSONALITY SHADER ADVANCED FX (Week 5 - Advanced Distortion)
-// ============================================================================
-import { PersonalityShaderAdvancedFX_v1 } from './PersonalityShaderAdvancedFX_v1.js';
+// REMOVED: PersonalityShaderAdvancedFX_v1 - moved to LEGACY/ (2026-05-14) - personalityVisual never written
+// import { PersonalityShaderAdvancedFX_v1 } from './LEGACY/PersonalityShaderAdvancedFX_v1.js';
 
 
 // ============================================================================
@@ -4919,8 +4913,9 @@ class AtomaGame {
         }, 'visual.synergyResonanceShaderPack');
         // REMOVED: synergyCascadeFXBridge frame scheduler — moved to LEGACY/april (2026-04-22)
         this.frameScheduler.register('visual', (dt) => this.fxRuntime_v1?.update?.(dt), 'visual.fxRuntime_v1');
-        this.frameScheduler.register('visual', (dt) => this.personalityShaderBridge?.update?.(dt), 'visual.personalityShaderBridge');
-        this.frameScheduler.register('visual', (dt) => this.advancedShaderFX?.update?.(dt), 'visual.advancedShaderFX');
+        // REMOVED: personalityShaderBridge + advancedShaderFX frameScheduler — moved to LEGACY/ (2026-05-14)
+        // this.frameScheduler.register('visual', (dt) => this.personalityShaderBridge?.update?.(dt), 'visual.personalityShaderBridge');
+        // this.frameScheduler.register('visual', (dt) => this.advancedShaderFX?.update?.(dt), 'visual.advancedShaderFX');
         this.frameScheduler.register('visual', (dt) => this.archetypeAuraFX?.update?.(dt), 'visual.archetypeAuraFX');
         this.frameScheduler.register('visual', (dt) => this.archetypeColorFX?.update?.(dt), 'visual.archetypeColorFX');
         this.frameScheduler.register('visual', (dt) => this.archetypeShaderModes?.update?.(dt), 'visual.archetypeShaderModes');
@@ -5791,13 +5786,9 @@ this.setHudDirty('nodeInspect');
         // Node Personality 2.0 (unique personality signatures)
         this.nodePersonality = null;
 
-        // Phase 3c Personality Shader Bridge (GPU shader integration for effects)
+        // REMOVED (2026-05-14): personalityShaderBridge, personalityShaderEffects, advancedShaderFX — moved to LEGACY/
         this.personalityShaderBridge = null;
-
-        // Phase 3c Personality Shader Effects Pack (Week 4 - advanced visual polish)
         this.personalityShaderEffects = null;
-
-        // Phase 3c Personality Shader Advanced FX (Week 5 - procedural noise & distortion)
         this.advancedShaderFX = null;
 
         // Phase 3c Archetype Shader Modes (Week 16 - GPU shader mode orchestration)
@@ -9186,6 +9177,7 @@ window.__ATOMA_SCENE__ = this.scene;
             this.semanticBus
         );
         this.corruptionTransmission = corruptionTransmission;
+        this.corruptionTransmission.setEventBus?.(this.semanticBus);
         this.aiNodes.linkCorruption = corruptionTransmission;
         if (typeof window !== 'undefined') {
             window.__PIC_SYSTEM__ = this.linkingSystem?.conduitRenderer?.pictogramSystem;
@@ -10619,68 +10611,11 @@ window.__ATOMA_SCENE__ = this.scene;
             console.warn('[main.js] NodeHierarchyBridge initialization failed:', err);
         }
 
-        // ====================================================================
-        // PHASE 3C PERSONALITY SHADER BRIDGE (Week 3 - GPU Shader Integration)
-        // ====================================================================
-        // Initialize PersonalityShaderBridge_v1 (binds signals to GPU uniforms)
-        // This layer safely injects personality uniforms into shaders
-        // without modifying existing shader logic
-        try {
-            this.personalityShaderBridge = new PersonalityShaderBridge_v1(
-                this.scene,
-                this.aiNodes,
-                {
-                    enableDebug: false,
-                    enableWarnings: false
-                }
-            );
-            if (typeof window !== 'undefined') {
-                window.__ATOMA_PERSONALITY_SHADER_REPORT__ = () =>
-                    this.personalityShaderBridge?.getStats?.() ?? null;
-            }
-            console.log('[main.js] PersonalityShaderBridge_v1 initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] Failed to initialize PersonalityShaderBridge_v1:', err);
-        }
+        // REMOVED (2026-05-14): PersonalityShaderBridge_v1 init — moved to LEGACY/
 
-        // ====================================================================
-        // PHASE 3C PERSONALITY SHADER EFFECTS PACK (Week 4 - Visual Polish)
-        // ====================================================================
-        // Initialize PersonalityShaderEffects_Pack_v1 (advanced shader effects)
-        // This layer applies gameplay-readable effects (bloom, corruption, waves, etc)
-        // using the existing uniforms from PersonalityShaderBridge_v1
-        try {
-            this.personalityShaderEffects = new PersonalityShaderEffects_Pack_v1({
-                enableDebug: false,
-                enableWarnings: false
-            });
-            this.personalityShaderEffects.enabled = false;
-            this.personalityShaderEffects.runtimeStatus = 'dormant-unwired';
-            console.log('[main.js] PersonalityShaderEffects_Pack_v1 initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] Failed to initialize PersonalityShaderEffects_Pack_v1:', err);
-        }
+        // REMOVED (2026-05-14): PersonalityShaderEffects_Pack_v1 init — moved to LEGACY/
 
-        // ====================================================================
-        // PHASE 3C PERSONALITY SHADER ADVANCED FX (Week 5 - Procedural Distortion)
-        // ====================================================================
-        // Initialize PersonalityShaderAdvancedFX_v1 (GPU-side procedural noise effects)
-        // This layer applies advanced vertex/fragment distortion using procedural noise
-        // driven by personality signals from PersonalityShaderBridge_v1
-        try {
-            this.advancedShaderFX = new PersonalityShaderAdvancedFX_v1({
-                scene: this.scene,
-                lowFXProvider: () => this.lowFXModeEnabled ?? false,
-                gameProvider: () => this,
-            });
-            if (this.aiNodes) {
-                this.aiNodes.advancedShaderFX = this.advancedShaderFX;
-            }
-            this.aiNodes?.registerAdvancedShaderFXNodes?.();
-            console.log('[main.js] AdvancedFX initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] AdvancedFX init error:', err);
-        }
+        // REMOVED (2026-05-14): PersonalityShaderAdvancedFX_v1 init — moved to LEGACY/
 
         // ====================================================================
         // PHASE 3C ARCHETYPE SHADER MODES (Week 16 - GPU Shader Mode Orchestration)
@@ -11958,8 +11893,9 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         regGuard('metricsRuntime_v1', 'simulation.metricsRuntime_v1', (dt) => this.metricsRuntime_v1?.update?.(dt));
         regGuard('aiHudReports', 'simulation.aiHudReports', () => this._refreshAIHudReports?.());
         // REMOVED: personalityRuntime_v1 regGuard — moved to LEGACY/april (2026-04-22)
-        regGuard('personalityShaderBridge', 'visual.personalityShaderBridge', (dt) => this.personalityShaderBridge?.update?.(dt));
-        regGuard('advancedShaderFX', 'visual.advancedShaderFX', (dt) => this.advancedShaderFX?.update?.(dt));
+        // REMOVED: personalityShaderBridge + advancedShaderFX regGuard — moved to LEGACY/ (2026-05-14)
+        // regGuard('personalityShaderBridge', 'visual.personalityShaderBridge', (dt) => this.personalityShaderBridge?.update?.(dt));
+        // regGuard('advancedShaderFX', 'visual.advancedShaderFX', (dt) => this.advancedShaderFX?.update?.(dt));
         regGuard('archetypeAuraFX', 'visual.archetypeAuraFX', (dt) => this.archetypeAuraFX?.update?.(dt));
         regGuard('archetypeColorFX', 'visual.archetypeColorFX', (dt) => this.archetypeColorFX?.update?.(dt));
         regGuard('archetypeShaderModes', 'visual.archetypeShaderModes', (dt) => this.archetypeShaderModes?.update?.(dt));
@@ -15605,6 +15541,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                 }
                 console.log('[main.js] HarmonicAudioReactivitySystem initialized ✓');
             }
+            this.harmonicAudio.setEventBus?.(this.semanticBus);
 
             // 2. Healing Particle System (Session 136)
             if (!this.healingParticles) {
@@ -15616,6 +15553,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                 );
                 console.log('[main.js] HealingParticleSystem initialized ✓');
             }
+            this.healingParticles.setEventBus?.(this.semanticBus);
 
             // 3. Link Trail Particle System
             if (!this.linkTrailParticles) {
@@ -15715,6 +15653,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                 semanticBus: this.semanticBus,
                 worldContextProvider: () => this._getCanonicalWorldContext()
             });
+            this.cascadingRuptures.setEventBus?.(this.semanticBus);
             this.criticalNodeFailure.rebind?.({
                 linkingSystem: this.linkingSystem,
                 aiNodes: this.aiNodes,
