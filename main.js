@@ -4623,11 +4623,12 @@ class AtomaGame {
         // Disabled: renderer now reads only link.userData.metrics directly in link pipelines.
         this.linkRendererMetricsIntegration = null;
         this.coreMetricsCalculator = null;
-        this.frameScheduler.register('simulation', (dt) => {
-            if (this.nodeShellSizeAuthority) {
-                this.nodeShellSizeAuthority.enforceShellSizes(null, this.nodeAuraSystem || null);
-            }
-        }, 'simulation.nodeShellSizeAuthority');
+        // REMOVED (2026-05-14): nodeShellSizeAuthority — file deleted, system null
+        // this.frameScheduler.register('simulation', (dt) => {
+        //     if (this.nodeShellSizeAuthority) {
+        //         this.nodeShellSizeAuthority.enforceShellSizes(null, this.nodeAuraSystem || null);
+        //     }
+        // }, 'simulation.nodeShellSizeAuthority');
         this.frameScheduler.register('simulation', (dt) => {
             if (this.linkPersonalityStateMachine && this.linkingSystem) {
                 this.linkPersonalityStateMachine.update(dt, this.linkingSystem.links || []);
@@ -4863,9 +4864,10 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => {
             this.phase5InterNetworkVisualizationBridge?.update?.(dt);
         }, 'visual.phase5InterNetworkVisualizationBridge');
-        this.frameScheduler.register('visual', (dt) => {
-            // EmergentThoughtStorms5_0 hard-disabled for release stabilization.
-        }, 'visual.emergentThoughtStorms');
+        // REMOVED (2026-05-14): emergentThoughtStorms — never instantiated, moved to LEGACY
+        // this.frameScheduler.register('visual', (dt) => {
+        //     // EmergentThoughtStorms5_0 hard-disabled for release stabilization.
+        // }, 'visual.emergentThoughtStorms');
         this.frameScheduler.register('simulation', (dt) => {
             this.colonyManager?.update?.(dt);
         }, 'simulation.colonyManager');
@@ -4893,9 +4895,10 @@ class AtomaGame {
             this.nodeAuraRenderer?.update?.(dt);
         }, 'visual.nodeAuraRenderer');
         // REMOVED: corruptionAuraDesaturation frame scheduler — moved to LEGACY/april (2026-04-22)
-        this.frameScheduler.register('visual', () => {
-            this.corruptionDesaturation?.update?.();
-        }, 'visual.corruptionDesaturation');
+        // REMOVED (2026-05-14): corruptionDesaturation — moved to LEGACY
+        // this.frameScheduler.register('visual', () => {
+        //     this.corruptionDesaturation?.update?.();
+        // }, 'visual.corruptionDesaturation');
         this.frameScheduler.register('visual', (dt) => {
             if (this.metricsVisualFX && this.aiNodes && !this._runVisualSemanticPending) {
                 this.metricsVisualFX.update(dt, this.aiNodes.nodes);
@@ -4938,12 +4941,16 @@ class AtomaGame {
             if (activeLinkCount === 0) return;
             this.cascadePropagationVisuals?.checkCascadeEvents?.();
         }, 'simulation.phase5CascadeEventCheck');
-        this.frameScheduler.register('visual', (dt) => this.evolvingLinkFX?.update?.(dt, null, null), 'visual.evolvingLinkFX');
-        this.frameScheduler.register('visual', (dt) => this.linkVisualMoodSystem?.update?.(dt), 'visual.linkVisualMoodSystem');
+        // REMOVED (2026-05-14): evolvingLinkFX — moved to LEGACY
+        // this.frameScheduler.register('visual', (dt) => this.evolvingLinkFX?.update?.(dt, null, null), 'visual.evolvingLinkFX');
+        // REMOVED (2026-05-14): linkVisualMoodSystem — moved to LEGACY
+        // this.frameScheduler.register('visual', (dt) => this.linkVisualMoodSystem?.update?.(dt), 'visual.linkVisualMoodSystem');
         this.frameScheduler.register('visual', () => { if (this.linkDebugMode?.enabled) this.linkDebugMode.updateDebugVisuals(); }, 'visual.linkDebugMode');
-        this.frameScheduler.register('visual', (dt) => this.legendaryPack?.update?.(dt, this.scene, this.camera, this.renderer), 'visual.legendaryPack');
+        // REMOVED (2026-05-14): legendaryPack — moved to LEGACY
+        // this.frameScheduler.register('visual', (dt) => this.legendaryPack?.update?.(dt, this.scene, this.camera, this.renderer), 'visual.legendaryPack');
         this.frameScheduler.register('visual', (dt) => this.legendaryLinkFX?.update?.(dt, this.scene, this.camera, this.renderer), 'visual.legendaryLinkFX');
-        this.frameScheduler.register('visual', (dt) => this.personalityFX?.update?.(dt, this.scene, this.camera), 'visual.personalityFX');
+        // REMOVED (2026-05-14): personalityFX — moved to LEGACY, replaced by MetricTierClassifier
+        // this.frameScheduler.register('visual', (dt) => this.personalityFX?.update?.(dt, this.scene, this.camera), 'visual.personalityFX');
         this.frameScheduler.register('visual', (dt) => {
             if (this.environmentDomain?.instances?.worldFXPack) return;
             this.worldFXPack?.update?.(dt, this.scene, this.camera);
@@ -4959,7 +4966,8 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => this.mobilityPack?.update?.(dt), 'visual.mobilityPack');
         // REMOVED: extremeShaderTestSuite - moved to LEGACY (2026-04-03)
         // this.frameScheduler.register('visual', (dt) => this.extremeShaderTestSuite?.update?.(dt), 'visual.extremeShaderTestSuite');
-        this.frameScheduler.register('visual', (dt) => this.newNodeCategories?.update?.(dt, this.time), 'visual.newNodeCategories');
+        // REMOVED (2026-05-14): newNodeCategories — moved to LEGACY
+        // this.frameScheduler.register('visual', (dt) => this.newNodeCategories?.update?.(dt, this.time), 'visual.newNodeCategories');
         // this.frameScheduler.register('visual', (dt) => this.extremeLinkVisuals?.update?.(dt), 'visual.extremeLinkVisuals');
         // this.frameScheduler.register('visual', (dt) => this.extremeLinkVisuals4?.update?.(dt, this.camera), 'visual.extremeLinkVisuals4');
         this.frameScheduler.register('visual', (dt) => this.phase8RitualOrchestration?.update?.(dt * 1000), 'visual.phase8RitualOrchestration');
@@ -12005,7 +12013,8 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         regGuard('phase5CascadeVisualizationBridge', 'visual.phase5CascadeVisualizationBridge', (dt) => this.phase5CascadeVisualizationBridge?.update?.(dt));
         // REMOVED: preCascadeVisualHint regGuard — moved to LEGACY/april (2026-04-22)
         regGuard('nodeHierarchyBridge', 'simulation.nodeHierarchyBridge', () => this.nodeHierarchyBridge?.update?.());
-        regGuard('legendaryPack', 'visual.legendaryPack', (dt) => this.legendaryPack?.update?.(dt, this.scene, this.camera, this.renderer));
+        // REMOVED (2026-05-14): legendaryPack regGuard — moved to LEGACY
+        // regGuard('legendaryPack', 'visual.legendaryPack', (dt) => this.legendaryPack?.update?.(dt, this.scene, this.camera, this.renderer));
         regGuard('legendaryLinkFX', 'visual.legendaryLinkFX', (dt) => this.legendaryLinkFX?.update?.(dt, this.scene, this.camera, this.renderer));
         regGuard('worldEvents', 'background.worldEvents', (dt) => {
             if (this.environmentDomain?.instances?.worldEvents) return;
@@ -12015,7 +12024,8 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
             if (this.environmentDomain?.instances?.weatherPack) return;
             this.weatherPack?.update?.(dt, this.scene, this.camera);
         });
-        regGuard('personalityFX', 'visual.personalityFX', (dt) => this.personalityFX?.update?.(dt, this.scene, this.camera));
+        // REMOVED (2026-05-14): personalityFX regGuard — moved to LEGACY
+        // regGuard('personalityFX', 'visual.personalityFX', (dt) => this.personalityFX?.update?.(dt, this.scene, this.camera));
         regGuard('worldFXPack', 'visual.worldFXPack', (dt) => {
             if (this.environmentDomain?.instances?.worldFXPack) return;
             this.worldFXPack?.update?.(dt, this.scene, this.camera);
@@ -12032,11 +12042,13 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
             this.dreamDepthEffects?.update?.(dt);
         });
         regGuard('mobilityPack', 'visual.mobilityPack', (dt) => this.mobilityPack?.update?.(dt));
-        regGuard('evolvingLinkFX', 'visual.evolvingLinkFX', (dt) => this.evolvingLinkFX?.update?.(dt, null, null));
+        // REMOVED (2026-05-14): evolvingLinkFX regGuard — moved to LEGACY
+        // regGuard('evolvingLinkFX', 'visual.evolvingLinkFX', (dt) => this.evolvingLinkFX?.update?.(dt, null, null));
         regGuard('nodePersonality', 'simulation.nodePersonality', (dt) => this.nodePersonality?.update?.(dt, this.time));
         // REMOVED: extremeShaderTestSuite - moved to LEGACY (2026-04-03)
         // regGuard('extremeShaderTestSuite', 'visual.extremeShaderTestSuite', (dt) => this.extremeShaderTestSuite?.update?.(dt));
-        regGuard('newNodeCategories', 'visual.newNodeCategories', (dt) => this.newNodeCategories?.update?.(dt, this.time));
+        // REMOVED (2026-05-14): newNodeCategories regGuard — moved to LEGACY
+        // regGuard('newNodeCategories', 'visual.newNodeCategories', (dt) => this.newNodeCategories?.update?.(dt, this.time));
         // regGuard('extremeLinkVisuals', 'visual.extremeLinkVisuals', (dt) => this.extremeLinkVisuals?.update?.(dt));
         // regGuard('extremeLinkVisuals4', 'visual.extremeLinkVisuals4', (dt) => this.extremeLinkVisuals4?.update?.(dt, this.camera));
         // REMOVED: linkVisualMoodSystem - moved to LEGACY (2026-04-03)

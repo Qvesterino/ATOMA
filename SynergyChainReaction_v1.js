@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+﻿import * as THREE from 'three';
 
 /**
  * SYNERGY CHAIN REACTION v1.0
@@ -278,13 +278,8 @@ export class SynergyChainReaction_v1 {
      */
     checkPersonalityCompatibility(nodeA, nodeB) {
         try {
-            const personalityA = nodeA?.userData?.personalityVisual ?? {};
-            const personalityB = nodeB?.userData?.personalityVisual ?? {};
-            
-            // Simple compatibility: check if harmony/entropy signals align
-            const harmonyA = personalityA.resonanceBoost ?? 0.5;
-            const harmonyB = personalityB.resonanceBoost ?? 0.5;
-            
+            const harmonyA = nodeA?.userData?.metrics?.harmony ?? 0.5;
+            const harmonyB = nodeB?.userData?.metrics?.harmony ?? 0.5;
             const compatibility = 1.0 - Math.abs(harmonyA - harmonyB);
             return compatibility >= this.config.personalityCompatibilityThreshold;
         } catch (err) {

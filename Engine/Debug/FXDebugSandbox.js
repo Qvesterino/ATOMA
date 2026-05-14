@@ -1,4 +1,4 @@
-/**
+﻿/**
  * FXDebugSandbox.js
  * ============================================================================
  * DEBUG SANDBOX FOR VFX SYSTEMS
@@ -250,14 +250,14 @@ class FXDebugSandbox {
 
   _buildManualNodeFxRegistry() {
     return [
-      { id: 'nodeMicroEvents', label: 'Node Micro Events', group: 'Node Core', paths: ['nodeMicroEvents'], hardDisabled: true, muteMethods: ['update', 'triggerMicroEvent', 'triggerSelectionCascade'] },
-      { id: 'evolutionManager', label: 'Evolution Manager', group: 'Node Core', paths: ['evolutionManager'], hardDisabled: true, muteMethods: ['update'] },
+      { id: 'nodeMicroEvents', label: 'Node Micro Events', group: 'Node Core', paths: ['nodeMicroEvents'], muteMethods: ['update', 'triggerMicroEvent', 'triggerSelectionCascade'] },
+      { id: 'evolutionManager', label: 'Evolution Manager', group: 'Node Core', paths: ['evolutionManager'], muteMethods: ['update'] },
       { id: 'personalityShaderEffects', label: 'Personality Shader Effects', group: 'Node Core', paths: ['personalityShaderEffects'], hardDisabled: true, muteMethods: ['registerNodeMaterial', 'registerLinkMaterial', 'applyDefaultNodeProfile', 'applyDefaultLinkProfile'] },
       { id: 'advancedShaderFX', label: 'Advanced Node Shader FX', group: 'Node Core', paths: ['advancedShaderFX'], hardDisabled: true, muteMethods: ['update', 'setEnabled'] },
       { id: 'personalityFX', label: 'Safe Node Personality FX', group: 'Node Core', paths: ['personalityFX'], hardDisabled: true, muteMethods: ['update'] },
-      { id: 'corruptionFeedback', label: 'Corruption Feedback', group: 'Corruption', paths: ['corruptionFeedback'], hardDisabled: true, muteMethods: ['update', 'displayCorruptionSeed', 'displayCascadeWarning', 'displayHarmonyPulse'] },
-      { id: 'phase5CascadePropagationVisuals', label: 'Cascade Propagation Visuals', group: 'Cascade', paths: ['phase5CascadePropagationVisuals', 'cascadePropagationVisuals'], hardDisabled: true, muteMethods: ['update', 'triggerCascade'] },
-      { id: 'harmonicRecovery', label: 'Harmonic Recovery', group: 'Healing / Rupture', paths: ['harmonicRecovery'], hardDisabled: true, muteMethods: ['update', 'rebind'] },
+      { id: 'corruptionFeedback', label: 'Corruption Feedback', group: 'Corruption', paths: ['corruptionFeedback'], muteMethods: ['update', 'displayCorruptionSeed', 'displayCascadeWarning', 'displayHarmonyPulse'] },
+      { id: 'phase5CascadePropagationVisuals', label: 'Cascade Propagation Visuals', group: 'Cascade', paths: ['phase5CascadePropagationVisuals', 'cascadePropagationVisuals'], muteMethods: ['update', 'triggerCascade'] },
+      { id: 'harmonicRecovery', label: 'Harmonic Recovery', group: 'Healing / Rupture', paths: ['harmonicRecovery'], muteMethods: ['update', 'rebind'] },
       { id: 'resonanceRupture', label: 'Resonance Rupture', group: 'Healing / Rupture', paths: ['resonanceRupture'], muteMethods: ['update', '_triggerRupture', '_triggerNodeReactions'] },
       { id: 'healingParticles', label: 'Healing Particles', group: 'Healing / Rupture', paths: ['healingParticles'], muteMethods: ['update', 'spawnParticle', 'emitHealingTrail', 'emitHealingBurst'] },
       { id: 'harmonicHealing', label: 'Harmonic Healing', group: 'Healing / Rupture', paths: ['harmonicHealing'], muteMethods: ['update', 'rebind'] },

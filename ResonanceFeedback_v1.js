@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+﻿import * as THREE from 'three';
 import { getNodeCanonicalMetrics, getLinkSynergyVisualMetrics, getLinkCorruption } from './SemanticMetricAdapter.js';
 
 /**
@@ -596,26 +596,23 @@ export class ResonanceFeedback_v1 {
             if (!node?.userData) return 0;
             
             // Extract input signals (with safe defaults)
-            const personalityVisual = node.userData.personalityVisual ?? {};
             const canonicalMetrics = getNodeCanonicalMetrics(node) ?? {};
+            const harmonyNorm = Math.max(0, Math.min(1, canonicalMetrics.harmony ?? 0.5));
+            const stabilityNorm = Math.max(0, Math.min(1, canonicalMetrics.stability ?? 0.5));
             const synergy = canonicalMetrics.synergy ?? {};
             const shaderMode = node.userData.shaderModeState ?? {};
             const archetype = node.userData.archetypeEvolution ?? {};
             
-            // Component 1: Personality resonance boost (35%)
-            const personalityResonance = Math.max(0, Math.min(1, 
-                personalityVisual.resonanceBoost ?? 0.5
-            ));
+            // Component 1: Harmony-derived resonance boost (35%)
+            const personalityResonance = harmonyNorm;
             
             // Component 2: Synergy bonus strength (25%)
             const synergyStrength = Math.max(0, Math.min(1,
                 synergy.synergyNorm ?? synergy.score ?? 0
             ));
             
-            // Component 3: Anti-entropy (clarity from low entropy) (15%)
-            const entropyPenalty = Math.max(0, Math.min(1,
-                personalityVisual.entropyPenalty ?? 0
-            ));
+            // Component 3: Anti-entropy (clarity from stability) (15%)
+            const entropyPenalty = 1.0 - stabilityNorm;
             const clarityFromLowEntropy = 1.0 - entropyPenalty;
             
             // Component 4: Link-based resonance (15%)
@@ -662,7 +659,6 @@ export class ResonanceFeedback_v1 {
             if (!node?.userData) return;
             
             const state = this.getNodeState(node);
-            const personalityVisual = node.userData.personalityVisual ?? {};
             const canonicalMetrics = getNodeCanonicalMetrics(node) ?? {};
             const synergy = canonicalMetrics.synergy ?? {};
             const archetype = node.userData.archetypeEvolution ?? {};
@@ -674,14 +670,14 @@ export class ResonanceFeedback_v1 {
             const baselineHarmony = 0.5;
             state.harmonyShift = state.localResonance - baselineHarmony;
             
-            // Calculate entropy shock (perturbation)
+            // Calculate entropy shock (derived from stability)
             state.entropyShock = Math.max(0, Math.min(1,
-                personalityVisual.entropyPenalty ?? 0
+                1.0 - (canonicalMetrics.stability ?? 0.5)
             ));
             
-            // Calculate corruption drift
+            // Calculate corruption drift (derived from canonical corruption)
             state.corruptionDrift = Math.max(0, Math.min(1,
-                personalityVisual.corruptionLevel ?? 0
+                canonicalMetrics.corruption ?? 0
             ));
             
             // Calculate clarity boost from synergy

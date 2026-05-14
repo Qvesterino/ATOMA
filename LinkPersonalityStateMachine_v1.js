@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+﻿import * as THREE from 'three';
 
 /**
  * LINK PERSONALITY STATE MACHINE v1.0
@@ -155,21 +155,11 @@ export class LinkPersonalityStateMachine_v1 {
             // =====================================================================
             let emotionalFlux = 0;
             
-            // Node A emotional influence
             const nodeA = link.userData.nodeA;
-            if (nodeA?.userData?.personalityVisual) {
-                const pv = nodeA.userData.personalityVisual;
-                emotionalFlux += Math.abs((pv.dominance || 0) - 0.5) * 0.5;
-                emotionalFlux += (pv.turbulence || 0) * 0.5;
-            }
-            
-            // Node B emotional influence
             const nodeB = link.userData.nodeB;
-            if (nodeB?.userData?.personalityVisual) {
-                const pv = nodeB.userData.personalityVisual;
-                emotionalFlux += Math.abs((pv.dominance || 0) - 0.5) * 0.5;
-                emotionalFlux += (pv.turbulence || 0) * 0.5;
-            }
+            const corruptionA = nodeA?.userData?.metrics?.corruption ?? 0;
+            const corruptionB = nodeB?.userData?.metrics?.corruption ?? 0;
+            emotionalFlux = (corruptionA + corruptionB) * 0.25;
             
             emotionalFlux = Math.max(0, Math.min(1, emotionalFlux));
             

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * PERSONALITY-DRIVEN WORLD EVENTS 2.0 (SAFE EDITION)
  * 
  * Makes the world visually react to the global emotional/metric state of the node network.
@@ -46,7 +46,7 @@
 import * as THREE from 'three';
 import { normalizeEnvironmentGeometry } from './RoundedEnvironmentGeometry.js';
 import { getEnvSpriteTexture } from './EnvironmentPointFXBase.js';
-import { buildScopedMetricEventName } from './src/metrics/MetricTierClassifier.js';
+import { buildScopedMetricEventName, classifyMetricTier, getDefaultMetricThresholds } from './src/metrics/MetricTierClassifier.js';
 import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
 
 export class WorldPersonalityController {
@@ -413,6 +413,28 @@ export class WorldPersonalityController {
   /**
    * Scan all nodes and compute global network mood
    */
+  _resolvePersonalityFromMetrics(metrics) {
+    if (!metrics) return 'CONVERGENCE_NEXUS';
+    const classify = (metric, value) => classifyMetricTier(
+      Number.isFinite(value) ? value : 0,
+      null,
+      getDefaultMetricThresholds(metric)
+    );
+    const s = classify('stability', metrics.stability);
+    const h = classify('harmony', metrics.harmony);
+    const sy = classify('synergy', metrics.synergy);
+    const c = classify('corruption', metrics.corruption);
+    if (s === 'high' && h === 'high' && sy === 'high') return 'ASCENDED_MYTHIC';
+    if (sy === 'high' && h === 'high') return 'RADIANT_OPTIMIZER';
+    if (c === 'high' && s === 'low') return 'QUANTUM_TRICKSTER';
+    if (h === 'high' && (sy === 'mid' || sy === 'high')) return 'HARMONY_KEEPER';
+    if (s === 'high' && (h === 'mid' || h === 'high')) return 'CALM_ANALYST';
+    if (s === 'high' && c === 'low') return 'GLYPH_ARCHIVIST';
+    if (sy === 'high' && (c === 'mid' || c === 'high')) return 'FRACTAL_DREAMER';
+    if ((c === 'mid' || c === 'high') && (s === 'mid' || s === 'high')) return 'UMBRA_SENTINEL';
+    if (sy === 'low' && h === 'low') return 'ECHO_WANDERER';
+    return 'CONVERGENCE_NEXUS';
+  }
   scanNetworkMood(nodes, worldMetrics = null) {
     const globalMetrics = this._resolveGlobalMetrics(worldMetrics);
     const personalityCount = {};
@@ -430,10 +452,9 @@ export class WorldPersonalityController {
     }
     
     nodes.forEach(node => {
-      const personality = node.userData?.personality;
-      if (personality?.type) {
-        personalityCount[personality.type] = (personalityCount[personality.type] || 0) + 1;
-      }
+      const metrics = node.userData?.metrics;
+      const type = this._resolvePersonalityFromMetrics(metrics);
+      personalityCount[type] = (personalityCount[type] || 0) + 1;
     });
     
     if (avgHarmony === null || avgStability === null || avgEnergy === null) {
@@ -444,7 +465,6 @@ export class WorldPersonalityController {
       
       nodes.forEach(node => {
         const metrics = node.userData?.metrics;
-        const personality = node.userData?.personality;
         
         if (metrics) {
           const harmonyValue = metrics.harmonyAffinity ?? metrics.harmony ?? metrics.synergy ?? 0;
@@ -454,9 +474,8 @@ export class WorldPersonalityController {
           validNodeCount++;
         }
         
-        if (personality?.type) {
-          personalityCount[personality.type] = (personalityCount[personality.type] || 0) + 1;
-        }
+        const type = this._resolvePersonalityFromMetrics(metrics);
+        personalityCount[type] = (personalityCount[type] || 0) + 1;
       });
       
       if (validNodeCount === 0) return;
@@ -1415,8 +1434,7 @@ export class WorldPersonalityController {
     nodes.forEach(nodeA => {
       if (processedNodes.has(nodeA.uuid)) return;
       
-      const personalityA = nodeA.userData?.personality?.type;
-      if (!personalityA) return;
+      const personalityA = this._resolvePersonalityFromMetrics(nodeA.userData?.metrics);
       
       const cluster = {
         personality: personalityA,
@@ -1429,7 +1447,7 @@ export class WorldPersonalityController {
         if (nodeA.uuid === nodeB.uuid) return;
         if (processedNodes.has(nodeB.uuid)) return;
         
-        const personalityB = nodeB.userData?.personality?.type;
+        const personalityB = this._resolvePersonalityFromMetrics(nodeB.userData?.metrics);
         if (personalityA !== personalityB) return;
         
         const distance = nodeA.position.distanceTo(nodeB.position);
