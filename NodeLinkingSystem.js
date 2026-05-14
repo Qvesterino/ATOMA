@@ -2075,13 +2075,7 @@ export class NodeLinkingSystem {
         ? activeLink.userData.linkCreationTier
         : fanoutTier;
 
-      if (this.conduitRenderer?.nodeInterferenceManager && currentTier >= 1) {
-        this.conduitRenderer.nodeInterferenceManager.registerLinkWithNodes(
-          activeLink,
-          currentSource,
-          currentTarget
-        );
-      }
+      // REMOVED: nodeInterferenceManager.registerLinkWithNodes — moved to LEGACY (2026-05-14)
 
       if (this.conduitRenderer?.nodeHarmonicManager && currentTier >= 2) {
         this.conduitRenderer.nodeHarmonicManager.registerLinkWithNodes(
@@ -6132,12 +6126,7 @@ getLinksForNode(node) {
       this.conduitRenderer.updateTrailParticles(deltaTime, time);
       this.conduitRenderer.updateHealingParticles(deltaTime, time);
 
-      // Ensure interference controllers are fed with current node/link graph every visual frame.
-      if (Array.isArray(this.aiNodes?.nodes) && this.conduitRenderer?.nodeInterferenceManager) {
-        for (const node of this.aiNodes.nodes) {
-          if (node) this.conduitRenderer.nodeInterferenceManager.registerNode(node);
-        }
-      }
+      // REMOVED: nodeInterferenceManager.registerNode — moved to LEGACY (2026-05-14)
 
       this.conduitRenderer.updateLinkResonanceFlow?.(
         deltaTime,

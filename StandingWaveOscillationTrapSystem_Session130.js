@@ -26,7 +26,7 @@
  * 
  * Integration:
  * - Works with InfluenceReflectionBackPressureSystem (reads reflection state)
- * - Works with HarmonicInfluencePropagationSystem (reads influence data)
+ * - REMOVED: HarmonicInfluencePropagationSystem dependency — moved to LEGACY (2026-05-14)
  * - Works with AINodes (reads node metrics)
  * - Visual-only, no gameplay modifications
  * 

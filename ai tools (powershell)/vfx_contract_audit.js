@@ -66,8 +66,8 @@ const EXPLICIT_FX_FILES = new Set([
   'HarmonicHubCascade.js',
   'HarmonicHubLifecycle.js',
   'HarmonicHubSync.js',
-  'HarmonicInfluencePropagationSystem_Session127.js',
-  'HarmonicNodeResonanceHalos.js',
+  // REMOVED: HarmonicInfluencePropagationSystem_Session127.js — moved to LEGACY (2026-05-14)
+  // REMOVED: HarmonicNodeResonanceHalos.js — moved to LEGACY (2026-05-14)
   'HarmonicRecoveryVisualSystem_Session138.js',
   'HarmonicResonanceCoupling_v1.js',
   'HarmonicResonanceFeedbackSystem.js',

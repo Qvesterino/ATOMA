@@ -519,7 +519,7 @@ import {
 } from './src/runtime/AtomaReleaseContainmentPolicy.js';
 import VisualTime from './src/time/VisualTime.js';
 import { FrameUpdateLoopOrderValidator_v1 } from './FrameUpdateLoopOrderValidator_v1.js';
-import { NodeEditor } from './NodeEditor.js';
+// REMOVED: NodeEditor — moved to LEGACY (2026-05-14)
 import { EnvironmentalHazards } from './EnvironmentalHazards.js';
 import { CinematicUpgrade } from './CinematicUpgrade.js?rev=2';
 import { VisualUpgradeSuperpack } from './VisualUpgradeSuperpack.js?rev=2';
@@ -1089,7 +1089,7 @@ import { LinkAuraSystem_v1 } from './LEGACY/aura/LinkAuraSystem_v1.js';
 import { VisualNetworkTimeElasticity_v1, validateVisualNetworkTimeElasticity } from './VisualNetworkTimeElasticity_v1.js';
 import { HarmonicResonanceCoupling_v1 } from './HarmonicResonanceCoupling_v1.js';
 import { HarmonicHubAuraSystem_Session126 } from './HarmonicHubAuraSystem_Session126.js';
-import { HarmonicInfluencePropagationSystem_Session127 } from './HarmonicInfluencePropagationSystem_Session127.js';
+// REMOVED: HarmonicInfluencePropagationSystem_Session127 — moved to LEGACY (2026-05-14)
 import { LinkResonanceFlowSystem_Session124 } from './LinkResonanceFlowSystem_Session124.js';
 import { applyLinkResonanceFlowHarmonyIntegration } from './LinkResonanceFlowIntegrationPatch_Session124.js';
 import { applyEchoRippleIntegration } from './EchoRippleIntegrationPatch_Session125.js';
@@ -1098,7 +1098,7 @@ import { HarmonicCascadeAmplification_Session145, setupCascadeConsoleAPI } from 
 import { CascadeBurstVisual_Session147 } from './CascadeBurstVisual_Session147.js';
 import { HarmonicPhaseSynchronization_Session146, setupPhaseSyncConsoleAPI } from './HarmonicHubCascade.js';
 // REMOVED: PreCascadeVisualHint_Session146 — moved to LEGACY/april (2026-04-22)
-import { HarmonicNodeResonanceHalos } from './HarmonicNodeResonanceHalos.js';
+// REMOVED: HarmonicNodeResonanceHalos — moved to LEGACY (2026-05-14)
 import { HarmonicHubDebugger } from './Engine/Debug/HarmonicHubDebugger.js';
 import { VisualEchoTrails_v1, VisualEchoTrails_v1_Integration, setupVisualEchoTrailsIntegration } from './VisualEchoTrails_v1_Integration.js';
 
@@ -4686,9 +4686,7 @@ class AtomaGame {
         this.frameScheduler.register('simulation', () => {
             this.aiNodes?.updateSpawning?.(Date.now());
         }, 'simulation.aiNodeSpawning');
-        this.frameScheduler.register('simulation', (dt) => {
-            this.nodeEditor?.update?.(dt);
-        }, 'simulation.nodeEditor');
+        // DISABLED: simulation.nodeEditor — moved to LEGACY (2026-05-14)
         this.frameScheduler.register('simulation', (dt) => {
             this.undoUiAcc = (this.undoUiAcc || 0) + dt;
             if (this.undoUiAcc >= 0.1) {
@@ -5065,12 +5063,7 @@ class AtomaGame {
                 this.harmonicHubAuraSystemTick(this._pendingHarmonicHubAuraDt);
             }
         }, 'visual.harmonicHubAuraSystem');
-        this.frameScheduler.register('visual', () => {
-            if (this._runHarmonicInfluencePending) {
-                this._runHarmonicInfluencePending = false;
-                this.harmonicInfluencePropagationTick(this._pendingHarmonicInfluenceDt);
-            }
-        }, 'visual.harmonicInfluencePropagation');
+        // REMOVED: frameScheduler registration for harmonicInfluencePropagation — moved to LEGACY (2026-05-14)
         this.frameScheduler.register('visual', () => {
             if (this._runLinkResonanceFlowPending) {
                 this._runLinkResonanceFlowPending = false;
@@ -5083,12 +5076,7 @@ class AtomaGame {
                 this.harmonicPhaseSynchronizationTick(this._pendingHarmonicPhaseSyncDt);
             }
         }, 'visual.harmonicPhaseSynchronization');
-        this.frameScheduler.register('visual', () => {
-            if (this._runHarmonicNodeHalosPending) {
-                this._runHarmonicNodeHalosPending = false;
-                this.harmonicNodeResonanceHalosTick(this._pendingHarmonicNodeHalosDt);
-            }
-        }, 'visual.harmonicNodeResonanceHalos');
+        // REMOVED: frameScheduler registration for harmonicNodeResonanceHalos — moved to LEGACY (2026-05-14)
         this.frameScheduler.register('visual', (dt) => {
             const pulseWaveBridge = this.pulseWaveBridge || this.pulseWaveSystemBridge;
             if (pulseWaveBridge && this.waveInterferenceEngine && this.pulseIntersectionAdapter) {
@@ -6033,12 +6021,12 @@ this.setHudDirty('nodeInspect');
         this.visualNetworkTimeElasticity = null;  // Extreme synergy time reversal effect
         this.harmonicResonanceCoupling = null;    // Synergy-driven link resonance coupling
         this.harmonicHubAuraSystem = null;        // Harmonic hub resonance fields (Session 126)
-        this.harmonicInfluencePropagation = null; // Harmonic influence propagation (Session 127)
+        // REMOVED: harmonicInfluencePropagation — moved to LEGACY (2026-05-14)
         this.harmonicCascadeAmplification = null; // Hub-to-hub cascade amplification (Session 145)
         this.linkResonanceFlowSystem = null;      // Directional link resonance flow (Session 124)
         this.harmonicPhaseSynchronization = null; // Hub phase alignment (Session 146)
         // REMOVED: preCascadeVisualHint — moved to LEGACY/april (2026-04-22)
-        this.harmonicNodeResonanceHalos = null;   // Node resonance halos for harmonic hubs
+        // REMOVED: harmonicNodeResonanceHalos — moved to LEGACY (2026-05-14)
         this.echoTrailsSystem = null;             // Echo trails shader system
         this.echoTrailsIntegration = null;        // Echo trails integration layer
 
@@ -6210,7 +6198,7 @@ this.setHudDirty('nodeInspect');
         this.createWorld('MAP_SWITCH');
         this.setupVisualSuperpack();
         this.setupCinematicUpgrade();
-        this.setupNodeEditor();
+        // DISABLED: this.setupNodeEditor(); // moved to LEGACY (2026-05-14)
         this.setupEvolutionManager();
         // DISABLED: this.setupLegendaryPack(); // moved to LEGACY (2026-04-03)
         this.setupLegendaryLinkFX();
@@ -6301,7 +6289,7 @@ this.setHudDirty('nodeInspect');
         this.setupAINarrativePatterns();
         this.setupModeSwitch();
         this.setupPerformanceMode();
-        this.setupNodeEditorInput();
+        // DISABLED: this.setupNodeEditorInput(); // moved to LEGACY (2026-05-14)
         // DISABLED: this.setupExtremeShaderTestSuite(); // moved to LEGACY (2026-04-03)
         this.setupNewNodeCategories();
         // DISABLED: this.setupNewNodeCategoryVisuals(); // moved to LEGACY (2026-04-03)
@@ -6705,12 +6693,12 @@ this.setHudDirty('nodeInspect');
         this.setupVisualNetworkTimeElasticity();
         this.setupHarmonicResonanceCoupling();
         this.setupHarmonicHubAuraSystem();
-        this.setupHarmonicInfluencePropagation();
+        // REMOVED: setupHarmonicInfluencePropagation() — moved to LEGACY (2026-05-14)
         this.setupHarmonicCascadeAmplification();
         this.setupLinkResonanceFlowSystem();
         this.setupHarmonicPhaseSynchronization();
         // REMOVED: setupPreCascadeVisualHint() — moved to LEGACY/april (2026-04-22)
-        this.setupHarmonicNodeResonanceHalos();
+        // REMOVED: setupHarmonicNodeResonanceHalos() — moved to LEGACY (2026-05-14)
         this.setupVisualEchoTrails();
 
         // ========================================================================
@@ -7989,7 +7977,7 @@ window.__ATOMA_SCENE__ = this.scene;
                 this.influenceReflection.rebind({
                     scene: this.scene,
                     world: this.world,
-                    harmonicInfluenceSystem: this.harmonicInfluencePropagation,
+                    // REMOVED: harmonicInfluenceSystem reference — moved to LEGACY (2026-05-14)
                     aiNodes,
                     linkingSystem,
                     semanticBus,
@@ -11739,11 +11727,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         }
     }
 
-    harmonicInfluencePropagationTick(deltaTime) {
-        if (this.harmonicInfluencePropagation) {
-            this.harmonicInfluencePropagation.update(deltaTime);
-        }
-    }
+    // REMOVED: harmonicInfluencePropagationTick — moved to LEGACY (2026-05-14)
 
     linkResonanceFlowSystemTick(deltaTime) {
         if (this.linkRendererConduit?.updateLinkResonanceFlow && this.linkRendererConduit?.linkResonanceFlowSystem) {
@@ -11769,17 +11753,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         }
     }
 
-    harmonicNodeResonanceHalosTick(deltaTime) {
-        if (this.harmonicNodeResonanceHalos && this.aiNodes) {
-            const nodeRegistry = this.aiNodes.nodes;
-            // Get hub data from HarmonicHubAuraSystem
-            const hubSystemData = this.harmonicHubAuraSystem?.hubs || null;
-            // Also get hub data from NodeHarmonicManager (includes collapse/recovery/resilience)
-            const harmonicManagerData = this.linkRendererConduit?.nodeHarmonicManager?.getAllHubStateData() || null;
-            // Merge both data sources (harmonicManagerData takes precedence for shared fields)
-            this.harmonicNodeResonanceHalos.update(deltaTime, nodeRegistry, hubSystemData, harmonicManagerData);
-        }
-    }
+    // REMOVED: harmonicNodeResonanceHalosTick — moved to LEGACY (2026-05-14)
 
     updateHoverGlyphTarget() {
         const state = (typeof window !== 'undefined') ? window.__crosshairRaycastState : null;
@@ -11873,7 +11847,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         regGuard('activeWorld', 'visual.activeWorld', (dt) => {
             if (this.activeWorld) this.activeWorld.update(dt, this.time);
         });
-        regGuard('nodeEditor', 'simulation.nodeEditor', (dt) => this.nodeEditor?.update?.(dt));
+        // DISABLED: regGuard nodeEditor — moved to LEGACY (2026-05-14)
         regGuard('hazards', 'simulation.hazards', (dt) => {
             if (this.hazards) {
                 this.hazards.update(dt);
@@ -11936,12 +11910,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                 this.harmonicHubAuraSystemTick?.(this._pendingHarmonicHubAuraDt);
             }
         });
-        regGuard('harmonicInfluencePropagation', 'visual.harmonicInfluencePropagation', (_dt) => {
-            if (this._runHarmonicInfluencePending) {
-                this._runHarmonicInfluencePending = false;
-                this.harmonicInfluencePropagationTick?.(this._pendingHarmonicInfluenceDt);
-            }
-        });
+        // REMOVED: regGuard for harmonicInfluencePropagation — moved to LEGACY (2026-05-14)
         regGuard('linkResonanceFlowSystem', 'visual.linkResonanceFlowSystem', (_dt) => {
             if (this._runLinkResonanceFlowPending) {
                 this._runLinkResonanceFlowPending = false;
@@ -11954,12 +11923,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                 this.harmonicPhaseSynchronizationTick?.(this._pendingHarmonicPhaseSyncDt);
             }
         });
-        regGuard('harmonicNodeResonanceHalos', 'visual.harmonicNodeResonanceHalos', (_dt) => {
-            if (this._runHarmonicNodeHalosPending) {
-                this._runHarmonicNodeHalosPending = false;
-                this.harmonicNodeResonanceHalosTick?.(this._pendingHarmonicNodeHalosDt);
-            }
-        });
+        // REMOVED: regGuard for harmonicNodeResonanceHalos — moved to LEGACY (2026-05-14)
         regGuard('audioSynergyMonitor', 'simulation.audioSynergyMonitor', (dt) => {
             if (this.audioSystem) {
                 const canonicalWorldContext = this._getCanonicalWorldContext();
@@ -13540,18 +13504,10 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
     }
 
     /**
-     * Setup node editor system
+     * Setup node editor system — DISABLED (moved to LEGACY 2026-05-14)
      */
     setupNodeEditor() {
-        this.nodeEditor = new NodeEditor(this.scene, this.camera, this.collisionManager);
-        this.nodeEditor.frameScheduler = this.frameScheduler;
-
-        // Create demo nodes
-        if (window.__ALLOW_EXTERNAL_SPAWN__ === true) {
-            /// Spawn moved to AINodes authority (removed)
-        } else {
-            console.warn('[Spawn] External spawn blocked');
-        }
+        // DISABLED: NodeEditor moved to LEGACY
     }
 
     /**
@@ -13872,9 +13828,6 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
      */
     setupNodeEditorInput() {
         const handler = (method) => (e) => {
-            if (this.nodeEditor && typeof this.nodeEditor[method] === "function") {
-                this.nodeEditor[method](e);
-            }
             const linkingSystem = this.linkingSystem || this.nodeLinkingSystem || this.nodeLinking;
             if (linkingSystem && typeof linkingSystem[method] === "function") {
                 linkingSystem[method](e);
@@ -15252,14 +15205,12 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
      */
     setupInfluenceReflection() {
         try {
-            // Get harmonic influence system if available
-            const harmonicInfluenceSystem = this.harmonicInfluencePropagation || null;
-            
+            // REMOVED: harmonicInfluenceSystem reference — moved to LEGACY (2026-05-14)
             // Initialize reflection system with core world references
             this.influenceReflection = new InfluenceReflectionBackPressureSystem_Session129(
                 this.scene,
                 this.world || { aiNodes: this.aiNodes, linkingSystem: this.linkingSystem },
-                harmonicInfluenceSystem,
+                null,
                 this.aiNodes,
                 this.linkingSystem,
                 {
@@ -16512,43 +16463,9 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         }
     }
     
-    /**
-     * Setup Harmonic Influence Propagation System (Session 127)
-     * Renders flowing harmonic influence from hubs through network
-     */
-    setupHarmonicInfluencePropagation() {
-        try {
-            const influenceWorld = this.world || {
-                aiNodes: this.aiNodes,
-                linkingSystem: this.linkingSystem
-            };
-            this.harmonicInfluencePropagation = new HarmonicInfluencePropagationSystem_Session127(
-                this.scene,
-                this.worldRoot,
-                influenceWorld,
-                this.harmonicHubAuraSystem,
-                this.nodeAuraSystem,
-                {
-                    enabled: true,
-                    propagationInterval: 2.0,
-                    propagationSpeed: 3.0,
-                    nodeAuraOpacityBase: 0.2,
-                    linkFlowOpacity: 0.3,
-                    driftSpeed: 0.3,
-                    oscillationAmplitude: 0.15,
-                }
-            );
+    // REMOVED: setupHarmonicInfluencePropagation() — moved to LEGACY (2026-05-14)
+    // System was inactive (MOTION_OFF_PHASE1 = true) and redundant with HarmonicHubAuraSystem.
 
-            // Late-wire systems that were initialized before influence propagation.
-            if (this.influenceReflection) {
-                this.influenceReflection.harmonicInfluenceSystem = this.harmonicInfluencePropagation;
-            }
-            console.log('✓ Harmonic Influence Propagation System (Session 127) initialized');
-        } catch (err) {
-            console.warn('⚠ Harmonic Influence Propagation initialization failed:', err);
-        }
-    }
-    
     /**
      * Setup Harmonic Cascade Amplification System (Session 145)
      * Hub-to-hub reinforcement where nearby hubs amplify each other's resonance
@@ -16747,24 +16664,9 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
 
     // REMOVED: setupPreCascadeVisualHint() — moved to LEGACY/april (2026-04-22)
     
-    /**
-     * Setup Harmonic Node Resonance Halos
-     * Visual halos around harmonic hub nodes
-     */
-    setupHarmonicNodeResonanceHalos() {
-        try {
-            this.harmonicNodeResonanceHalos = new HarmonicNodeResonanceHalos();
-            console.log('✓ Harmonic Node Resonance Halos initialized');
-            
-            // Setup HarmonicHubDebugger for console access
-            this.harmonicHubDebugger = new HarmonicHubDebugger(this);
-            window.HarmonicHubDebugger = this.harmonicHubDebugger;
-            console.log('✓ Harmonic Hub Debugger initialized (window.HarmonicHubDebugger)');
-        } catch (err) {
-            console.warn('⚠ Harmonic Node Resonance Halos initialization failed:', err);
-        }
-    }
-    
+    // REMOVED: setupHarmonicNodeResonanceHalos() — moved to LEGACY (2026-05-14)
+    // Redundant with HarmonicHubAuraSystem field meshes.
+
     /**
      * Setup Visual Echo Trails v1.0
      * Shader-level echo trail enhancement for link pulses

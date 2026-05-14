@@ -25,7 +25,7 @@
  * - Reuses pooled meshes, zero per-frame allocations
  * 
  * Integration:
- * - Works with HarmonicInfluencePropagationSystem (reads influence state)
+ * - REMOVED: HarmonicInfluencePropagationSystem dependency — moved to LEGACY (2026-05-14)
  * - Works with AINodes (reads harmony/corruption/instability)
  * - Visual-only, no gameplay modifications
  * 

@@ -11,7 +11,7 @@ import { LinkPulseRing } from './LinkPulseRing.js';
 import { LinkPulseDustEmitter } from './LinkPulseDustEmitter.js';
 import { LinkRingArcDischarges } from './LinkRingArcDischarges.js';
 import { LinkVisualStateAdapter } from './LinkVisualStateAdapter.js';
-import { NodeInterferenceManager } from './NodeInterferenceManager.js';
+// REMOVED: NodeInterferenceManager — moved to LEGACY (2026-05-14)
 import { NodeHarmonicManager } from './HarmonicHubSync.js';
 import { LinkDirectionalStreaks } from './LinkDirectionalStreaks.js';
 import { LinkCorruptionSpreadAnimator } from './LinkCorruptionSpreadAnimator.js';
@@ -1445,8 +1445,7 @@ export class LinkRendererConduit {
         this._stressColorScratchB = new THREE.Color();
         this._stressFieldRead = { bias: 0, tension: 0 };
 
-        // Node interference management (visual only)
-        this.nodeInterferenceManager = new NodeInterferenceManager(scene);
+        // REMOVED: NodeInterferenceManager init — moved to LEGACY (2026-05-14)
 
         // Harmonic synchronization management (visual only)
         this.nodeHarmonicManager = new NodeHarmonicManager(scene);
@@ -2495,7 +2494,7 @@ export class LinkRendererConduit {
         let frameHarmony = 0.5;
         let frameCorruption = 0;
         let frameStability = 0;
-        if (this.nodeHarmonicManager?.update || this.nodeInterferenceManager?.update) {
+        if (this.nodeHarmonicManager?.update) {
             let sumHarmony = 0;
             let sumCorruption = 0;
             let sumStability = 0;
@@ -2524,14 +2523,7 @@ export class LinkRendererConduit {
             );
         }
 
-        if (this.nodeInterferenceManager?.update) {
-            this.nodeInterferenceManager.update(
-                list,
-                frameHarmony,
-                frameCorruption,
-                frameStability
-            );
-        }
+        // REMOVED: NodeInterferenceManager.update — moved to LEGACY (2026-05-14)
 
         // Cadence gating
         this._acc30 += deltaTime;
@@ -2962,13 +2954,7 @@ export class LinkRendererConduit {
         }
     }
 
-    /**
-     * Get the node interference manager
-     * Used by the application to register nodes and links with the interference system
-     */
-    getNodeInterferenceManager() {
-        return this.nodeInterferenceManager;
-    }
+    // REMOVED: getNodeInterferenceManager — moved to LEGACY (2026-05-14)
 
     /**
      * Get the node harmonic manager
@@ -2978,13 +2964,7 @@ export class LinkRendererConduit {
         return this.nodeHarmonicManager;
     }
 
-    /**
-     * Update all interference effects
-     * Call this from the main render loop after all individual link updates
-     */
-    updateNodeInterference(links, harmony = 1.0, corruption = 0.0, stability = 0.0) {
-        this.nodeInterferenceManager.update(links, harmony, corruption, stability);
-    }
+    // REMOVED: updateNodeInterference — moved to LEGACY (2026-05-14)
 
     /**
      * Update all harmonic sync effects
@@ -6189,10 +6169,7 @@ const makeWaveSlice = () => {
             this._spawnDissolveEffect(link, state);
         }
 
-        // Unregister from interference manager if link provided
-        if (link && this.nodeInterferenceManager) {
-            this.nodeInterferenceManager.unregisterLinkFromNodes(link, link.source, link.target);
-        }
+        // REMOVED: nodeInterferenceManager.unregisterLinkFromNodes — moved to LEGACY (2026-05-14)
 
         // Dispose corruption animation state
         if (link && this.corruptionSpreadAnimator && link.id) {
@@ -6332,9 +6309,7 @@ const makeWaveSlice = () => {
         }
         this._metricSubscriptionDisposer = null;
         this._nodeMetricCache.clear();
-        if (this.nodeInterferenceManager) {
-            this.nodeInterferenceManager.dispose();
-        }
+        // REMOVED: nodeInterferenceManager.dispose — moved to LEGACY (2026-05-14)
         if (this.nodeHarmonicManager) {
             this.nodeHarmonicManager.dispose();
         }

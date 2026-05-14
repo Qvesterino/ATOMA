@@ -49,7 +49,7 @@
 // import { HarmonicResonanceFeedbackSystem } from './HarmonicResonanceFeedbackSystem.js';
 // import { ResonanceFeedback_v1 } from './ResonanceFeedback_v1.js';
 // import { CompositeGlyphResonanceFeedback } from './CompositeGlyphResonanceFeedback.js';
-// import { HarmonicNodeResonanceHalos } from './HarmonicNodeResonanceHalos.js';
+// REMOVED: HarmonicNodeResonanceHalos import — moved to LEGACY (2026-05-14)
 // import { HarmonicSyncEffectApplier } from './HarmonicSyncEffectApplier.js';
 
 // import { InterferenceEffectApplier } from './InterferenceEffectApplier.js';
@@ -276,10 +276,10 @@ class FXDebugSandbox {
       { id: 'harmonicResonanceFeedbackSystem', label: 'Harmonic Resonance Feedback', group: 'Resonance', paths: ['harmonicResonanceFeedbackSystem', 'harmonicResonance'], muteMethods: ['update', 'enable', 'disable'] },
       { id: 'harmonicResonanceCoupling', label: 'Harmonic Resonance Coupling', group: 'Resonance', paths: ['harmonicResonanceCoupling'], muteMethods: ['update'] },
       { id: 'harmonicHubAuraSystem', label: 'Harmonic Hub Aura System', group: 'Resonance', paths: ['harmonicHubAuraSystem'], muteMethods: ['update'] },
-      { id: 'harmonicInfluencePropagation', label: 'Harmonic Influence Propagation', group: 'Resonance', paths: ['harmonicInfluencePropagation'], muteMethods: ['update'] },
+      // REMOVED: harmonicInfluencePropagation — moved to LEGACY (2026-05-14)
       { id: 'harmonicPhaseSynchronization', label: 'Harmonic Phase Synchronization', group: 'Resonance', paths: ['harmonicPhaseSynchronization'], muteMethods: ['update'] },
       { id: 'harmonicCascadeAmplification', label: 'Harmonic Cascade Amplification', group: 'Resonance', paths: ['harmonicCascadeAmplification'], muteMethods: ['update'] },
-      { id: 'harmonicNodeResonanceHalos', label: 'Harmonic Node Resonance Halos', group: 'Resonance', paths: ['harmonicNodeResonanceHalos'], muteMethods: ['update', 'triggerRecoveryWave'] },
+      // REMOVED: harmonicNodeResonanceHalos — moved to LEGACY (2026-05-14)
       { id: 't2CorruptionVisualIntegration', label: 'T2 Corruption Visual Integration', group: 'Corruption', paths: ['t2CorruptionVisualIntegration'], muteMethods: ['update', 'triggerCorruptionPulse', 'triggerParticleBurst', 'displayCascadeWarning', 'displayCorruptionSeed'] },
       { id: 't2HarmonyVisualConsumer', label: 'T2 Harmony Visual Consumer', group: 'Harmony', paths: ['t2HarmonyVisualConsumer'], muteMethods: ['update', 'setEnabled'] },
       { id: 'adaptiveGlyphRendering', label: 'Adaptive Glyph Rendering', group: 'Glyph / Overlay', paths: ['adaptiveGlyphRendering'], muteMethods: ['update', 'setEnabled'] },
@@ -324,7 +324,7 @@ class FXDebugSandbox {
       { id: 'colonyVFXManager', label: 'Colony VFX Manager', group: 'Aura / Visual', paths: ['colonyVFXManager', 'colonyVfxManager'], muteMethods: ['update', 'setEnabled', 'enable', 'disable'] },
       { id: 'compositeGlyphGenerator', label: 'Composite Glyph Generator', group: 'Glyph / Overlay', paths: ['compositeGlyphGenerator'], muteMethods: ['update'] },
       { id: 'glyphFusionZoneManager', label: 'Glyph Fusion Zone', group: 'Glyph / Overlay', paths: ['glyphFusionZoneManager', 'glyphFusionZone'], muteMethods: ['update'] },
-      { id: 'nodeInterferenceManager', label: 'Node Interference', group: 'Resonance', paths: ['nodeInterferenceManager'], muteMethods: ['update'] },
+      // REMOVED: nodeInterferenceManager registry entry (2026-05-14)
       { id: 'linkStateVisualLanguage', label: 'Link State Visual Language', group: 'Link FX', paths: ['linkStateVisualLanguage'], muteMethods: ['update'] },
       { id: 'nodeHarmonicManager', label: 'Node Harmonic Manager', group: 'Resonance', paths: ['nodeHarmonicManager'], muteMethods: ['update'] },
       { id: 'harmonicSyncEffectApplier', label: 'Harmonic Sync Effect', group: 'Resonance', paths: ['harmonicSyncEffectApplier', 'harmonicSyncEffect'], muteMethods: ['update'] },
@@ -395,10 +395,10 @@ class FXDebugSandbox {
       { id: 'harmonicResonanceFeedbackSystem', label: 'Harmonic Resonance Feedback', group: 'Resonance', paths: ['harmonicResonanceFeedbackSystem', 'harmonicResonance'], muteMethods: ['update'] },
       { id: 'harmonicResonanceCoupling', label: 'Harmonic Resonance Coupling', group: 'Resonance', paths: ['harmonicResonanceCoupling'], muteMethods: ['update'] },
       { id: 'harmonicHubAuraSystem', label: 'Harmonic Hub Aura', group: 'Resonance', paths: ['harmonicHubAuraSystem'], muteMethods: ['update'] },
-      { id: 'harmonicInfluencePropagation', label: 'Harmonic Influence Propagation', group: 'Resonance', paths: ['harmonicInfluencePropagation'], muteMethods: ['update'] },
+      // REMOVED: harmonicInfluencePropagation — moved to LEGACY (2026-05-14)
       { id: 'harmonicPhaseSynchronization', label: 'Harmonic Phase Sync', group: 'Resonance', paths: ['harmonicPhaseSynchronization'], muteMethods: ['update'] },
       { id: 'harmonicCascadeAmplification', label: 'Harmonic Cascade Amplification', group: 'Resonance', paths: ['harmonicCascadeAmplification'], muteMethods: ['update'] },
-      { id: 'harmonicNodeResonanceHalos', label: 'Harmonic Node Resonance Halos', group: 'Resonance', paths: ['harmonicNodeResonanceHalos'], muteMethods: ['update', 'triggerRecoveryWave'] },
+      // REMOVED: harmonicNodeResonanceHalos — moved to LEGACY (2026-05-14)
       { id: 'harmonicRecoveryVisualSystem', label: 'Harmonic Recovery Visual', group: 'Resonance', paths: ['harmonicRecoveryVisualSystem'], muteMethods: ['update'] },
       { id: 'harmonicTopologyLearningSystem', label: 'Harmonic Topology Learning', group: 'Resonance', paths: ['harmonicTopologyLearningSystem', 'harmonicTopology'], muteMethods: ['update'] },
       { id: 'regionalEquilibriumFieldSystem', label: 'Regional Equilibrium Field', group: 'Resonance', paths: ['regionalEquilibriumFieldSystem', 'regionalEquilibrium'], muteMethods: ['update'] },
@@ -439,7 +439,7 @@ class FXDebugSandbox {
       { id: 'safeEvolutionManager', label: 'Safe Evolution Manager', group: 'Node Core', paths: ['evolutionManager'], muteMethods: ['update'] },
       { id: 'visualStateBinder', label: 'Visual State Binder', group: 'Node Core', paths: ['visualStateBinder', 'nodeVisualStateBinder'], muteMethods: ['update', 'bindNode', 'unbindNode'] },
       { id: 'nodeLinkingSystem', label: 'Node Linking System', group: 'Node Core', paths: ['nodeLinkingSystem'], muteMethods: ['update'] },
-      { id: 'nodeInterferenceManager', label: 'Node Interference Manager', group: 'Node Core', paths: ['nodeInterferenceManager'], muteMethods: ['update'] },
+      // REMOVED: nodeInterferenceManager registry entry (2026-05-14)
       { id: 'nodeLinkedAuraSystem', label: 'Node Linked Aura System', group: 'Node Core', paths: ['nodeLinkedAuraSystem'], muteMethods: ['update'] },
       { id: 'nodeHarmonicManager', label: 'Node Harmonic Manager', group: 'Node Core', paths: ['nodeHarmonicManager'], muteMethods: ['update'] },
       { id: 'nodeImpactManager', label: 'Node Impact Manager', group: 'Node Core', paths: ['nodeImpactManager'], muteMethods: ['update'] },
@@ -537,10 +537,10 @@ class FXDebugSandbox {
       { id: 'harmonicResonanceFeedbackSystem', label: 'Harmonic Resonance Feedback System', group: 'Environment', paths: ['harmonicResonanceFeedbackSystem'], muteMethods: ['update'] },
       { id: 'harmonicResonanceCoupling', label: 'Harmonic Resonance Coupling', group: 'Environment', paths: ['harmonicResonanceCoupling'], muteMethods: ['update'] },
       { id: 'harmonicHubAuraSystem', label: 'Harmonic Hub Aura System', group: 'Environment', paths: ['harmonicHubAuraSystem'], muteMethods: ['update'] },
-      { id: 'harmonicInfluencePropagationSystem', label: 'Harmonic Influence Propagation System', group: 'Environment', paths: ['harmonicInfluencePropagationSystem'], muteMethods: ['update'] },
+      // REMOVED: harmonicInfluencePropagationSystem — moved to LEGACY (2026-05-14)
       { id: 'harmonicPhaseSynchronization', label: 'Harmonic Phase Synchronization', group: 'Environment', paths: ['harmonicPhaseSynchronization'], muteMethods: ['update'] },
       { id: 'harmonicCascadeAmplification', label: 'Harmonic Cascade Amplification', group: 'Environment', paths: ['harmonicCascadeAmplification'], muteMethods: ['update'] },
-      { id: 'harmonicNodeResonanceHalos', label: 'Harmonic Node Resonance Halos', group: 'Environment', paths: ['harmonicNodeResonanceHalos'], muteMethods: ['update'] },
+      // REMOVED: harmonicNodeResonanceHalos — moved to LEGACY (2026-05-14)
       { id: 'harmonicRecoveryVisualSystem', label: 'Harmonic Recovery Visual System', group: 'Environment', paths: ['harmonicRecoveryVisualSystem'], muteMethods: ['update'] },
       { id: 'harmonicTopologyLearningSystem', label: 'Harmonic Topology Learning System', group: 'Environment', paths: ['harmonicTopologyLearningSystem'], muteMethods: ['update'] },
       { id: 'regionalEquilibriumFieldSystem', label: 'Regional Equilibrium Field System', group: 'Environment', paths: ['regionalEquilibriumFieldSystem'], muteMethods: ['update'] },
@@ -1422,17 +1422,7 @@ FXDebugSandbox.prototype.spawnCompositeGlyphResonance = function(config = {}) {
   return system;
 };
 
-/**
- * Harmonic Node Resonance Halos
- */
-FXDebugSandbox.prototype.spawnHarmonicNodeHalos = function(config = {}) {
-  if (!this.checkInit()) return;
-
-  console.log('[FX] Spawning HarmonicNodeResonanceHalos...');
-  const system = new HarmonicNodeResonanceHalos();
-  this.register('harmonicNodeHalos', system);
-  return system;
-};
+// REMOVED: spawnHarmonicNodeHalos — moved to LEGACY (2026-05-14)
 
 /**
  * Harmonic Sync Effect Applier
@@ -1485,12 +1475,7 @@ FXDebugSandbox.prototype.spawnInterferenceEffect = function(config = {}) {
 /**
  * Node Interference Manager
  */
-FXDebugSandbox.prototype.spawnNodeInterferenceManager = function(config = {}) {
-  console.log('[FX] NodeInterferenceManager - Manager class only');
-  const system = new NodeInterferenceManager();
-  this.register('nodeInterferenceManager', system);
-  return system;
-};
+// REMOVED: spawnNodeInterferenceManager — moved to LEGACY (2026-05-14)
 
 // ============================================================================
 // SPAWN METHODS - LINK PARTICLES
