@@ -11,7 +11,7 @@ import { AtomaLeaderboard } from '../AtomaLeaderboard.js';
 import { LinkCollapseSystem } from '../LinkCollapseSystem.js';
 import { getDefaultMetricThresholds } from '../src/metrics/MetricTierClassifier.js';
 import { CompetitionDominanceAdapter_v1 } from '../CompetitionDominanceAdapter_v1.js';
-import { applyDominancePulseModulation } from '../HarmonyStabilization.js';
+import { applyDominancePulseModulation } from '../harmony/HarmonyStabilization.js';
 import {
   buildAtomaReleaseContainmentStatus,
   ensureAtomaReleaseContainmentGlobals,

@@ -53,7 +53,7 @@
  */
 
 import * as THREE from 'three';
-import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
+import { eventRegistrationRegistry } from '../Engine/EventRegistrationRegistry.js';
 
 // ============================================================================
 // CONFIGURATION

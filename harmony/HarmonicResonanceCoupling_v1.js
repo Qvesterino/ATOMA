@@ -43,8 +43,8 @@
  */
 
 import * as THREE from 'three';
-import { getLinkSynergy, getNodeCanonicalMetrics } from './SemanticMetricAdapter.js';
-import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { getLinkSynergy, getNodeCanonicalMetrics } from '../SemanticMetricAdapter.js';
+import { VisualHierarchyRegistry } from '../VisualHierarchyRegistry.js';
 
 export class HarmonicResonanceCoupling_v1 {
   constructor(scene, linkingSystem) {

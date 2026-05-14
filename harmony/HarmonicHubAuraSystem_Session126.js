@@ -57,10 +57,10 @@
  */
 
 import * as THREE from 'three';
-import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
-import { CoreMetricsCalculator } from './HUD/CoreMetricsCalculator.js';
-import { buildScopedMetricEventName, classifyMetricTier, getDefaultMetricThresholds, normalizeMetricTier } from './src/metrics/MetricTierClassifier.js';
-import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
+import { VisualHierarchyRegistry } from '../VisualHierarchyRegistry.js';
+import { CoreMetricsCalculator } from '../HUD/CoreMetricsCalculator.js';
+import { buildScopedMetricEventName, classifyMetricTier, getDefaultMetricThresholds, normalizeMetricTier } from '../src/metrics/MetricTierClassifier.js';
+import { eventRegistrationRegistry } from '../Engine/EventRegistrationRegistry.js';
 
 export class HarmonicHubAuraSystem_Session126 {
   constructor(scene, worldRoot, world, nodeAuraSystem, linkResonanceSystem, config = {}) {

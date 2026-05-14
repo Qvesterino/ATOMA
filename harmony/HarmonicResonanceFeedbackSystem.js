@@ -48,8 +48,8 @@
  */
 
 import * as THREE from 'three';
-import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
-import { getLinkSynergyVisualMetrics } from './SemanticMetricAdapter.js';
+import { VisualHierarchyRegistry } from '../VisualHierarchyRegistry.js';
+import { getLinkSynergyVisualMetrics } from '../SemanticMetricAdapter.js';
 
 // ============================================================================
 // CONFIGURATION

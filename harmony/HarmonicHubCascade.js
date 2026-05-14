@@ -17,6 +17,6 @@
  * directly from the individual files.
  */
 
-export { HubProximityDetector } from './harmonic/HubProximityDetector.js';
-export { HarmonicPhaseSynchronization_Session146, setupPhaseSyncConsoleAPI } from './harmonic/HarmonicPhaseSynchronization_Session146.js';
-export { CascadingHarmonicResonanceAmplification, setupCascadingResonanceConsoleAPI } from './harmonic/CascadingHarmonicResonanceAmplification.js';
+export { HubProximityDetector } from '../harmonic/HubProximityDetector.js';
+export { HarmonicPhaseSynchronization_Session146, setupPhaseSyncConsoleAPI } from '../harmonic/HarmonicPhaseSynchronization_Session146.js';
+export { CascadingHarmonicResonanceAmplification, setupCascadingResonanceConsoleAPI } from '../harmonic/CascadingHarmonicResonanceAmplification.js';

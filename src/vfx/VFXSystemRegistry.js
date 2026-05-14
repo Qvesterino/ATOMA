@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { InterferenceEffectApplier } from '../../InterferenceEffectApplier.js';
-import { HarmonicResonanceFeedbackSystem } from '../../HarmonicResonanceFeedbackSystem.js';
+import { HarmonicResonanceFeedbackSystem } from '../../harmony/HarmonicResonanceFeedbackSystem.js';
 import { CompositeGlyphResonanceFeedback } from '../../CompositeGlyphResonanceFeedback.js';
-import { createHarmonyAuraMaterial } from '../../HarmonyAuraShaderMaterial.js';
+import { createHarmonyAuraMaterial } from '../../harmony/HarmonyAuraShaderMaterial.js';
 import { StandingWaveVisualRenderer_Session131 } from '../../StandingWaveVisualRenderer_Session131.js';
 
 class HarmonyAuraMaterialProvider {

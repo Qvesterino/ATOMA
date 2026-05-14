@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { applyMetricImpulse, ensureMetrics, setMetric } from '../src/metrics/NodeMetricEngine.js';
 import { MetricsRuntime_v1 } from '../MetricsRuntime_v1.js';
 import { LinkQualityCalculator } from '../LinkQualityCalculator.js';
-import { HarmonicHubAuraSystem_Session126 } from '../HarmonicHubAuraSystem_Session126.js';
+import { HarmonicHubAuraSystem_Session126 } from '../harmony/HarmonicHubAuraSystem_Session126.js';
 import { getAuthorityReport } from '../src/metrics/MetricAuthorityGuard.js';
 import { buildScopedMetricEventName } from '../src/metrics/MetricTierClassifier.js';
 import { aggregateNetworkCanonicalMetrics, projectHudMetrics, withGlobalMetricAliases, updateHudMetrics } from '../SemanticMetricAdapter.js';

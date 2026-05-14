@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
-import { projectHudMetrics } from './SemanticMetricAdapter.js';
-import { LinkPointFXBase } from './LinkPointFXBase.js';
+import { VisualHierarchyRegistry } from '../VisualHierarchyRegistry.js';
+import { projectHudMetrics } from '../SemanticMetricAdapter.js';
+import { LinkPointFXBase } from '../LinkPointFXBase.js';
 
 function getAtomaVisualDebugMode() {
     const mode = (typeof window !== 'undefined' && window.__ATOMA_VISUAL_DEBUG_MODE__)

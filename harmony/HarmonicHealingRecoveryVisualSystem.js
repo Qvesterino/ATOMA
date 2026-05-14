@@ -38,9 +38,9 @@
  */
 
 import * as THREE from 'three';
-import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
-import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
-import { clamp01 } from './shared/harmonyHelpers.js';
+import { VisualHierarchyRegistry } from '../VisualHierarchyRegistry.js';
+import { eventRegistrationRegistry } from '../Engine/EventRegistrationRegistry.js';
+import { clamp01 } from '../shared/harmonyHelpers.js';
 
 function getAtomaVisualDebugMode() {
     const mode = (typeof window !== 'undefined' && window.__ATOMA_VISUAL_DEBUG_MODE__)

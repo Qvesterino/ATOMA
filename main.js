@@ -850,7 +850,7 @@ import { LinkMetricsToVisualBridge, setupLinkMetricsBridgeConsoleAPI } from './L
 // Accelerates particles based on cascade layer depth, creating visual
 // stratification that communicates network hierarchy through motion patterns
 // ============================================================================
-import { CascadingHarmonicResonanceAmplification } from './HarmonicHubCascade.js';
+import { CascadingHarmonicResonanceAmplification } from './harmony/HarmonicHubCascade.js';
 // REMOVED: ParticleStreamCascadeAcceleration, ParticleCascadeFlowDeflection,
 //   ParticleStreamCascadeAccelerationIntegrationPatch, ParticleStreamCascadeAccelerationIntegrationSetup
 //   — moved to LEGACY/april (2026-04-22)
@@ -917,19 +917,19 @@ import { ResonanceRuptureVisualSystem_Session133 } from './ResonanceRuptureVisua
 // Replaces HarmonicHealingVisualSystem_Session134 + HarmonicRecoveryVisualSystem_Session138
 // 100% event-driven via canonical scoped metric tier events.
 // ============================================================================
-import { HarmonicHealingRecoveryVisualSystem } from './HarmonicHealingRecoveryVisualSystem.js';
+import { HarmonicHealingRecoveryVisualSystem } from './harmony/HarmonicHealingRecoveryVisualSystem.js';
 
 // ============================================================================
 // SESSION 135: HARMONIC AUDIO REACTIVITY SYSTEM
 // Transforms network state into living soundscape
 // ============================================================================
-import { HarmonicAudioReactivitySystem_Session135 } from './HarmonicAudioReactivitySystem_Session135.js';
+import { HarmonicAudioReactivitySystem_Session135 } from './harmony/HarmonicAudioReactivitySystem_Session135.js';
 
 // ============================================================================
 // SESSION 136: HEALING PARTICLE SYSTEM
 // Visual enhancement layer: Particle trails for healing waves and scar sparkles
 // ============================================================================
-import { HealingParticleSystem_Session136 } from './HealingParticleSystem_Session136.js';
+import { HealingParticleSystem_Session136 } from './harmony/HealingParticleSystem_Session136.js';
 
 // ============================================================================
 // LINK TRAIL PARTICLE SYSTEM
@@ -973,7 +973,7 @@ import { setupCascadeSystemConsoleAPI } from './CascadeSystemConsoleAPI.js';
 // Composite glyphs emit subtle resonance fields influencing nearby link motion
 // Closed visual feedback loop: meaning shapes motion
 // ============================================================================
-import { HarmonicResonanceFeedbackSystem, setupHarmonicResonanceConsoleAPI } from './HarmonicResonanceFeedbackSystem.js';
+import { HarmonicResonanceFeedbackSystem, setupHarmonicResonanceConsoleAPI } from './harmony/HarmonicResonanceFeedbackSystem.js';
 
 // ============================================================================
 // RESONANCE ECHO TRAIL SYSTEM (Session 140+)
@@ -987,7 +987,7 @@ import { ResonanceEchoTrailSystem, setupResonanceEchoConsoleAPI } from './Resona
 // Visualizes long-term network learning through topology evolution
 // Shows how repeated resonance, rupture, and fusion reshape flow patterns
 // ============================================================================
-import { HarmonicTopologyLearningSystem, setupHarmonicTopologyConsoleAPI } from './HarmonicTopologyLearningSystem.js';
+import { HarmonicTopologyLearningSystem, setupHarmonicTopologyConsoleAPI } from './harmony/HarmonicTopologyLearningSystem.js';
 
 // ============================================================================
 // TOPOLOGY BIAS VISUALIZATION LAYER (Session 140+)
@@ -1087,16 +1087,16 @@ import { LinkAuraSystem_v1 } from './LEGACY/aura/LinkAuraSystem_v1.js';
 // ============================================================================
 // REMOVED: SynergyPulseVisuals_v1 — moved to LEGACY/april (2026-04-22)
 import { VisualNetworkTimeElasticity_v1, validateVisualNetworkTimeElasticity } from './VisualNetworkTimeElasticity_v1.js';
-import { HarmonicResonanceCoupling_v1 } from './HarmonicResonanceCoupling_v1.js';
-import { HarmonicHubAuraSystem_Session126 } from './HarmonicHubAuraSystem_Session126.js';
+import { HarmonicResonanceCoupling_v1 } from './harmony/HarmonicResonanceCoupling_v1.js';
+import { HarmonicHubAuraSystem_Session126 } from './harmony/HarmonicHubAuraSystem_Session126.js';
 // REMOVED: HarmonicInfluencePropagationSystem_Session127 — moved to LEGACY (2026-05-14)
 import { LinkResonanceFlowSystem_Session124 } from './LinkResonanceFlowSystem_Session124.js';
 import { applyLinkResonanceFlowHarmonyIntegration } from './LinkResonanceFlowIntegrationPatch_Session124.js';
 import { applyEchoRippleIntegration } from './EchoRippleIntegrationPatch_Session125.js';
 // REMOVED: CorruptionDesaturationIntegrationPatch — moved to LEGACY/april (2026-04-22)
-import { HarmonicCascadeAmplification_Session145, setupCascadeConsoleAPI } from './HarmonicCascadeAmplification_Session145.js';
+import { HarmonicCascadeAmplification_Session145, setupCascadeConsoleAPI } from './harmony/HarmonicCascadeAmplification_Session145.js';
 import { CascadeBurstVisual_Session147 } from './CascadeBurstVisual_Session147.js';
-import { HarmonicPhaseSynchronization_Session146, setupPhaseSyncConsoleAPI } from './HarmonicHubCascade.js';
+import { HarmonicPhaseSynchronization_Session146, setupPhaseSyncConsoleAPI } from './harmony/HarmonicHubCascade.js';
 // REMOVED: PreCascadeVisualHint_Session146 — moved to LEGACY/april (2026-04-22)
 // REMOVED: HarmonicNodeResonanceHalos — moved to LEGACY (2026-05-14)
 import { HarmonicHubDebugger } from './Engine/Debug/HarmonicHubDebugger.js';
@@ -1107,8 +1107,8 @@ import { VisualEchoTrails_v1, VisualEchoTrails_v1_Integration, setupVisualEchoTr
 // Core active mechanics: corruption propagation + harmony stabilization
 // ============================================================================
 import { LinkCorruptionTransmission_v1 } from './LinkCorruptionTransmission_v1.js';
-import { HarmonyStabilizationSystem_v1 } from './HarmonyStabilization.js';
-import { applyHarmonyStabilizationIntegration } from './HarmonyStabilization.js';
+import { HarmonyStabilizationSystem_v1 } from './harmony/HarmonyStabilization.js';
+import { applyHarmonyStabilizationIntegration } from './harmony/HarmonyStabilization.js';
 // REMOVED: _T4003_CORRUPTION_CASCADE_TEST_RUNNER - moved to LEGACY (2026-04-08)
 // REMOVED: T4004_HARMONY_HEALING_TEST_RUNNER - moved to DELETE/cleanup (2026-04-18)
 

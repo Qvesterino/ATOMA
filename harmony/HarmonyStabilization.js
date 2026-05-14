@@ -22,8 +22,8 @@
  * - Non-breaking integration with existing systems
  */
 
-import { setMetric } from './src/metrics/NodeMetricEngine.js';
-import { setNodeCorruption } from './src/utils/nodeCorruptionAccessor.js';
+import { setMetric } from '../src/metrics/NodeMetricEngine.js';
+import { setNodeCorruption } from '../src/utils/nodeCorruptionAccessor.js';
 
 let THREE_SAFE = null;
 THREE_SAFE =

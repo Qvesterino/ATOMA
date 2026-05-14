@@ -16,6 +16,6 @@
  * directly from the individual files.
  */
 
-export { NodeHarmonicSyncController } from './harmonic/NodeHarmonicSyncController.js';
-export { HarmonicSyncEffectApplier } from './harmonic/HarmonicSyncEffectApplier.js';
-export { NodeHarmonicManager } from './harmonic/NodeHarmonicManager.js';
+export { NodeHarmonicSyncController } from '../harmonic/NodeHarmonicSyncController.js';
+export { HarmonicSyncEffectApplier } from '../harmonic/HarmonicSyncEffectApplier.js';
+export { NodeHarmonicManager } from '../harmonic/NodeHarmonicManager.js';

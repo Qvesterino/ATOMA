@@ -21,7 +21,7 @@ const USE_LEGACY_NODE_BOUNDS = true;
 
 import { NeonLinkVisuals, setupLinkVisualLanguageDebugAPI } from './NeonLinkVisuals.js';
 import { createNeonEdgeGlowMaterial, updateNeonEdgeGlowTime } from './shaders/NeonEdgeGlowShader.js';
-import { createHarmonyAuraMaterialSphere } from './HarmonyAuraShaderMaterial.js';
+import { createHarmonyAuraMaterialSphere } from './harmony/HarmonyAuraShaderMaterial.js';
 import NetworkStateAIReasoner, { buildNetworkStateSnapshot } from './NetworkStateAIReasoner.js';
 import { linkEventOrderValidator } from './LinkEventOrderValidator.js';
 import { LinkPrioritySystem } from './LinkPrioritySystem.js';

@@ -16,6 +16,6 @@
  * directly from the individual files.
  */
 
-export { HarmonicHubCollapseController } from './harmonic/HarmonicHubCollapseController.js';
-export { HarmonicHubRecoveryController } from './harmonic/HarmonicHubRecoveryController.js';
-export { HarmonicHubResilienceController } from './harmonic/HarmonicHubResilienceController.js';
+export { HarmonicHubCollapseController } from '../harmonic/HarmonicHubCollapseController.js';
+export { HarmonicHubRecoveryController } from '../harmonic/HarmonicHubRecoveryController.js';
+export { HarmonicHubResilienceController } from '../harmonic/HarmonicHubResilienceController.js';
