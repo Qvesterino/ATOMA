@@ -1,4 +1,9 @@
-import { isVisualLocked } from './Engine/authority/VisualAuthorityFlag.js';
+﻿import { isVisualLocked } from './Engine/authority/VisualAuthorityFlag.js';
+import {
+  classifyMetricTier,
+  getDefaultMetricThresholds,
+  buildScopedMetricEventName,
+} from './src/metrics/MetricTierClassifier.js';
 
 /**
  * NODE MICRO-EVENTS 1.0 – SAFE EDITION
@@ -99,7 +104,9 @@ export class NodeMicroEvents {
 
     // Spatial grid for faster proximity checks (future optimization)
     this.spatialGrid = new Map();
-    this.gridCellSize = 2.0; // Same as proximity threshold
+    this.gridCellSize = 2.0;
+
+    this._previousTiers = new Map();
     
     // ── Config ──────────────────────────────────────────────────────
     this.config = {
@@ -110,13 +117,7 @@ export class NodeMicroEvents {
       trailEnabled: true,
       trailOpacity: 0.3,
       trailDelay: 0.1,
-      // Metric thresholds
-      stability:  { low: 0.2, mid: 0.45, high: 0.65 },
-      harmony:    { low: 0.25, mid: 0.5, high: 0.7 },
-      synergy:    { low: 0.3, mid: 0.55, high: 0.8 },
-      corruption: { low: 0.3, mid: 0.55, high: 0.75 },
-      loadPressure: { low: 0.3, mid: 0.55, high: 0.75 },
-      clarity:    { low: 0.25, mid: 0.5, high: 0.75 },
+      // Metric thresholds via MetricTierClassifier (canonical)
       // Selection resonance cascade
       selectionCascade: {
         enabled: true,
@@ -305,6 +306,28 @@ export class NodeMicroEvents {
     }
   }
   
+  resolvePersonalityFromMetrics(metrics) {
+    if (!metrics) return 'CONVERGENCE_NEXUS';
+    const classify = (metric, value) => classifyMetricTier(
+      Number.isFinite(value) ? value : 0,
+      null,
+      getDefaultMetricThresholds(metric)
+    );
+    const s = classify('stability', metrics.stability);
+    const h = classify('harmony', metrics.harmony);
+    const sy = classify('synergy', metrics.synergy);
+    const c = classify('corruption', metrics.corruption);
+    if (s === 'high' && h === 'high' && sy === 'high') return 'ASCENDED_MYTHIC';
+    if (sy === 'high' && h === 'high') return 'RADIANT_OPTIMIZER';
+    if (c === 'high' && s === 'low') return 'QUANTUM_TRICKSTER';
+    if (h === 'high' && (sy === 'mid' || sy === 'high')) return 'HARMONY_KEEPER';
+    if (s === 'high' && (h === 'mid' || h === 'high')) return 'CALM_ANALYST';
+    if (s === 'high' && c === 'low') return 'GLYPH_ARCHIVIST';
+    if (sy === 'high' && (c === 'mid' || c === 'high')) return 'FRACTAL_DREAMER';
+    if ((c === 'mid' || c === 'high') && (s === 'mid' || s === 'high')) return 'UMBRA_SENTINEL';
+    if (sy === 'low' && h === 'low') return 'ECHO_WANDERER';
+    return 'CONVERGENCE_NEXUS';
+  }
   /**
    * Select event based on personality type
    */
@@ -773,115 +796,47 @@ export class NodeMicroEvents {
    */
   checkMetricEvents(node, metrics) {
     if (!metrics) return;
-
     const linkCount = this._resolveNodeLinkCount(node);
     if (linkCount <= 0) return;
-    
     const nodeId = node.userData?.nodeId || node.id || node.uuid;
     const basePayload = { nodeId, source: 'NodeMicroEvents', node, position: node.position.clone() };
-    
-    // ── STABILITY ─────────────────────────────────────────────────
-    const stability = Number.isFinite(metrics.stability) ? metrics.stability : 0;
-    const st = this.config.stability;
-    if (stability <= st.low) {
-      this._emitEvent('node.stability.low', { ...basePayload, value: stability });
-      this.createDimPulse(node);
-      this.logEvent(node, 'stability_low_dim');
-    } else if (stability >= st.mid && stability < st.high) {
-      this._emitEvent('node.stability.mid', { ...basePayload, value: stability });
-      this.createStabilityAnchor(node, stability);
-      this.logEvent(node, 'stability_anchor');
-    } else if (stability >= st.high) {
-      this._emitEvent('node.stability.high', { ...basePayload, value: stability });
-      this.createJitterBurst(node);
-      this.logEvent(node, 'jitter_burst');
-    }
-    
-    // ── HARMONY ───────────────────────────────────────────────────
-    const harmony = Number.isFinite(metrics.harmony) ? metrics.harmony : 0;
-    const ht = this.config.harmony;
-    if (harmony <= ht.low) {
-      this._emitEvent('node.harmony.low', { ...basePayload, value: harmony });
-      this.createDensityDarkening(node);
-      this.logEvent(node, 'harmony_low_dark');
-    } else if (harmony >= ht.mid && harmony < ht.high) {
-      this._emitEvent('node.harmony.mid', { ...basePayload, value: harmony });
-      this.createBreathingShift(node);
-      this.logEvent(node, 'harmony_breath');
-    } else if (harmony >= ht.high) {
-      this._emitEvent('node.harmony.high', { ...basePayload, value: harmony });
-      this.createHarmonyRing(node);
-      this.logEvent(node, 'harmony_ring');
-    }
-    
-    // ── SYNERGY ───────────────────────────────────────────────────
-    const synergy = Number.isFinite(metrics.synergy) ? metrics.synergy : 0;
-    const sy = this.config.synergy;
-    if (synergy <= sy.low) {
-      this._emitEvent('node.synergy.low', { ...basePayload, value: synergy });
-      this.createDimPulse(node);
-      this.logEvent(node, 'synergy_low_dim');
-    } else if (synergy >= sy.mid && synergy < sy.high) {
-      this._emitEvent('node.synergy.mid', { ...basePayload, value: synergy });
-      this.createBalancedOscillation(node);
-      this.logEvent(node, 'balanced_oscillation');
-    } else if (synergy >= sy.high) {
-      this._emitEvent('node.synergy.high', { ...basePayload, value: synergy });
-      this.createClaritySpark(node);
-      this.logEvent(node, 'clarity_spark');
-    }
-    
-    // ── CORRUPTION ────────────────────────────────────────────────
-    const corruption = Number.isFinite(metrics.corruption) ? metrics.corruption : 0;
-    const ct = this.config.corruption;
-    if (corruption >= ct.low && corruption < ct.mid) {
-      this._emitEvent('node.corruption.low', { ...basePayload, value: corruption });
-      this.createCorruptionTendril(node, corruption);
-      this.logEvent(node, 'corruption_tendril');
-    } else if (corruption >= ct.mid && corruption < ct.high) {
-      this._emitEvent('node.corruption.mid', { ...basePayload, value: corruption });
-      this.createCorruptionTendril(node, corruption);
-      this.createDensityDarkening(node);
-      this.logEvent(node, 'corruption_dark');
-    } else if (corruption >= ct.high) {
-      this._emitEvent('node.corruption.high', { ...basePayload, value: corruption });
-      this.createCorruptionTendril(node, corruption);
-      this.createFractalShimmer(node);
-      this.logEvent(node, 'corruption_shimmer');
-    }
-    
-    // ── LOAD PRESSURE ─────────────────────────────────────────────
-    const loadPressure = Number.isFinite(metrics.loadPressure) ? metrics.loadPressure : 0;
-    const lp = this.config.loadPressure;
-    if (loadPressure >= lp.low && loadPressure < lp.mid) {
-      this._emitEvent('node.loadPressure.low', { ...basePayload, value: loadPressure });
-      this.createBreathingShift(node);
-      this.logEvent(node, 'load_breath');
-    } else if (loadPressure >= lp.mid && loadPressure < lp.high) {
-      this._emitEvent('node.loadPressure.mid', { ...basePayload, value: loadPressure });
-      this.createEnergyOvercharge(node);
-      this.logEvent(node, 'load_overcharge');
-    } else if (loadPressure >= lp.high) {
-      this._emitEvent('node.loadPressure.high', { ...basePayload, value: loadPressure });
-      this.createCorePulse(node);
-      this.logEvent(node, 'core_overpulse');
-    }
-    
-    // ── CLARITY ───────────────────────────────────────────────────
-    const clarity = Number.isFinite(metrics.clarity) ? metrics.clarity : 0;
-    const cl = this.config.clarity;
-    if (clarity >= cl.mid && clarity < cl.high) {
-      this._emitEvent('node.clarity.mid', { ...basePayload, value: clarity });
-      this.createGlyphFlash(node);
-      this.logEvent(node, 'clarity_glyph');
-    } else if (clarity >= cl.high) {
-      this._emitEvent('node.clarity.high', { ...basePayload, value: clarity });
-      this.createClaritySpark(node);
-      this.createGlyphFlash(node);
-      this.logEvent(node, 'clarity_spark_glyph');
+    const uuid = node.uuid;
+    if (!this._previousTiers.has(uuid)) this._previousTiers.set(uuid, {});
+    const prev = this._previousTiers.get(uuid);
+
+    const CANONICAL_METRICS = ['stability', 'harmony', 'synergy', 'corruption', 'loadPressure'];
+
+    for (const metric of CANONICAL_METRICS) {
+      const value = Number.isFinite(metrics[metric]) ? metrics[metric] : 0;
+      const prevTier = prev[metric] || null;
+      const tier = classifyMetricTier(value, prevTier, getDefaultMetricThresholds(metric));
+      if (tier === prevTier) continue;
+      prev[metric] = tier;
+      const eventName = buildScopedMetricEventName('node', metric, tier);
+      this._emitEvent(eventName, { ...basePayload, metric, tier, value });
+      if (metric === 'stability') {
+        if (tier === 'low') { this.createDimPulse(node); this.logEvent(node, 'stability_low_dim'); }
+        else if (tier === 'mid') { this.createStabilityAnchor(node, value); this.logEvent(node, 'stability_anchor'); }
+        else if (tier === 'high') { this.createJitterBurst(node); this.logEvent(node, 'jitter_burst'); }
+      } else if (metric === 'harmony') {
+        if (tier === 'low') { this.createDensityDarkening(node); this.logEvent(node, 'harmony_low_dark'); }
+        else if (tier === 'mid') { this.createBreathingShift(node); this.logEvent(node, 'harmony_breath'); }
+        else if (tier === 'high') { this.createHarmonyRing(node); this.logEvent(node, 'harmony_ring'); }
+      } else if (metric === 'synergy') {
+        if (tier === 'low') { this.createDimPulse(node); this.logEvent(node, 'synergy_low_dim'); }
+        else if (tier === 'mid') { this.createBalancedOscillation(node); this.logEvent(node, 'balanced_oscillation'); }
+        else if (tier === 'high') { this.createClaritySpark(node); this.logEvent(node, 'clarity_spark'); }
+      } else if (metric === 'corruption') {
+        if (tier === 'low') { this.createCorruptionTendril(node, value); this.logEvent(node, 'corruption_tendril'); }
+        else if (tier === 'mid') { this.createCorruptionTendril(node, value); this.createDensityDarkening(node); this.logEvent(node, 'corruption_dark'); }
+        else if (tier === 'high') { this.createCorruptionTendril(node, value); this.createFractalShimmer(node); this.logEvent(node, 'corruption_shimmer'); }
+      } else if (metric === 'loadPressure') {
+        if (tier === 'low') { this.createBreathingShift(node); this.logEvent(node, 'load_breath'); }
+        else if (tier === 'mid') { this.createEnergyOvercharge(node); this.logEvent(node, 'load_overcharge'); }
+        else if (tier === 'high') { this.createCorePulse(node); this.logEvent(node, 'core_overpulse'); }
+      }
     }
   }
-  
   createJitterBurst(node) {
     // STABILITY FIX: Use deterministic phase offset based on node UUID
     // This ensures same node always exhibits same jitter pattern
@@ -1168,7 +1123,7 @@ export class NodeMicroEvents {
     const avgSynergy = ((metricsA.synergy || 0) + (metricsB.synergy || 0)) * 0.5;
     const avgStability = ((metricsA.stability || 0) + (metricsB.stability || 0)) * 0.5;
     const avgCorruption = ((metricsA.corruption || 0) + (metricsB.corruption || 0)) * 0.5;
-    
+
     const nodeAId = nodeA.userData?.nodeId || nodeA.id || nodeA.uuid;
     const nodeBId = nodeB.userData?.nodeId || nodeB.id || nodeB.uuid;
     const basePayload = {
@@ -1176,38 +1131,18 @@ export class NodeMicroEvents {
       targetNodeId: nodeBId,
       source: 'NodeMicroEvents',
     };
-    
-    // link.harmony events
-    if (avgHarmony >= this.config.harmony.high) {
-      this._emitEvent('link.harmony.high', { ...basePayload, value: avgHarmony });
-    } else if (avgHarmony >= this.config.harmony.mid) {
-      this._emitEvent('link.harmony.mid', { ...basePayload, value: avgHarmony });
-    } else if (avgHarmony <= this.config.harmony.low) {
-      this._emitEvent('link.harmony.low', { ...basePayload, value: avgHarmony });
-    }
-    
-    // link.synergy events
-    if (avgSynergy >= this.config.synergy.high) {
-      this._emitEvent('link.synergy.high', { ...basePayload, value: avgSynergy });
-    } else if (avgSynergy >= this.config.synergy.mid) {
-      this._emitEvent('link.synergy.mid', { ...basePayload, value: avgSynergy });
-    } else if (avgSynergy <= this.config.synergy.low) {
-      this._emitEvent('link.synergy.low', { ...basePayload, value: avgSynergy });
-    }
-    
-    // link.stability events
-    if (avgStability >= this.config.stability.high) {
-      this._emitEvent('link.stability.high', { ...basePayload, value: avgStability });
-    } else if (avgStability <= this.config.stability.low) {
-      this._emitEvent('link.stability.low', { ...basePayload, value: avgStability });
-    }
-    
-    // link.corruption events
-    if (avgCorruption >= this.config.corruption.high) {
-      this._emitEvent('link.corruption.high', { ...basePayload, value: avgCorruption });
-    } else if (avgCorruption >= this.config.corruption.mid) {
-      this._emitEvent('link.corruption.mid', { ...basePayload, value: avgCorruption });
-    }
+
+    const harmonyTier = classifyMetricTier(avgHarmony, null, getDefaultMetricThresholds('harmony'));
+    this._emitEvent(buildScopedMetricEventName('link', 'harmony', harmonyTier), { ...basePayload, value: avgHarmony });
+
+    const synergyTier = classifyMetricTier(avgSynergy, null, getDefaultMetricThresholds('synergy'));
+    this._emitEvent(buildScopedMetricEventName('link', 'synergy', synergyTier), { ...basePayload, value: avgSynergy });
+
+    const stabilityTier = classifyMetricTier(avgStability, null, getDefaultMetricThresholds('stability'));
+    this._emitEvent(buildScopedMetricEventName('link', 'stability', stabilityTier), { ...basePayload, value: avgStability });
+
+    const corruptionTier = classifyMetricTier(avgCorruption, null, getDefaultMetricThresholds('corruption'));
+    this._emitEvent(buildScopedMetricEventName('link', 'corruption', corruptionTier), { ...basePayload, value: avgCorruption });
   }
   
   areCompatiblePersonalities(p1, p2) {

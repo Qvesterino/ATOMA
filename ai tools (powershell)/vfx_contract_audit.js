@@ -61,14 +61,15 @@ const EXPLICIT_FX_FILES = new Set([
   'GlyphFusionZone.js',
   'HarmonicAudioReactivitySystem_Session135.js',
   'HarmonicCascadeAmplification_Session145.js',
-  'HarmonicHealingVisualSystem_Session134.js',
+  'HarmonicHealingRecoveryVisualSystem.js',
   'HarmonicHubAuraSystem_Session126.js',
   'HarmonicHubCascade.js',
   'HarmonicHubLifecycle.js',
   'HarmonicHubSync.js',
   // REMOVED: HarmonicInfluencePropagationSystem_Session127.js — moved to LEGACY (2026-05-14)
   // REMOVED: HarmonicNodeResonanceHalos.js — moved to LEGACY (2026-05-14)
-  'HarmonicRecoveryVisualSystem_Session138.js',
+  // REMOVED: HarmonicHealingVisualSystem_Session134.js — moved to LEGACY (2026-05-14)
+  // REMOVED: HarmonicRecoveryVisualSystem_Session138.js — moved to LEGACY (2026-05-14)
   'HarmonicResonanceCoupling_v1.js',
   'HarmonicResonanceFeedbackSystem.js',
   'HarmonicTopologyLearningSystem.js',

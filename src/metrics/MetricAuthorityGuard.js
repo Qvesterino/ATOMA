@@ -314,11 +314,13 @@ export function initializeRegistry() {
     notes: 'Node harmony via setMetric(source=harmony-stabilization), link harmony is link-local only'
   });
 
-  registerWriter('HarmonicHealingVisualSystem_Session134', {
-    metrics: ['corruption', 'stability'],
-    scopes: [METRIC_AUTHORITY_SCOPE.NODE, METRIC_AUTHORITY_SCOPE.VISUAL_LOCAL],
-    role: 'authorized-impulse-source',
-    notes: 'Node corruption via setMetric, link stability via visualState only'
+  // REMOVED: HarmonicHealingVisualSystem_Session134 — moved to LEGACY (2026-05-14)
+  // Merged into HarmonicHealingRecoveryVisualSystem (read-only, no metric writes)
+  registerWriter('HarmonicHealingRecoveryVisualSystem', {
+    metrics: [],
+    scopes: [METRIC_AUTHORITY_SCOPE.VISUAL_LOCAL],
+    role: 'read-only-adapter',
+    notes: 'Merged healing+recovery visual system. Read-only adapter — zero metric writes. All triggers via canonical tiered metric events.'
   });
 
   registerWriter('PHASE5_CorruptionBridge', {

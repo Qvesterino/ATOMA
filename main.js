@@ -1,4 +1,4 @@
-// ============================================================================
+﻿// ============================================================================
 // [BOOT] SAFETY LOGGING - Module Load Verification
 // ============================================================================
 // === GLOBAL CONSOLE GATE ===
@@ -528,8 +528,8 @@ import { SafeEvolutionManager } from './_SafeEvolutionManager.js';
 import { SafeLegendaryLinkFX } from './_SafeLegendaryLinkFX.js';
 import { SafeLegendaryWorldEvents } from './_SafeLegendaryWorldEvents.js';
 import { SafeAIWeatherPack } from './_SafeAIWeatherPack.js';
-// DISABLED (Session 92): SafeNodePersonalityFX creates opaque plane overlays that obscure node identity
-// import { SafeNodePersonalityFX } from './_SafeNodePersonalityFX.js';
+// REMOVED: SafeNodePersonalityFX - moved to LEGACY/ (2026-05-14) - personality now derived from metric tiers in _NodeMicroEvents
+// import { SafeNodePersonalityFX } from './LEGACY/_SafeNodePersonalityFX.js';
 import { SafeWorldFXPack } from './_SafeWorldFXPack.js';
 import { AmbientEntityManager } from './_AmbientEntityManager.js';
 // REMOVED: SafeMemoryTrailsManager.js - moved to LEGACY/GRAVEYARD (2026-04-05) - Unused (nodes/links static, FPS player doesn't see trails)
@@ -911,13 +911,13 @@ import { WaveInterferencePatternSystem_Session132 } from './WaveInterferencePatt
 // Visualizes standing wave collapse under extreme pressure
 // ============================================================================
 import { ResonanceRuptureVisualSystem_Session133 } from './ResonanceRuptureVisualSystem_Session133.js';
-import { HarmonicRecoveryVisualSystem_Session138 } from './HarmonicRecoveryVisualSystem_Session138.js';
 
 // ============================================================================
-// SESSION 134: HARMONIC HEALING VISUAL SYSTEM
-// "Golden Wave" logic engine that drives healing particles
+// MERGED: HARMONIC HEALING + RECOVERY VISUAL SYSTEM
+// Replaces HarmonicHealingVisualSystem_Session134 + HarmonicRecoveryVisualSystem_Session138
+// 100% event-driven via canonical scoped metric tier events.
 // ============================================================================
-import { HarmonicHealingVisualSystem_Session134 } from './HarmonicHealingVisualSystem_Session134.js';
+import { HarmonicHealingRecoveryVisualSystem } from './HarmonicHealingRecoveryVisualSystem.js';
 
 // ============================================================================
 // SESSION 135: HARMONIC AUDIO REACTIVITY SYSTEM
@@ -4743,11 +4743,11 @@ class AtomaGame {
                     this.standingWaveSystem
                 );
 
-                // IMPROVEMENT: Bridge RegionalEquilibrium → HarmonicHealing priority
+                // IMPROVEMENT: Bridge RegionalEquilibrium → HarmonicHealingRecovery priority
                 // Feed most damaged region to healing system so it prioritizes repair there
-                if (this.harmonicHealing?.setRegionalPriority) {
+                if (this.harmonicHealingRecovery?.setRegionalPriority) {
                     const priority = this.regionalEquilibrium.getMostDamagedRegionPriority?.();
-                    this.harmonicHealing.setRegionalPriority(priority);
+                    this.harmonicHealingRecovery.setRegionalPriority(priority);
                 }
             }
         }, 'simulation.regionalEquilibrium');
@@ -5218,19 +5218,14 @@ class AtomaGame {
             }
         }, 'visual.healingParticles');
         this.frameScheduler.register('visual', (dt) => {
-            if (this.harmonicHealing) {
-                this.harmonicHealing.update(dt, this.time, this.networkState || {});
-            }
-        }, 'visual.harmonicHealing');
-        this.frameScheduler.register('visual', (dt) => {
-            if (this.harmonicRecovery) {
+            if (this.harmonicHealingRecovery) {
                 const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
                     ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
                     : 0);
                 if (activeLinkCount === 0) return;
-                this.harmonicRecovery.update(dt, this.time, this.networkState || {});
+                this.harmonicHealingRecovery.update(dt, this.time, this.networkState || {});
             }
-        }, 'visual.harmonicRecovery');
+        }, 'visual.harmonicHealingRecovery');
         this.frameScheduler.register('visual', (dt) => {
             if (this.linkTrailParticles) {
                 this.linkTrailParticles.update(dt, this.time);
@@ -5934,7 +5929,7 @@ this.setHudDirty('nodeInspect');
         // Visualizes standing wave collapse and pressure release
         // ====================================================================
         this.resonanceRupture = null;
-        this.harmonicRecovery = null;
+        this.harmonicHealingRecovery = null;
 
         // ====================================================================
         // REGIONAL EQUILIBRIUM FIELD SYSTEM
@@ -6418,16 +6413,10 @@ this.setHudDirty('nodeInspect');
         this.setupResonanceRupture();
 
         // ========================================================================
-        // SESSIONS 134-136: HARMONIC HEALING SYSTEM
-        // Golden healing waves, particle trails, and audio reactivity
+        // MERGED: HARMONIC HEALING + RECOVERY VISUAL SYSTEM
+        // Replaces Sessions 134 + 138. 100% event-driven via canonical tiered events.
         // ========================================================================
-        this.setupHarmonicHealingSystem();
-
-        // ========================================================================
-        // SESSION 138: HARMONIC RECOVERY VISUAL SYSTEM
-        // Visualizes network repair after rupture (Coherence Waves, Re-Stitching)
-        // ========================================================================
-        this.setupHarmonicRecovery();
+        this.setupHarmonicHealingRecoverySystem();
 
         // ========================================================================
         // DRAMATURGY → HEALING COUPLING
@@ -6441,11 +6430,8 @@ this.setHudDirty('nodeInspect');
                     dominantPhase: payload?.phase || null,
                     dominantIntensity: payload?.intensity || 0
                 };
-                if (this.harmonicHealing && typeof this.harmonicHealing.setDramaturgyModulation === 'function') {
-                    this.harmonicHealing.setDramaturgyModulation(state);
-                }
-                if (this.harmonicRecovery && typeof this.harmonicRecovery.setDramaturgyModulation === 'function') {
-                    this.harmonicRecovery.setDramaturgyModulation(state);
+                if (this.harmonicHealingRecovery && typeof this.harmonicHealingRecovery.setDramaturgyModulation === 'function') {
+                    this.harmonicHealingRecovery.setDramaturgyModulation(state);
                 }
             });
         }
@@ -6591,7 +6577,7 @@ this.setHudDirty('nodeInspect');
                 dbg.trap = this.standingWaveTrap || this.standingWaveTrapSystem;
                 dbg.renderer = this.standingWaveRenderer || null;
                 dbg.rupture = this.resonanceRupture;
-                dbg.recovery = this.harmonicRecovery;
+                dbg.healingRecovery = this.harmonicHealingRecovery;
                 dbg.healingParticles = this.healingParticles;
                 window.atomaDebug = dbg;
 
@@ -8051,32 +8037,18 @@ window.__ATOMA_SCENE__ = this.scene;
         }
 
         try {
-            if (this.harmonicHealing && typeof this.harmonicHealing.rebind === 'function') {
-                this.harmonicHealing.rebind({
+            if (this.harmonicHealingRecovery && typeof this.harmonicHealingRecovery.rebind === 'function') {
+                this.harmonicHealingRecovery.rebind({
                     scene: this.scene,
                     linkingSystem,
                     particleSystem: this.healingParticles,
-                    semanticBus,
-                    frameScheduler
-                });
-            }
-        } catch (err) {
-            console.warn('[main.js] HarmonicHealingVisualSystem rebind failed:', err?.message || err);
-        }
-
-        try {
-            if (this.harmonicRecovery && typeof this.harmonicRecovery.rebind === 'function') {
-                this.harmonicRecovery.rebind({
-                    scene: this.scene,
                     ruptureSystem: this.resonanceRupture,
-                    healingParticleSystem: this.healingParticles,
-                    nodeLinkingSystem: linkingSystem,
                     semanticBus,
                     frameScheduler
                 });
             }
         } catch (err) {
-            console.warn('[main.js] HarmonicRecoveryVisualSystem rebind failed:', err?.message || err);
+            console.warn('[main.js] HarmonicHealingRecoveryVisualSystem rebind failed:', err?.message || err);
         }
 
         try {
@@ -8865,11 +8837,8 @@ window.__ATOMA_SCENE__ = this.scene;
             this.aiNodes
         );
         this.linkRendererConduit = this.linkingSystem?.conduitRenderer || this.linkRendererConduit || null;
-        if (this.harmonicHealing) {
-            this.harmonicHealing.linkingSystem = this.linkingSystem;
-        }
-        if (this.harmonicRecovery) {
-            this.harmonicRecovery.linkingSystem = this.linkingSystem;
+        if (this.harmonicHealingRecovery) {
+            this.harmonicHealingRecovery.linkingSystem = this.linkingSystem;
         }
         if (this.linkingSystem?.conduitRenderer) {
             this.linkingSystem.conduitRenderer.waveShaderBridge =
@@ -13593,12 +13562,12 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
     }
 
     /**
-     * Setup Safe Node Personality FX - Behavioral node visuals
-     * SAFE: Pure VFX overlays, external registries only
+     * Setup Safe Node Personality FX - DEAD (moved to LEGACY/)
+     * Personality now derived from metric tiers via MetricTierClassifier
      */
     setupPersonalityFX() {
-        // DISABLED (Session 92): SafeNodePersonalityFX creates opaque plane overlays that obscure node identity
-        this.personalityFX = null; // new SafeNodePersonalityFX(this.scene, this.camera);
+        // REMOVED (2026-05-14): SafeNodePersonalityFX moved to LEGACY/ - personality derived from MetricTierClassifier in _NodeMicroEvents
+        this.personalityFX = null;
 
         // Auto-assigns personalities and generates behavioral VFX, no invasive setup needed
     }
@@ -15620,51 +15589,15 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
     }
 
     /**
-     * Setup Harmonic Recovery Visual System (Session 138)
-     * High-level visual recovery representing network repair after rupture
+     * Setup Harmonic Healing + Recovery Visual System (Merged)
+     * Replaces HarmonicHealingVisualSystem_Session134 + HarmonicRecoveryVisualSystem_Session138
+     * 100% event-driven via canonical scoped metric tier events.
      */
-    setupHarmonicRecovery() {
-        try {
-            this.harmonicRecovery = new HarmonicRecoveryVisualSystem_Session138(
-                this.scene,
-                this.resonanceRupture,
-                this.healingParticles, // Can be null if not yet initialized, but setupHarmonicHealingSystem is called later? 
-                                       // No, healingParticles is initialized in setupHealingParticleSystem which is called by setupHarmonicHealingSystem?
-                                       // I need to ensure healingParticles exists.
-                this.linkingSystem
-            );
-            this.harmonicRecovery.frameScheduler = this.frameScheduler;
-            this.harmonicRecovery.rebind?.({
-                scene: this.scene,
-                ruptureSystem: this.resonanceRupture,
-                healingParticleSystem: this.healingParticles,
-                nodeLinkingSystem: this.linkingSystem,
-                semanticBus: this.semanticBus,
-                frameScheduler: this.frameScheduler
-            });
-            
-            console.log('[main.js] HarmonicRecoveryVisualSystem initialized ✓');
-            console.log('  - Monitors rupture completion');
-            console.log('  - Spawns Coherence Waves from healed zones');
-            console.log('  - Applies Link Re-Stitching effects');
-            console.log('  - Creates Node Recovery Halos');
-        } catch (err) {
-            console.warn('[main.js] HarmonicRecoveryVisualSystem init error:', err);
-        }
-    }
-
-    /**
-     * Setup Harmonic Healing System (Sessions 134-136)
-     * "Golden Wave" visuals + Audio + Particles
-     */
-    setupHarmonicHealingSystem() {
+    setupHarmonicHealingRecoverySystem() {
         try {
             // 1. Audio System (Session 135)
             if (!this.harmonicAudio) {
-                // Session 135 constructor expects camera for spatial audio positioning
-                this.harmonicAudio = new HarmonicAudioReactivitySystem_Session135(
-                    this.camera
-                );
+                this.harmonicAudio = new HarmonicAudioReactivitySystem_Session135(this.camera);
                 if (this.audioSystem?.initialized && this.harmonicAudio.start) {
                     this.harmonicAudio.start().catch((err) => {
                         console.warn('[main.js] HarmonicAudioReactivitySystem start failed:', err);
@@ -15677,8 +15610,8 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
             if (!this.healingParticles) {
                 this.healingParticles = new HealingParticleSystem_Session136(
                     this.scene,
-                    this.resonanceRupture, // Hooks into rupture system for scars
-                    this.harmonicAudio,    // Audio System (Session 135)
+                    this.resonanceRupture,
+                    this.harmonicAudio,
                     { maxParticles: 5000 }
                 );
                 console.log('[main.js] HealingParticleSystem initialized ✓');
@@ -15686,10 +15619,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
 
             // 3. Link Trail Particle System
             if (!this.linkTrailParticles) {
-                this.linkTrailParticles = new LinkTrailParticleSystem(
-                    this.scene,
-                    200 // poolSize
-                );
+                this.linkTrailParticles = new LinkTrailParticleSystem(this.scene, 200);
                 this.linkTrailParticles.rebind?.({
                     scene: this.scene,
                     worldRoot: this.worldRoot
@@ -15697,39 +15627,31 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                 console.log('[main.js] LinkTrailParticleSystem initialized ✓');
             }
 
-            // 4. Harmonic Healing Visual System (Session 134 - The Logic)
-            if (!this.harmonicHealing) {
-                this.harmonicHealing = new HarmonicHealingVisualSystem_Session134(
+            // 4. Merged Healing + Recovery Visual System
+            if (!this.harmonicHealingRecovery) {
+                this.harmonicHealingRecovery = new HarmonicHealingRecoveryVisualSystem(
                     this.scene,
                     this.linkingSystem,
-                    this.healingParticles // Wires logic to visuals
+                    this.healingParticles,
+                    this.resonanceRupture,
+                    this.semanticBus
                 );
-                this.harmonicHealing.frameScheduler = this.frameScheduler;
-                this.harmonicHealing.rebind?.({
+                this.harmonicHealingRecovery.frameScheduler = this.frameScheduler;
+                this.harmonicHealingRecovery.rebind?.({
                     scene: this.scene,
                     linkingSystem: this.linkingSystem,
                     particleSystem: this.healingParticles,
-                    semanticBus: this.semanticBus,
-                    frameScheduler: this.frameScheduler
-                });
-                console.log('[main.js] HarmonicHealingVisualSystem initialized (Golden Waves) ✓');
-            }
-
-            if (this.harmonicRecovery?.rebind && this.healingParticles) {
-                this.harmonicRecovery.rebind({
-                    scene: this.scene,
                     ruptureSystem: this.resonanceRupture,
-                    healingParticleSystem: this.healingParticles,
-                    nodeLinkingSystem: this.linkingSystem,
                     semanticBus: this.semanticBus,
                     frameScheduler: this.frameScheduler
                 });
-            } else if (this.harmonicRecovery?.rebindHealingParticleSystem && this.healingParticles) {
-                this.harmonicRecovery.rebindHealingParticleSystem(this.healingParticles);
+                console.log('[main.js] HarmonicHealingRecoveryVisualSystem initialized (Merged) ✓');
+                console.log('  - Traveling waves on canonical tiered metric events');
+                console.log('  - Coherence waves + halos on recovery triggers');
+                console.log('  - Rupture completion monitoring');
             }
-
         } catch (err) {
-            console.warn('[main.js] Harmonic Healing System initialization failed:', err);
+            console.warn('[main.js] Harmonic Healing Recovery System initialization failed:', err);
         }
     }
 
