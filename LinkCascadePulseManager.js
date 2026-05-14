@@ -27,6 +27,9 @@ import * as THREE from 'three';
  */
 export class LinkCascadePulseManager {
     constructor() {
+        this._eventBus = null;
+        this._eventDisposers = [];
+
         this.config = {
             // Cascade propagation
             cascadeSpeedBase: 1.0,          // Units per second along network
@@ -452,6 +455,41 @@ export class LinkCascadePulseManager {
         return stats;
     }
 
+    setEventBus(bus) {
+        if (!bus || this._eventBus) return;
+        this._eventBus = bus;
+
+        const register = (tag, handler) => {
+            if (typeof bus.subscribe === 'function') {
+                const unsub = bus.subscribe(tag, handler, { priority: bus.priority?.NORMAL });
+                this._eventDisposers.push(() => unsub?.());
+            } else if (typeof bus.on === 'function') {
+                bus.on(tag, handler, { priority: bus.priority?.NORMAL });
+                this._eventDisposers.push(() => bus.off?.(tag, handler));
+            }
+        };
+
+        // Canonical tiered events → cascade pulse emission
+        register('node.harmony.high', (payload) => {
+            const node = payload?.node;
+            if (!node) return;
+            this.emitCascadePulse(node, { isActive: true, hubStrength: 0.9 }, null, performance.now() * 0.001);
+        });
+
+        register('node.synergy.high', (payload) => {
+            const node = payload?.node;
+            if (!node) return;
+            this.emitCascadePulse(node, { isActive: true, hubStrength: 0.8 }, null, performance.now() * 0.001);
+        });
+
+        register('node.corruption.high', (payload) => {
+            const node = payload?.node;
+            if (!node) return;
+            // Corruption dampens — emit weak cascade
+            this.emitCascadePulse(node, { isActive: true, hubStrength: 0.3 }, null, performance.now() * 0.001);
+        });
+    }
+
     /**
      * Clear all cascade state (cleanup)
      */
@@ -465,6 +503,11 @@ export class LinkCascadePulseManager {
      * Dispose and cleanup
      */
     dispose() {
+        for (const dispose of this._eventDisposers) {
+            try { dispose(); } catch (_e) {}
+        }
+        this._eventDisposers = [];
+        this._eventBus = null;
         this.clear();
     }
 }

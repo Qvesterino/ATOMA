@@ -125,6 +125,14 @@ export class WaveParticleEmitter_v1 {
     }
   }
 
+  setEventBus(bus) {
+    if (!bus) return;
+    this.semanticBus = bus;
+    // Re-bind direct metric tier listeners with new bus
+    this._directMetricTierListenersBound = false;
+    this._bindDirectMetricTierListeners();
+  }
+
   /**
    * Initialize particle systems and create pool
    */

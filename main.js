@@ -8852,6 +8852,11 @@ window.__ATOMA_SCENE__ = this.scene;
             this.linkResonanceFlowSystem.rebindScene?.(this.scene);
         }
         this.linkingSystem.semanticBus = this.semanticBus;
+
+        // Wire canonical event bus into LinkRendererConduit corruption subsystems
+        if (this.linkRendererConduit?.setEventBus) {
+            this.linkRendererConduit.setEventBus(this.semanticBus);
+        }
         this.linkingSystem.isReady = true;
         if (this.cascadingRuptures?.rebind) {
             this.cascadingRuptures.rebind({
@@ -9520,6 +9525,7 @@ window.__ATOMA_SCENE__ = this.scene;
             this.linkingSystem,
             { enabled: true }  // Feature flag - enabled by default
         );
+        this.nodeAuraSystem.setEventBus?.(this.semanticBus);
         // REMOVED: CorruptionDrivenAuraDesaturationSystem — moved to LEGACY/april (2026-04-22)
         
         // Wire orchestrator to linking system for effect registration
@@ -10063,6 +10069,7 @@ window.__ATOMA_SCENE__ = this.scene;
         );
         this.linkCollapseSystem.frameScheduler = this.frameScheduler;
         this.linkCollapseSystem.semanticBus = this.semanticBus;
+        this.linkCollapseSystem.setEventBus?.(this.semanticBus);
         this.linkingSystem.linkCollapseSystem = this.linkCollapseSystem;
         if (this.visualSuperpack?.triggerSpectacle && typeof this.linkCollapseSystem.on === 'function') {
             this.linkCollapseSystem.on('warning', (link, state) => {
@@ -10255,6 +10262,7 @@ window.__ATOMA_SCENE__ = this.scene;
                     attachRootResolver: () => this.vfxRoot || this.worldRoot || this.scene
                 }
             );
+            this.t2HarmonyVisualConsumer.setEventBus?.(this.semanticBus);
             console.log('[main.js] T2_HarmonyVisualConsumer_v1 initialized ✓');
         } catch (err) {
             console.warn('[main.js] T2_HarmonyVisualConsumer_v1 initialization failed:', err);
@@ -10877,6 +10885,7 @@ window.__ATOMA_SCENE__ = this.scene;
                 debugNodeEmissionVisualCodes: [1002]
             });
             this.particleEmitter?.init?.(this.renderer, this.scene);
+            this.particleEmitter.setEventBus?.(this.semanticBus);
             console.log('[main.js] WaveParticleEmitter_v1 initialized ✓');
 
             // FrameScheduler: drive particle emitter at visual cadence (30 Hz)
@@ -11526,6 +11535,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                 semanticBus: this.semanticBus,
                 frameScheduler: this.frameScheduler
             });
+            this.cascadeResonanceWave.setEventBus?.(this.semanticBus);
             this.cascadeResonanceWaveVisualization = this.cascadeResonanceWave;
 
             this._wireCascadeParticlePipeline(cascadeSystem);
@@ -15399,6 +15409,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                 this.waveInterferenceEngine || this.wavePatternSystem.waveEngine || null;
             
             this.waveInterference.setup();
+            this.waveInterference.setEventBus?.(this.semanticBus);
 
             if (this.linkingSystem?.links && Array.isArray(this.linkingSystem.links)) {
                 for (const link of this.linkingSystem.links) {
@@ -15578,6 +15589,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                     scene: this.scene,
                     worldRoot: this.worldRoot
                 });
+                this.linkTrailParticles.setEventBus?.(this.semanticBus);
                 console.log('[main.js] LinkTrailParticleSystem initialized ✓');
             }
 

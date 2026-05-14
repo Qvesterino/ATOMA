@@ -109,6 +109,8 @@ export class NodeLinkedAuraSystem {
     this._nodeMetricCache = new Map();
     this._metricSubscriptionDisposer = null;
     this._hasMetricSubscription = false;
+    this._eventBus = null;
+    this._eventDisposers = [];
     
     // Visual parameters (ATOMA_AURA_v2: boosted presence)
     this.visualParams = {
@@ -177,11 +179,114 @@ export class NodeLinkedAuraSystem {
     this._frameCounter = 0;
 
     this._initMetricSubscription();
-    
+
     if (this.enabled) {
       console.log('[NodeAuraSystem] Initialized (ENABLED)');
     } else {
       console.log('[NodeAuraSystem] Initialized (DISABLED - use game.enableNodeAuras() to activate)');
+    }
+  }
+
+  setEventBus(bus) {
+    if (!bus || this._eventBus) return;
+    this._eventBus = bus;
+
+    const register = (tag, handler) => {
+      if (typeof bus.subscribe === 'function') {
+        const unsub = bus.subscribe(tag, handler, { priority: bus.priority?.NORMAL });
+        this._eventDisposers.push(() => unsub?.());
+      } else if (typeof bus.on === 'function') {
+        bus.on(tag, handler, { priority: bus.priority?.NORMAL });
+        this._eventDisposers.push(() => bus.off?.(tag, handler));
+      }
+    };
+
+    // Canonical tiered corruption events → corruption spike on aura
+    register('node.corruption.high', (payload) => {
+      const node = payload?.node || this._resolveNodeFromPayload(payload);
+      if (!node) return;
+      const auraData = this.nodeAuras.get(node);
+      if (auraData) {
+        this.triggerCorruptionSpike(auraData, 1.0);
+      }
+    });
+
+    register('node.corruption.mid', (payload) => {
+      const node = payload?.node || this._resolveNodeFromPayload(payload);
+      if (!node) return;
+      const auraData = this.nodeAuras.get(node);
+      if (auraData) {
+        this.triggerCorruptionSpike(auraData, 0.5);
+      }
+    });
+
+    // Canonical tiered harmony events → harmony boost on aura
+    register('node.harmony.high', (payload) => {
+      const node = payload?.node || this._resolveNodeFromPayload(payload);
+      if (!node) return;
+      const auraData = this.nodeAuras.get(node);
+      if (auraData) {
+        this.triggerHarmonyBoost(auraData, 1.0);
+      }
+    });
+
+    register('node.harmony.mid', (payload) => {
+      const node = payload?.node || this._resolveNodeFromPayload(payload);
+      if (!node) return;
+      const auraData = this.nodeAuras.get(node);
+      if (auraData) {
+        this.triggerHarmonyBoost(auraData, 0.5);
+      }
+    });
+  }
+
+  _resolveNodeFromPayload(payload = {}) {
+    if (!payload || typeof payload !== 'object') return null;
+    const candidate = payload.node || payload.sourceNode || payload.targetNode || payload.nodeId || payload.id || null;
+    if (!candidate) return null;
+    if (typeof candidate === 'string' || typeof candidate === 'number') {
+      // Try to find in active auras
+      for (const [node] of this.nodeAuras.entries()) {
+        const nodeKey = this._getNodeMetricKey(node);
+        if (nodeKey === String(candidate)) return node;
+      }
+      return null;
+    }
+    return candidate;
+  }
+
+  triggerCorruptionSpike(auraData, severity = 1.0) {
+    if (!auraData) return;
+    // Immediate amplitude spike + color shift toward red
+    auraData.spikeActive = true;
+    auraData.spikeProgress = 0;
+    auraData.targetAmplitude = THREE.MathUtils.lerp(
+      this.motionParams.baseAmplitude,
+      this.motionParams.maxAmplitude,
+      severity
+    );
+    // Temporary color override toward corrupted red
+    if (auraData.material?.uniforms?.uAuraColor?.value) {
+      const baseColor = this.visualParams.color;
+      const corruptColor = new THREE.Color(0.9, 0.15, 0.1);
+      auraData.material.uniforms.uAuraColor.value.lerpColors(baseColor, corruptColor, severity * 0.6);
+    }
+  }
+
+  triggerHarmonyBoost(auraData, severity = 1.0) {
+    if (!auraData) return;
+    // Smooth amplitude boost + color shift toward cyan
+    auraData.harmonicPhase += Math.PI * 0.5 * severity;
+    auraData.targetAmplitude = THREE.MathUtils.lerp(
+      this.motionParams.baseAmplitude,
+      this.motionParams.maxAmplitude * 0.85,
+      severity * 0.5
+    );
+    // Temporary color override toward harmony cyan
+    if (auraData.material?.uniforms?.uAuraColor?.value) {
+      const baseColor = this.visualParams.color;
+      const harmonyColor = new THREE.Color(0.2, 0.95, 0.9);
+      auraData.material.uniforms.uAuraColor.value.lerpColors(baseColor, harmonyColor, severity * 0.4);
     }
   }
 
@@ -1035,14 +1140,21 @@ export class NodeLinkedAuraSystem {
     for (const [node, auraData] of this.nodeAuras.entries()) {
       this.removeAura(node);
     }
-    
+
+    // Clean up canonical event subscriptions
+    for (const dispose of this._eventDisposers) {
+      try { dispose(); } catch (_e) {}
+    }
+    this._eventDisposers = [];
+    this._eventBus = null;
+
     this.nodeAuras.clear();
     if (typeof this._metricSubscriptionDisposer === 'function') {
       this._metricSubscriptionDisposer();
     }
     this._metricSubscriptionDisposer = null;
     this._nodeMetricCache.clear();
-    
+
     console.log('[NodeAuraSystem] Disposed');
   }
 }

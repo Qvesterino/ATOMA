@@ -71,6 +71,8 @@ export class LinkCorruptionSpreadAnimator {
   constructor() {
     this.animationStates = new Map();
     this.scene = null;
+    this._eventBus = null;
+    this._eventDisposers = [];
 
     this.corruptionColors = {
       clean: {
@@ -172,6 +174,61 @@ export class LinkCorruptionSpreadAnimator {
 
   attachScene(scene) {
     this.scene = scene || null;
+  }
+
+  setEventBus(bus) {
+    if (!bus || this._eventBus) return;
+    this._eventBus = bus;
+
+    const register = (tag, handler) => {
+      if (typeof bus.subscribe === 'function') {
+        const unsub = bus.subscribe(tag, handler, { priority: bus.priority?.NORMAL });
+        this._eventDisposers.push(() => unsub?.());
+      } else if (typeof bus.on === 'function') {
+        bus.on(tag, handler, { priority: bus.priority?.NORMAL });
+        this._eventDisposers.push(() => bus.off?.(tag, handler));
+      }
+    };
+
+    // Canonical tiered corruption events → chain snap animation
+    register('link.corruption.high', (payload) => {
+      const link = payload?.link;
+      if (!link?.id) return;
+      let state = this.animationStates.get(link.id);
+      if (!state) {
+        this.initializeLink(link);
+        state = this.animationStates.get(link.id);
+      }
+      if (state) {
+        this._triggerChainSnap(state, 'high', 0.9, 'event');
+      }
+    });
+
+    register('link.corruption.mid', (payload) => {
+      const link = payload?.link;
+      if (!link?.id) return;
+      let state = this.animationStates.get(link.id);
+      if (!state) {
+        this.initializeLink(link);
+        state = this.animationStates.get(link.id);
+      }
+      if (state) {
+        this._triggerChainSnap(state, 'mid', 0.6, 'event');
+      }
+    });
+
+    register('link.corruption.low', (payload) => {
+      const link = payload?.link;
+      if (!link?.id) return;
+      let state = this.animationStates.get(link.id);
+      if (!state) {
+        this.initializeLink(link);
+        state = this.animationStates.get(link.id);
+      }
+      if (state) {
+        this._triggerChainSnap(state, 'low', 0.3, 'event');
+      }
+    });
   }
 
   initializeLink(link) {
@@ -698,6 +755,12 @@ export class LinkCorruptionSpreadAnimator {
   }
 
   dispose() {
+    for (const dispose of this._eventDisposers) {
+      try { dispose(); } catch (_e) {}
+    }
+    this._eventDisposers = [];
+    this._eventBus = null;
+
     for (const state of this.animationStates.values()) {
       this._disposeChainState(state);
     }

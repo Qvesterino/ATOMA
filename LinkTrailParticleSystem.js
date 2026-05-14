@@ -1178,7 +1178,70 @@ export class LinkStrandTipSparkVisual {
     return -1;
   }
 
+  setEventBus(bus) {
+    if (!bus || this._eventBus) return;
+    this._eventBus = bus;
+
+    const register = (tag, handler) => {
+      if (typeof bus.subscribe === 'function') {
+        const unsub = bus.subscribe(tag, handler, { priority: bus.priority?.NORMAL });
+        this._eventDisposers.push(() => unsub?.());
+      } else if (typeof bus.on === 'function') {
+        bus.on(tag, handler, { priority: bus.priority?.NORMAL });
+        this._eventDisposers.push(() => bus.off?.(tag, handler));
+      }
+    };
+
+    // Canonical tiered events → burst spark emission on link
+    register('link.harmony.high', (payload) => {
+      const link = payload?.link;
+      if (!link) return;
+      this._emitBurst(link, 'harmony', 8);
+    });
+
+    register('link.harmony.mid', (payload) => {
+      const link = payload?.link;
+      if (!link) return;
+      this._emitBurst(link, 'harmony', 4);
+    });
+
+    register('link.corruption.high', (payload) => {
+      const link = payload?.link;
+      if (!link) return;
+      this._emitBurst(link, 'corruption', 6);
+    });
+
+    register('link.corruption.mid', (payload) => {
+      const link = payload?.link;
+      if (!link) return;
+      this._emitBurst(link, 'corruption', 3);
+    });
+  }
+
+  _emitBurst(link, type, count) {
+    if (!link?.id || !this.sparkMesh) return;
+    const curve = link.curve;
+    if (!curve?.getPointAt) return;
+    for (let i = 0; i < count; i++) {
+      const t = Math.random();
+      const pos = curve.getPointAt(t);
+      const tangent = curve.getTangentAt(t).normalize();
+      const color = type === 'harmony'
+        ? TRAIL_HARMONY_COLOR
+        : type === 'corruption'
+          ? TRAIL_CORRUPTION_COLOR
+          : TRAIL_BASE_COLOR;
+      this._spawnSpark(pos, tangent, color, 0.7 + Math.random() * 0.5);
+    }
+  }
+
   dispose() {
+    for (const dispose of this._eventDisposers) {
+      try { dispose(); } catch (_e) {}
+    }
+    this._eventDisposers = [];
+    this._eventBus = null;
+
     if (this._attachRoot && this.sparkMesh) {
       this._attachRoot.remove(this.sparkMesh);
     }

@@ -6376,6 +6376,16 @@ const makeWaveSlice = () => {
         // scene and camera are not updated during rebind as they typically don't change on world switch
         // Other internal systems (waveTravelShaderPack, etc.) are not rebindable and assume stable references
     }
+
+    setEventBus(bus) {
+        if (!bus) return;
+        if (this.corruptionParticleSystem?.setEventBus) {
+            this.corruptionParticleSystem.setEventBus(bus);
+        }
+        if (this.corruptionSpreadAnimator?.setEventBus) {
+            this.corruptionSpreadAnimator.setEventBus(bus);
+        }
+    }
 }
 
 

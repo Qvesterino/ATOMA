@@ -107,6 +107,8 @@ export class LinkCollapseSystem {
     this._boundLinkingSystem = null;
     this._linkHooksBound = false;
     this._initialLinkPrimeDone = false;
+    this._eventBus = null;
+    this._eventDisposers = [];
 
     this._debugLog('initialized', {
       linksTracked: this.linkingSystem?.links?.length ?? 0,
@@ -114,6 +116,40 @@ export class LinkCollapseSystem {
     });
 
     this.attachToLinkingSystem(this.linkingSystem);
+  }
+
+  setEventBus(bus) {
+    if (!bus || this._eventBus) return;
+    this._eventBus = bus;
+    this.semanticBus = bus;
+
+    const register = (tag, handler) => {
+      if (typeof bus.subscribe === 'function') {
+        const unsub = bus.subscribe(tag, handler, { priority: bus.priority?.NORMAL });
+        this._eventDisposers.push(() => unsub?.());
+      } else if (typeof bus.on === 'function') {
+        bus.on(tag, handler, { priority: bus.priority?.NORMAL });
+        this._eventDisposers.push(() => bus.off?.(tag, handler));
+      }
+    };
+
+    // Canonical tiered events → immediate collapse evaluation
+    // Note: LinkCollapseSystem is already event-driven via onLinkMetricsUpdated,
+    // but canonical events allow external systems to force re-evaluation.
+    register('link.corruption.high', (payload) => {
+      const link = payload?.link;
+      if (link) this.onLinkMetricsUpdated(link, payload, { forceEvaluate: true });
+    });
+
+    register('link.corruption.mid', (payload) => {
+      const link = payload?.link;
+      if (link) this.onLinkMetricsUpdated(link, payload, { forceEvaluate: true });
+    });
+
+    register('link.stability.low', (payload) => {
+      const link = payload?.link;
+      if (link) this.onLinkMetricsUpdated(link, payload, { forceEvaluate: true });
+    });
   }
 
   _debugLog(message, details = null) {
@@ -1008,6 +1044,13 @@ export class LinkCollapseSystem {
    * Destroy system (cleanup)
    */
   destroy() {
+    for (const dispose of this._eventDisposers) {
+      try { dispose(); } catch (_e) {}
+    }
+    this._eventDisposers = [];
+    this._eventBus = null;
+    this.semanticBus = null;
+
     this.reset();
     this.eventHandlers = {
       warning: [],

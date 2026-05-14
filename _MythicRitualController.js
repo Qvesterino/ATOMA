@@ -481,6 +481,8 @@ export class MythicRitualController {
     beam.position.set(0, 50, 0);
     beam.renderOrder = this.renderOrder;
     beam.userData.isRitualFX = true;
+    beam.matrixAutoUpdate = false;
+    beam.updateMatrix();
     this.scene.add(beam);
     this._createdObjects.push(beam);
 
@@ -500,6 +502,8 @@ export class MythicRitualController {
     gloryBeam.position.set(0, 50, 0);
     gloryBeam.renderOrder = this.renderOrder;
     gloryBeam.userData.isRitualFX = true;
+    gloryBeam.matrixAutoUpdate = false;
+    gloryBeam.updateMatrix();
     this.scene.add(gloryBeam);
     this._createdObjects.push(gloryBeam);
     this.ritualVisuals.set('glory_beam', {
@@ -618,6 +622,8 @@ export class MythicRitualController {
       beam.rotateX(Math.PI / 2);
       beam.renderOrder = this.renderOrder;
       beam.userData.isRitualFX = true;
+      beam.matrixAutoUpdate = false;
+      beam.updateMatrix();
       this.scene.add(beam);
       this._createdObjects.push(beam);
 
@@ -735,6 +741,8 @@ export class MythicRitualController {
       bolt.position.set(Math.cos(angle) * 20, 15, Math.sin(angle) * 20);
       bolt.renderOrder = this.renderOrder;
       bolt.userData.isRitualFX = true;
+      bolt.matrixAutoUpdate = false;
+      bolt.updateMatrix();
       this.scene.add(bolt);
       this._createdObjects.push(bolt);
 
@@ -1289,6 +1297,7 @@ export class MythicRitualController {
     });
 
     this.ritualVisuals.clear();
+    this._createdObjects = [];
 
     // Restore node glow
     this.nodeGlowBoosts.forEach((boost, uuid) => {

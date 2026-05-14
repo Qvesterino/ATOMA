@@ -39,6 +39,8 @@ export class LinkCorruptionParticleSystem {
     this.linkIndices = new Map(); // linkId -> array of pool indices
     this.linkByPair = new Map(); // `${a}|${b}` -> link reference
     this._semanticSubscriptions = [];
+    this._eventBus = null;
+    this._eventDisposers = [];
 
     // Attributes
     this.startPos = new Float32Array(POOL_SIZE * 3);
@@ -216,8 +218,59 @@ export class LinkCorruptionParticleSystem {
     this._bindSemanticBus();
   }
 
+  setEventBus(bus) {
+    if (!bus || this._eventBus) return;
+    this._eventBus = bus;
+
+    const register = (tag, handler) => {
+      if (typeof bus.subscribe === 'function') {
+        const unsub = bus.subscribe(tag, handler, { priority: bus.priority?.NORMAL });
+        this._eventDisposers.push(() => unsub?.());
+      } else if (typeof bus.on === 'function') {
+        bus.on(tag, handler, { priority: bus.priority?.NORMAL });
+        this._eventDisposers.push(() => bus.off?.(tag, handler));
+      }
+    };
+
+    // Canonical tiered corruption events → burst particle spawn
+    register('link.corruption.high', (payload) => {
+      const link = payload?.link || this._resolveLinkFromPayload(payload);
+      if (link?.curve?.getPointAt) {
+        this._spawn(link, 8, 0.9, 0.016);
+        this._updateForLink(link, 0.016);
+      }
+    });
+
+    register('link.corruption.mid', (payload) => {
+      const link = payload?.link || this._resolveLinkFromPayload(payload);
+      if (link?.curve?.getPointAt) {
+        this._spawn(link, 4, 0.6, 0.016);
+        this._updateForLink(link, 0.016);
+      }
+    });
+
+    register('link.corruption.low', (payload) => {
+      const link = payload?.link || this._resolveLinkFromPayload(payload);
+      if (link?.curve?.getPointAt) {
+        this._spawn(link, 2, 0.3, 0.016);
+        this._updateForLink(link, 0.016);
+      }
+    });
+  }
+
+  _resolveLinkFromPayload(payload) {
+    if (!payload) return null;
+    const sourceId = payload.sourceId ?? payload.source?.id ?? payload.source;
+    const targetId = payload.targetId ?? payload.target?.id ?? payload.target;
+    if (sourceId && targetId) {
+      const key = this._pairKey({ id: sourceId }, { id: targetId });
+      return key ? this.linkByPair.get(key) : null;
+    }
+    return payload.link || null;
+  }
+
   _getSemanticBus() {
-    return globalThis?.semanticBus || null;
+    return this._eventBus || globalThis?.semanticBus || null;
   }
 
   _bindSemanticBus() {
@@ -316,6 +369,13 @@ export class LinkCorruptionParticleSystem {
   }
 
   dispose() {
+    // Dispose canonical event subscriptions
+    for (const dispose of this._eventDisposers) {
+      try { dispose(); } catch (_e) {}
+    }
+    this._eventDisposers = [];
+    this._eventBus = null;
+
     const bus = this._getSemanticBus();
     const off = bus?.off?.bind(bus) || bus?.unsubscribe?.bind(bus);
     if (off) {

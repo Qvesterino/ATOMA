@@ -1678,6 +1678,50 @@ export class WaveInterferencePatternSystem_Session132 {
         return node?.id ?? node?.userData?.nodeId ?? node?.userData?.id ?? null;
     }
 
+    setEventBus(bus) {
+        if (!bus || this._eventBus) return;
+        this._eventBus = bus;
+
+        const register = (tag, handler) => {
+            if (typeof bus.subscribe === 'function') {
+                const unsub = bus.subscribe(tag, handler, { priority: bus.priority?.NORMAL });
+                this._eventDisposers.push(() => unsub?.());
+            } else if (typeof bus.on === 'function') {
+                bus.on(tag, handler, { priority: bus.priority?.NORMAL });
+                this._eventDisposers.push(() => bus.off?.(tag, handler));
+            }
+        };
+
+        // Canonical tiered events → boost interference intensity
+        register('node.synergy.high', (payload) => {
+            this._boostInterferenceIntensity('constructive', 1.0, 2.0);
+        });
+
+        register('node.synergy.mid', (payload) => {
+            this._boostInterferenceIntensity('constructive', 0.5, 1.2);
+        });
+
+        register('node.harmony.high', (payload) => {
+            this._boostInterferenceIntensity('constructive', 0.8, 1.8);
+        });
+
+        register('node.harmony.mid', (payload) => {
+            this._boostInterferenceIntensity('constructive', 0.4, 1.0);
+        });
+
+        register('node.corruption.high', (payload) => {
+            this._boostInterferenceIntensity('destructive', 0.9, 1.5);
+        });
+    }
+
+    _boostInterferenceIntensity(mode, strength, durationSec) {
+        this._interferenceBoost = {
+            mode,
+            strength: Math.max(0, Math.min(1, strength)),
+            expiresAt: performance.now() * 0.001 + durationSec
+        };
+    }
+
     _resolveCameraPosition() {
         const globalCamera = globalThis?.__ATOMA_CAMERA__;
         if (globalCamera?.position) {

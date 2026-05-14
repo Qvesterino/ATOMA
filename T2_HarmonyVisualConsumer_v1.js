@@ -525,6 +525,12 @@ export class T2_HarmonyVisualConsumer_v1 {
     return globalThis?.semanticBus || globalThis?.ATOMA_BUS || null;
   }
 
+  setEventBus(bus) {
+    if (!bus) return;
+    this.semanticBus = bus;
+    this._setupSemanticSubscriptions();
+  }
+
   _setupSemanticSubscriptions() {
     this._teardownSemanticSubscriptions();
     if (!this.config.enableNodeHarmonySemanticResponse || !this.semanticBus) {

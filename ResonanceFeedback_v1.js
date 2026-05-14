@@ -1,4 +1,4 @@
-﻿import * as THREE from 'three';
+import * as THREE from 'three';
 import { getNodeCanonicalMetrics, getLinkSynergyVisualMetrics, getLinkCorruption } from './SemanticMetricAdapter.js';
 
 /**
@@ -511,8 +511,8 @@ export class ResonanceFeedback_v1 {
     constructor(config = {}) {
         this.config = {
             debugEnabled: config.debugEnabled ?? false,
-            maxNodesPerFrame: config.maxNodesPerFrame ?? null,  // No limit by default
-            maxLinksPerFrame: config.maxLinksPerFrame ?? null,
+            maxNodesPerFrame: config.maxNodesPerFrame ?? 120,  // Cap at 120 nodes per frame
+            maxLinksPerFrame: config.maxLinksPerFrame ?? 200,
             enableHarmonyFieldLines: config.enableHarmonyFieldLines ?? true,
             fieldLinesConfig: config.fieldLinesConfig ?? {}
         };

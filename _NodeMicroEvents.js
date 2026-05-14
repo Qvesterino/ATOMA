@@ -1,4 +1,4 @@
-﻿import { isVisualLocked } from './Engine/authority/VisualAuthorityFlag.js';
+import { isVisualLocked } from './Engine/authority/VisualAuthorityFlag.js';
 import {
   classifyMetricTier,
   getDefaultMetricThresholds,
@@ -225,9 +225,18 @@ export class NodeMicroEvents {
     }
     
     // Process node timers and trigger events
+
+    const camPos = this.camera?.position;
+    const maxEventDist2 = 60 * 60;
+
     nodes.forEach(node => {
       if (!node.userData.microEventTimer) return;
-      
+      if (camPos) {
+        const dx = node.position.x - camPos.x;
+        const dy = node.position.y - camPos.y;
+        const dz = node.position.z - camPos.z;
+        if (dx*dx + dy*dy + dz*dz > maxEventDist2) return;
+      }
       // Decrement timer
       node.userData.microEventTimer -= actualDelta;
       
@@ -243,8 +252,24 @@ export class NodeMicroEvents {
     this.updateActiveVisuals(actualDelta);
   }
   
-  /**
-   * Update interaction cache for node-to-node events
+  updateInteractionCache(nodes) {
+    this.interactionCache.clear();
+    this._buildSpatialGrid(nodes);
+
+    for (const nodeA of nodes) {
+      const candidates = this._getSpatialNearby(nodeA);
+      const nearby = [];
+      for (const nodeB of candidates) {
+        if (nodeA.uuid === nodeB.uuid) continue;
+        if (nodeA.position.distanceTo(nodeB.position) < 2.0) {
+          nearby.push(nodeB);
+        }
+      }
+      if (nearby.length > 0) {
+        this.interactionCache.set(nodeA.uuid, nearby);
+      }
+    }
+  }
    */
   updateInteractionCache(nodes) {
     this.interactionCache.clear();
@@ -1615,12 +1640,23 @@ export class NodeMicroEvents {
       }
     }
     
-    // Helper to safely dispose a mesh
     const disposeMesh = (mesh) => {
       if (!mesh) return;
       this.scene.remove(mesh);
-      if (mesh.geometry) mesh.geometry.dispose();
-      if (mesh.material) mesh.material.dispose();
+      if (mesh.geometry) {
+        if (mesh.geometry.userData && mesh.geometry.userData.key) {
+          this._releaseGeometry(mesh.geometry);
+        } else {
+          mesh.geometry.dispose();
+        }
+      }
+      if (mesh.material) {
+        if (mesh.material.userData && mesh.material.userData._pooled) {
+          mesh.material.userData.inUse = false;
+        } else {
+          mesh.material.dispose();
+        }
+      }
     };
     
     // Remove scene objects — standard
@@ -1663,14 +1699,21 @@ export class NodeMicroEvents {
         if (value.geometry || value.material) {
           this.scene.remove(value);
           if (value.geometry && !value.geometry.isDisposed) {
-            value.geometry.dispose();
-            value.geometry.isDisposed = true;
-          }
+          if (value.geometry && !value.geometry.isDisposed) {
+            if (value.geometry.userData && value.geometry.userData.key) {
+              this._releaseGeometry(value.geometry);
+            } else {
+              value.geometry.dispose();
+              value.geometry.isDisposed = true;
+            }
           if (value.material && !value.material.isDisposed) {
-            value.material.dispose();
-            value.material.isDisposed = true;
+            if (value.material.userData && value.material.userData._pooled) {
+              value.material.userData.inUse = false;
+            } else {
+              value.material.dispose();
+              value.material.isDisposed = true;
+            }
           }
-        }
       }
     });
   }
@@ -1747,6 +1790,36 @@ export class NodeMicroEvents {
     if (geometry && geometry.userData) {
       geometry.userData.inUse = false;
     }
+  }
+
+  _buildSpatialGrid(nodes) {
+    this.spatialGrid.clear();
+    const cellSize = this.gridCellSize;
+    for (const node of nodes) {
+      const cx = Math.floor(node.position.x / cellSize);
+      const cz = Math.floor(node.position.z / cellSize);
+      const key = (cx << 16) ^ (cz & 0xFFFF);
+      let cell = this.spatialGrid.get(key);
+      if (!cell) { cell = []; this.spatialGrid.set(key, cell); }
+      cell.push(node);
+    }
+  }
+
+  _getSpatialNearby(node) {
+    const cellSize = this.gridCellSize;
+    const cx = Math.floor(node.position.x / cellSize);
+    const cz = Math.floor(node.position.z / cellSize);
+    const result = [];
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        const key = ((cx + dx) << 16) ^ ((cz + dz) & 0xFFFF);
+        const cell = this.spatialGrid.get(key);
+        if (cell) {
+          for (let i = 0; i < cell.length; i++) result.push(cell[i]);
+        }
+      }
+    }
+    return result;
   }
 
   /**

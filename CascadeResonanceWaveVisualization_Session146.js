@@ -1236,6 +1236,13 @@ export class CascadeResonanceWaveVisualization_Session146 {
     return this;
   }
 
+  setEventBus(bus) {
+    if (!bus) return;
+    this.semanticBus = bus;
+    this._clearCascadeSubscriptions();
+    this._subscribeCascadeEvents();
+  }
+
   _resolveNodeId(node) {
     if (!node) return null;
 
@@ -3148,6 +3155,16 @@ export class CascadeResonanceWaveVisualization_Session146 {
       this._interferenceParticlePool = [];
       this._activeInterferenceParticles = [];
       this._freeInterferenceParticleIndices = [];
+    }
+
+    // Phase 5: Cleanup wave lights
+    if (this._waveLightPool) {
+      for (const wl of this._waveLightPool) {
+        if (wl.light?.parent) wl.light.parent.remove(wl.light);
+      }
+      this._waveLightPool = [];
+      this._activeWaveLights = [];
+      this._freeWaveLightIndices = [];
     }
   }
 }
