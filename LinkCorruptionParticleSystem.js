@@ -10,6 +10,7 @@
 import * as THREE from 'three';
 import { applyLinkRenderLayer } from './LinkRenderLayerPolicy.js';
 import { LinkPointFXBase } from './LinkPointFXBase.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 const POOL_SIZE = 480;
 const PER_LINK_CAP = 20;
@@ -223,13 +224,10 @@ export class LinkCorruptionParticleSystem {
     this._eventBus = bus;
 
     const register = (tag, handler) => {
-      if (typeof bus.subscribe === 'function') {
-        const unsub = bus.subscribe(tag, handler, { priority: bus.priority?.NORMAL });
-        this._eventDisposers.push(() => unsub?.());
-      } else if (typeof bus.on === 'function') {
-        bus.on(tag, handler, { priority: bus.priority?.NORMAL });
-        this._eventDisposers.push(() => bus.off?.(tag, handler));
-      }
+      const disposer = eventRegistrationRegistry.register(
+        'LinkCorruptionParticleSystem', tag, handler, bus
+      );
+      this._eventDisposers.push(disposer);
     };
 
     // Canonical tiered corruption events → burst particle spawn
@@ -276,15 +274,15 @@ export class LinkCorruptionParticleSystem {
   _bindSemanticBus() {
     const bus = this._getSemanticBus();
     if (!bus) return;
-    const on = bus.on?.bind(bus) || bus.subscribe?.bind(bus);
-    if (!on) return;
 
     const handleSpread = (data = {}) => {
       this.triggerCorruptionTransmission(data.source, data.target);
     };
 
-    on('link.corruption.spread', handleSpread, { priority: bus.priority?.NORMAL });
-    this._semanticSubscriptions.push(['link.corruption.spread', handleSpread]);
+    const disposer = eventRegistrationRegistry.register(
+      'LinkCorruptionParticleSystem', 'link.corruption.spread', handleSpread, bus
+    );
+    this._semanticSubscriptions.push(['link.corruption.spread', handleSpread, disposer]);
   }
 
   updateLinkParticles(link, deltaTime, input = null) {
@@ -369,20 +367,10 @@ export class LinkCorruptionParticleSystem {
   }
 
   dispose() {
-    // Dispose canonical event subscriptions
-    for (const dispose of this._eventDisposers) {
-      try { dispose(); } catch (_e) {}
-    }
+    eventRegistrationRegistry.disposeOwner('LinkCorruptionParticleSystem');
     this._eventDisposers = [];
     this._eventBus = null;
 
-    const bus = this._getSemanticBus();
-    const off = bus?.off?.bind(bus) || bus?.unsubscribe?.bind(bus);
-    if (off) {
-      for (const [eventName, handler] of this._semanticSubscriptions) {
-        off(eventName, handler);
-      }
-    }
     this._semanticSubscriptions = [];
 
     this.pointFXBase?.disposePointCloud?.(this.points);

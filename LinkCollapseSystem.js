@@ -43,6 +43,8 @@
  * collapseSystem.on('collapse', (link) => { // handle disconnection });
  */
 
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
+
 export class LinkCollapseSystem {
   constructor(linkingSystem, linkQualityCalculator, linkDegradationSystem, config = {}) {
     this.linkingSystem = linkingSystem;
@@ -124,18 +126,13 @@ export class LinkCollapseSystem {
     this.semanticBus = bus;
 
     const register = (tag, handler) => {
-      if (typeof bus.subscribe === 'function') {
-        const unsub = bus.subscribe(tag, handler, { priority: bus.priority?.NORMAL });
-        this._eventDisposers.push(() => unsub?.());
-      } else if (typeof bus.on === 'function') {
-        bus.on(tag, handler, { priority: bus.priority?.NORMAL });
-        this._eventDisposers.push(() => bus.off?.(tag, handler));
-      }
+      const disposer = eventRegistrationRegistry.register(
+        'LinkCollapseSystem', tag, handler, bus
+      );
+      this._eventDisposers.push(disposer);
     };
 
     // Canonical tiered events → immediate collapse evaluation
-    // Note: LinkCollapseSystem is already event-driven via onLinkMetricsUpdated,
-    // but canonical events allow external systems to force re-evaluation.
     register('link.corruption.high', (payload) => {
       const link = payload?.link;
       if (link) this.onLinkMetricsUpdated(link, payload, { forceEvaluate: true });
@@ -1044,9 +1041,7 @@ export class LinkCollapseSystem {
    * Destroy system (cleanup)
    */
   destroy() {
-    for (const dispose of this._eventDisposers) {
-      try { dispose(); } catch (_e) {}
-    }
+    eventRegistrationRegistry.disposeOwner('LinkCollapseSystem');
     this._eventDisposers = [];
     this._eventBus = null;
     this.semanticBus = null;

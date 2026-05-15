@@ -50,6 +50,7 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from '../VisualHierarchyRegistry.js';
 import { getLinkSynergyVisualMetrics } from '../SemanticMetricAdapter.js';
+import { eventRegistrationRegistry } from '../Engine/EventRegistrationRegistry.js';
 
 // ============================================================================
 // CONFIGURATION
@@ -769,6 +770,10 @@ export class HarmonicResonanceFeedbackSystem {
         this.timeBudgetMs = 3.5;         // soft per-frame budget to avoid stalls
         this._influenceCursor = 0;       // round-robin field processing pointer
 
+        // Event bus
+        this._eventBus = null;
+        this._eventDisposers = [];
+
         // Reusable scratch objects to avoid per-frame allocations
         this._linkPosScratch = new THREE.Vector3();
         this._linkPosScratch2 = new THREE.Vector3();
@@ -786,6 +791,34 @@ export class HarmonicResonanceFeedbackSystem {
         }
 
         console.log('[HarmonicResonanceFeedbackSystem] Initialized');
+    }
+
+    setEventBus(bus) {
+        if (!bus || this._eventBus) return;
+        this._eventBus = bus;
+
+        const register = (tag, handler) => {
+            const disposer = eventRegistrationRegistry.register(
+                'HarmonicResonanceFeedbackSystem', tag, handler, bus
+            );
+            this._eventDisposers.push(disposer);
+        };
+
+        register('link.harmony.high', (payload) => {
+            this._eventHarmonyBoost = 1.5;
+        });
+        register('link.harmony.mid', (payload) => {
+            this._eventHarmonyBoost = 1.15;
+        });
+        register('link.harmony.low', (payload) => {
+            this._eventHarmonyBoost = 1.0;
+        });
+    }
+
+    dispose() {
+        eventRegistrationRegistry.disposeOwner('HarmonicResonanceFeedbackSystem');
+        this._eventDisposers = [];
+        this._eventBus = null;
     }
     
     // ========================================================================

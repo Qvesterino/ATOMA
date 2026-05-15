@@ -30,6 +30,7 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { getLinkSynergyVisualMetrics } from './SemanticMetricAdapter.js';
 import { applyLinkRenderLayer } from './LinkRenderLayerPolicy.js';
 import { LinkPointFXBase } from './LinkPointFXBase.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 /**
  * Shared noise function (identical to LinkAuraShader)
@@ -1183,13 +1184,10 @@ export class LinkStrandTipSparkVisual {
     this._eventBus = bus;
 
     const register = (tag, handler) => {
-      if (typeof bus.subscribe === 'function') {
-        const unsub = bus.subscribe(tag, handler, { priority: bus.priority?.NORMAL });
-        this._eventDisposers.push(() => unsub?.());
-      } else if (typeof bus.on === 'function') {
-        bus.on(tag, handler, { priority: bus.priority?.NORMAL });
-        this._eventDisposers.push(() => bus.off?.(tag, handler));
-      }
+      const disposer = eventRegistrationRegistry.register(
+        'LinkTrailParticleSystem', tag, handler, bus
+      );
+      this._eventDisposers.push(disposer);
     };
 
     // Canonical tiered events → burst spark emission on link
@@ -1205,6 +1203,12 @@ export class LinkStrandTipSparkVisual {
       this._emitBurst(link, 'harmony', 4);
     });
 
+    register('link.harmony.low', (payload) => {
+      const link = payload?.link;
+      if (!link) return;
+      this._emitBurst(link, 'harmony', 2);
+    });
+
     register('link.corruption.high', (payload) => {
       const link = payload?.link;
       if (!link) return;
@@ -1215,6 +1219,12 @@ export class LinkStrandTipSparkVisual {
       const link = payload?.link;
       if (!link) return;
       this._emitBurst(link, 'corruption', 3);
+    });
+
+    register('link.corruption.low', (payload) => {
+      const link = payload?.link;
+      if (!link) return;
+      this._emitBurst(link, 'corruption', 1);
     });
   }
 
@@ -1236,9 +1246,7 @@ export class LinkStrandTipSparkVisual {
   }
 
   dispose() {
-    for (const dispose of this._eventDisposers) {
-      try { dispose(); } catch (_e) {}
-    }
+    eventRegistrationRegistry.disposeOwner('LinkTrailParticleSystem');
     this._eventDisposers = [];
     this._eventBus = null;
 

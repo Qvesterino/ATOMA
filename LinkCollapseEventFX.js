@@ -32,6 +32,8 @@
  *   - Event-driven: listens to LinkCollapseSystem events, no per-frame polling
  */
 
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
+
 export class LinkCollapseEventFX {
     constructor(linkCollapseSystem, audioSystem, config = {}) {
         this.collapseSystem = linkCollapseSystem;
@@ -82,6 +84,27 @@ export class LinkCollapseEventFX {
 
         // ── Semantic bus integration ────────────────────────────────────
         this.semanticBus = config.semanticBus ?? null;
+        this._eventBus = null;
+        this._eventDisposers = [];
+    }
+
+    setEventBus(bus) {
+        if (!bus || this._eventBus) return;
+        this._eventBus = bus;
+        this.semanticBus = bus;
+
+        const register = (tag, handler) => {
+            const disposer = eventRegistrationRegistry.register(
+                'LinkCollapseEventFX', tag, handler, bus
+            );
+            this._eventDisposers.push(disposer);
+        };
+
+        // Canonical tiered events → early visual warning
+        register('link.corruption.high', (payload) => {
+            const link = payload?.link;
+            if (link) this._onWarning(link, { stressAccumulation: 0.4, collapseStage: 'warning' });
+        });
     }
 
     /**
@@ -438,6 +461,9 @@ export class LinkCollapseEventFX {
      */
     dispose() {
         this.detach();
+        eventRegistrationRegistry.disposeOwner('LinkCollapseEventFX');
+        this._eventDisposers = [];
+        this._eventBus = null;
         this._shockwaveRings = [];
         this.enabled = false;
     }

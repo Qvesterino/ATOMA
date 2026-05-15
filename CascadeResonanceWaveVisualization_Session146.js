@@ -1082,13 +1082,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
   }
 
   _clearCascadeSubscriptions() {
-    for (const unsub of this._semanticUnsubscribers) {
-      try {
-        unsub?.();
-      } catch (_) {
-        // noop
-      }
-    }
+    eventRegistrationRegistry.disposeOwner(this._registryOwner);
     this._semanticUnsubscribers.length = 0;
     this._semanticBusRef = null;
     this._semanticSubscribed = false;

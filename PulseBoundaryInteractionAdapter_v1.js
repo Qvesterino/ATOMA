@@ -20,6 +20,8 @@
  * - Hub status controls split behavior
  */
 
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
+
 /**
  * Transient boundary effect tracker
  * Cached pool, no per-frame allocations
@@ -149,8 +151,38 @@ export class PulseBoundaryInteractionAdapter_v1 {
     
     // Console API
     this.setupConsoleAPI();
-    
+
+    // Event bus
+    this._eventBus = null;
+    this._eventDisposers = [];
+
     console.log('[PulseBoundaryInteractionAdapter] Initialized ✓');
+  }
+
+  setEventBus(bus) {
+    if (!bus || this._eventBus) return;
+    this._eventBus = bus;
+
+    const register = (tag, handler) => {
+      const disposer = eventRegistrationRegistry.register(
+        'PulseBoundaryInteractionAdapter', tag, handler, bus
+      );
+      this._eventDisposers.push(disposer);
+    };
+
+    // Canonical tiered events → influence boundary behavior
+    register('node.harmony.high', () => {
+      this._eventHarmonyBoost = 2.0;
+    });
+    register('node.harmony.mid', () => {
+      this._eventHarmonyBoost = 1.3;
+    });
+    register('node.harmony.low', () => {
+      this._eventHarmonyBoost = 1.0;
+    });
+    register('node.stability.low', () => {
+      this._eventInstabilityBoost = 1.5;
+    });
   }
 
   /**
@@ -628,6 +660,13 @@ Pulse Boundary Interaction Console API:
         `);
       }
     };
+  }
+
+  dispose() {
+    eventRegistrationRegistry.disposeOwner('PulseBoundaryInteractionAdapter');
+    this._eventDisposers = [];
+    this._eventBus = null;
+    this.effectPool?.clear?.();
   }
 }
 

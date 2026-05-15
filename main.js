@@ -9310,6 +9310,7 @@ window.__ATOMA_SCENE__ = this.scene;
 
         this.corruptionBridge = new PHASE5_CorruptionBridge(this.multiNetworkManager);
         this.corruptionBridge.frameScheduler = this.frameScheduler;
+        this.corruptionBridge.setEventBus?.(this.semanticBus);
 
         // Corruption feedback visuals are owned by tier4GameplayIntegration.visuals.
         this.corruptionFeedback = null;
@@ -10474,6 +10475,7 @@ window.__ATOMA_SCENE__ = this.scene;
                 this.corruptionBridge = phase5CorruptionBridge;
                 this.multiNetworkManager.frameScheduler = this.frameScheduler;
                 this.corruptionBridge.frameScheduler = this.frameScheduler;
+                this.corruptionBridge.setEventBus?.(this.semanticBus);
                 if (this._multiNetworkThresholdListener) {
                     this.multiNetworkManager.on?.(this._multiNetworkThresholdListener);
                 }

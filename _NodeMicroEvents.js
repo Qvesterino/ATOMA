@@ -254,25 +254,6 @@ export class NodeMicroEvents {
   
   updateInteractionCache(nodes) {
     this.interactionCache.clear();
-    this._buildSpatialGrid(nodes);
-
-    for (const nodeA of nodes) {
-      const candidates = this._getSpatialNearby(nodeA);
-      const nearby = [];
-      for (const nodeB of candidates) {
-        if (nodeA.uuid === nodeB.uuid) continue;
-        if (nodeA.position.distanceTo(nodeB.position) < 2.0) {
-          nearby.push(nodeB);
-        }
-      }
-      if (nearby.length > 0) {
-        this.interactionCache.set(nodeA.uuid, nearby);
-      }
-    }
-  }
-   */
-  updateInteractionCache(nodes) {
-    this.interactionCache.clear();
     
     // Find nearby nodes for each node
     nodes.forEach(nodeA => {
@@ -1699,13 +1680,13 @@ export class NodeMicroEvents {
         if (value.geometry || value.material) {
           this.scene.remove(value);
           if (value.geometry && !value.geometry.isDisposed) {
-          if (value.geometry && !value.geometry.isDisposed) {
             if (value.geometry.userData && value.geometry.userData.key) {
               this._releaseGeometry(value.geometry);
             } else {
               value.geometry.dispose();
               value.geometry.isDisposed = true;
             }
+          }
           if (value.material && !value.material.isDisposed) {
             if (value.material.userData && value.material.userData._pooled) {
               value.material.userData.inUse = false;
@@ -1714,6 +1695,7 @@ export class NodeMicroEvents {
               value.material.isDisposed = true;
             }
           }
+        }
       }
     });
   }

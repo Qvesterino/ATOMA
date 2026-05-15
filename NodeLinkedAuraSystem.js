@@ -3,6 +3,7 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { NodeSegmentedOrbitRings } from './shaders/NodeSegmentedOrbitRings.js';
 import { createMultiBandFresnelRimAura } from './FresnelRimLightAuraShader.js';
 import { DEFAULT_LINKED_AURA_HARMONY_BANDS, resolveLinkedAuraHarmonyBand, resolveLinkedAuraHarmonyValue } from './LinkedAuraHarmonyBands.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 // PHASE S-5: Variant property freezing for shader variant immunity
 const VARIANT_CRITICAL_PROPS = [
@@ -192,13 +193,10 @@ export class NodeLinkedAuraSystem {
     this._eventBus = bus;
 
     const register = (tag, handler) => {
-      if (typeof bus.subscribe === 'function') {
-        const unsub = bus.subscribe(tag, handler, { priority: bus.priority?.NORMAL });
-        this._eventDisposers.push(() => unsub?.());
-      } else if (typeof bus.on === 'function') {
-        bus.on(tag, handler, { priority: bus.priority?.NORMAL });
-        this._eventDisposers.push(() => bus.off?.(tag, handler));
-      }
+      const disposer = eventRegistrationRegistry.register(
+        'NodeLinkedAuraSystem', tag, handler, bus
+      );
+      this._eventDisposers.push(disposer);
     };
 
     // Canonical tiered corruption events → corruption spike on aura
@@ -220,6 +218,15 @@ export class NodeLinkedAuraSystem {
       }
     });
 
+    register('node.corruption.low', (payload) => {
+      const node = payload?.node || this._resolveNodeFromPayload(payload);
+      if (!node) return;
+      const auraData = this.nodeAuras.get(node);
+      if (auraData) {
+        this.triggerCorruptionSpike(auraData, 0.2);
+      }
+    });
+
     // Canonical tiered harmony events → harmony boost on aura
     register('node.harmony.high', (payload) => {
       const node = payload?.node || this._resolveNodeFromPayload(payload);
@@ -236,6 +243,15 @@ export class NodeLinkedAuraSystem {
       const auraData = this.nodeAuras.get(node);
       if (auraData) {
         this.triggerHarmonyBoost(auraData, 0.5);
+      }
+    });
+
+    register('node.harmony.low', (payload) => {
+      const node = payload?.node || this._resolveNodeFromPayload(payload);
+      if (!node) return;
+      const auraData = this.nodeAuras.get(node);
+      if (auraData) {
+        this.triggerHarmonyBoost(auraData, 0.2);
       }
     });
   }
@@ -1142,9 +1158,7 @@ export class NodeLinkedAuraSystem {
     }
 
     // Clean up canonical event subscriptions
-    for (const dispose of this._eventDisposers) {
-      try { dispose(); } catch (_e) {}
-    }
+    eventRegistrationRegistry.disposeOwner('NodeLinkedAuraSystem');
     this._eventDisposers = [];
     this._eventBus = null;
 

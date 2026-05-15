@@ -774,6 +774,10 @@ export class WaveParticleEmitter_v1 {
       { metric: 'corruption', family: 'destructiveChaos' },
       { metric: 'loadPressure', family: 'destructiveChaos' },
     ];
+    const linkMetricFamilies = [
+      { metric: 'synergy', family: 'constructiveBurst' },
+      { metric: 'corruption', family: 'destructiveChaos' },
+    ];
     const tiers = ['low', 'mid', 'high'];
 
     for (const { metric, family } of nodeMetricFamilies) {
@@ -787,7 +791,8 @@ export class WaveParticleEmitter_v1 {
             tier,
             family,
             payload,
-            receivedAt: this.time
+            receivedAt: this.time,
+            scope: 'node'
           };
           this._lastDirectMetricTierEvent = entry;
           if (!this._consumeDirectMetricTierEvent(entry)) {
@@ -817,6 +822,46 @@ export class WaveParticleEmitter_v1 {
       }
     }
 
+    for (const { metric, family } of linkMetricFamilies) {
+      for (const tier of tiers) {
+        const eventName = `link.${metric}.${tier}`;
+        const handler = (payload = {}) => {
+          this._directMetricTierDispatchCount += 1;
+          const entry = {
+            eventName,
+            metric,
+            tier,
+            family,
+            payload,
+            receivedAt: this.time,
+            scope: 'link'
+          };
+          this._lastDirectMetricTierEvent = entry;
+          if (!this._consumeDirectLinkMetricTierEvent(entry)) {
+            this._pendingMetricTierEvents.push(entry);
+          }
+        };
+        const priorityOpts = { priority: bus.priority?.CRITICAL ?? bus.priority?.INTERACTIVE ?? bus.priority?.NORMAL };
+        const regDisposer = eventRegistrationRegistry.register(
+          'WaveParticleEmitter_v1',
+          eventName,
+          handler,
+          bus,
+          priorityOpts
+        );
+        this._directMetricTierDisposers.push(regDisposer);
+        this._directMetricTierDisposers.push(() => {
+          try {
+            bus.unsubscribe(eventName, handler);
+          } catch (err) {
+            if (this.config.debugMode) {
+              console.warn(`[WaveParticleEmitter_v1] Failed to unsubscribe ${eventName}:`, err);
+            }
+          }
+        });
+      }
+    }
+
     this._directMetricTierListenersBound = true;
   }
 
@@ -825,7 +870,10 @@ export class WaveParticleEmitter_v1 {
 
     const nextQueue = [];
     for (const entry of this._pendingMetricTierEvents) {
-      if (!this._consumeDirectMetricTierEvent(entry)) {
+      const consumed = entry.scope === 'link'
+        ? this._consumeDirectLinkMetricTierEvent(entry)
+        : this._consumeDirectMetricTierEvent(entry);
+      if (!consumed) {
         if ((this.time - Number(entry.receivedAt ?? 0)) < 0.75) {
           nextQueue.push(entry);
         }
@@ -835,6 +883,8 @@ export class WaveParticleEmitter_v1 {
   }
 
   _consumeDirectMetricTierEvent(entry) {
+    if (entry?.scope === 'link') return this._consumeDirectLinkMetricTierEvent(entry);
+
     const payload = entry?.payload ?? {};
     const nodeId = payload.nodeId ?? payload.id ?? null;
     if (!nodeId) return false;
@@ -870,6 +920,53 @@ export class WaveParticleEmitter_v1 {
 
     if (family === 'standingWaveRipple') {
       this._emitStandingWaveRipple(node, strength, 'node', runtimeOptions);
+      this._directMetricTierSpawnCount += 1;
+      return true;
+    }
+
+    return false;
+  }
+
+  _consumeDirectLinkMetricTierEvent(entry) {
+    const payload = entry?.payload ?? {};
+    const linkId = payload.linkId ?? payload.id ?? null;
+    if (!linkId) return false;
+
+    const link = this._linkLookupById.get(String(linkId).trim()) ?? null;
+    if (!link) return false;
+
+    const midpoint = this._resolveLinkMidpoint(link);
+    if (!midpoint) return false;
+
+    const { sourceNode, targetNode } = this._resolveLinkEndpoints(link);
+    const sourcePos = this._resolveLinkEndpointPosition(sourceNode, this._tmpLinkSourceWorldPos);
+    const targetPos = this._resolveLinkEndpointPosition(targetNode, this._tmpLinkTargetWorldPos);
+
+    const strength = this._tierStrengthForEmission(entry?.tier, payload.value);
+    const family = entry?.family ?? this._getFamilyForMetric(entry?.metric);
+    const runtimeOptions = {
+      source: 'semantic-tier-link',
+      emissionRateMul: strength >= 0.85 ? this.config.highAmplitudeEmissionMultiplier : 1.0
+    };
+
+    const linkEmitterTarget = {
+      id: `wave-link:${linkId}`,
+      position: midpoint,
+      mode: 'link',
+      direction: this._resolveLinkDirection(link),
+      sourcePosition: sourcePos?.clone?.() ?? null,
+      targetPosition: targetPos?.clone?.() ?? null,
+      source: 'semantic-tier'
+    };
+
+    if (family === 'constructiveBurst') {
+      this._emitConstructiveBurst(linkEmitterTarget, strength, 'link', runtimeOptions);
+      this._directMetricTierSpawnCount += 1;
+      return true;
+    }
+
+    if (family === 'destructiveChaos') {
+      this._emitDestructiveChaos(linkEmitterTarget, strength, 'link', runtimeOptions);
       this._directMetricTierSpawnCount += 1;
       return true;
     }

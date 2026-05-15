@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 /**
  * ============================================================================
@@ -91,8 +92,52 @@ export class RegionalHarmonyZones {
       fadeOutTime: 1.0,                     // Seconds to fade breathing out (smooth end)
       opacityBoost: 0.005                   // Optional very subtle opacity increase (+0.5%)
     };
-    
+
+    // Event bus
+    this._eventBus = null;
+    this._eventDisposers = [];
+
     console.log('✓ Regional Harmony Zones initialized (with zone breathing support)');
+  }
+
+  setEventBus(bus) {
+    if (!bus || this._eventBus) return;
+    this._eventBus = bus;
+
+    const register = (tag, handler) => {
+      const disposer = eventRegistrationRegistry.register(
+        'RegionalHarmonyZones', tag, handler, bus
+      );
+      this._eventDisposers.push(disposer);
+    };
+
+    // Canonical tiered events → influence recalculation
+    register('node.harmony.high', () => {
+      this.zoneUpdateDueToMotion = true;
+    });
+    register('node.harmony.mid', () => {
+      this.zoneUpdateDueToMotion = true;
+    });
+    register('node.synergy.high', () => {
+      this.zoneUpdateDueToMotion = true;
+    });
+    register('global.harmony.high', () => {
+      this.zoneUpdateDueToMotion = true;
+    });
+  }
+
+  dispose() {
+    eventRegistrationRegistry.disposeOwner('RegionalHarmonyZones');
+    this._eventDisposers = [];
+    this._eventBus = null;
+    this.zones = [];
+    this.nodePositionCache.clear();
+    this.zoneAudioInfluences.clear();
+    this.zoneBreathingState.clear();
+    for (const mat of this.zoneMaterials) mat?.dispose?.();
+    for (const geo of this.zoneGeometries) geo?.dispose?.();
+    this.zoneMaterials = [];
+    this.zoneGeometries = [];
   }
   
   /**

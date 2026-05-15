@@ -42,6 +42,7 @@
 
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 // DESIGN: Stress indicator shader — pulsing red-orange warning glow on approaching-rupture links
 const STRESS_INDICATOR_VERTEX_SHADER = `
@@ -2120,26 +2121,12 @@ export class ResonanceRuptureVisualSystem_Session133 {
     }
 
     _bindSemanticEvents(bus) {
-        const subscribe = bus?.subscribe?.bind(bus);
-        const on = bus?.on?.bind(bus);
-        const unsubscribe = bus?.unsubscribe?.bind(bus);
-        const off = bus?.off?.bind(bus);
-
         const bind = (tag) => {
             const handler = (payload = {}) => this._ingestSemanticPressure(tag, payload);
-            if (typeof on === 'function') {
-                on(tag, handler, { priority: bus?.priority?.NORMAL });
-                this.semanticUnsubscribers.push(() => off?.(tag, handler));
-                return;
-            }
-            if (typeof subscribe === 'function') {
-                const unsub = subscribe(tag, handler, { priority: bus?.priority?.NORMAL });
-                if (typeof unsub === 'function') {
-                    this.semanticUnsubscribers.push(unsub);
-                } else if (typeof unsubscribe === 'function') {
-                    this.semanticUnsubscribers.push(() => unsubscribe(tag, handler));
-                }
-            }
+            const disposer = eventRegistrationRegistry.register(
+                'ResonanceRuptureVisualSystem', tag, handler, bus
+            );
+            this.semanticUnsubscribers.push(disposer);
         };
 
         bind('link:collapsed');
@@ -2152,13 +2139,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
     }
 
     _unbindSemanticEvents() {
-        for (const unsub of this.semanticUnsubscribers) {
-            try {
-                if (typeof unsub === 'function') unsub();
-            } catch (_err) {
-                // no-op
-            }
-        }
+        eventRegistrationRegistry.disposeOwner('ResonanceRuptureVisualSystem');
         this.semanticUnsubscribers = [];
         this.boundSemanticBus = null;
     }

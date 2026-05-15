@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 /**
  * LinkCascadePulseManager
@@ -460,13 +461,10 @@ export class LinkCascadePulseManager {
         this._eventBus = bus;
 
         const register = (tag, handler) => {
-            if (typeof bus.subscribe === 'function') {
-                const unsub = bus.subscribe(tag, handler, { priority: bus.priority?.NORMAL });
-                this._eventDisposers.push(() => unsub?.());
-            } else if (typeof bus.on === 'function') {
-                bus.on(tag, handler, { priority: bus.priority?.NORMAL });
-                this._eventDisposers.push(() => bus.off?.(tag, handler));
-            }
+            const disposer = eventRegistrationRegistry.register(
+                'LinkCascadePulseManager', tag, handler, bus
+            );
+            this._eventDisposers.push(disposer);
         };
 
         // Canonical tiered events → cascade pulse emission
@@ -476,10 +474,28 @@ export class LinkCascadePulseManager {
             this.emitCascadePulse(node, { isActive: true, hubStrength: 0.9 }, null, performance.now() * 0.001);
         });
 
+        register('node.harmony.mid', (payload) => {
+            const node = payload?.node;
+            if (!node) return;
+            this.emitCascadePulse(node, { isActive: true, hubStrength: 0.6 }, null, performance.now() * 0.001);
+        });
+
+        register('node.harmony.low', (payload) => {
+            const node = payload?.node;
+            if (!node) return;
+            this.emitCascadePulse(node, { isActive: true, hubStrength: 0.3 }, null, performance.now() * 0.001);
+        });
+
         register('node.synergy.high', (payload) => {
             const node = payload?.node;
             if (!node) return;
             this.emitCascadePulse(node, { isActive: true, hubStrength: 0.8 }, null, performance.now() * 0.001);
+        });
+
+        register('node.synergy.mid', (payload) => {
+            const node = payload?.node;
+            if (!node) return;
+            this.emitCascadePulse(node, { isActive: true, hubStrength: 0.5 }, null, performance.now() * 0.001);
         });
 
         register('node.corruption.high', (payload) => {
@@ -503,9 +519,7 @@ export class LinkCascadePulseManager {
      * Dispose and cleanup
      */
     dispose() {
-        for (const dispose of this._eventDisposers) {
-            try { dispose(); } catch (_e) {}
-        }
+        eventRegistrationRegistry.disposeOwner('LinkCascadePulseManager');
         this._eventDisposers = [];
         this._eventBus = null;
         this.clear();

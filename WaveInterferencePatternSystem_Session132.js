@@ -38,6 +38,7 @@
 
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 // ============================================================================
 // SUPERNATURAL UPGRADE: Prismatic Holographic Interference Shaders
@@ -1287,6 +1288,10 @@ export class WaveInterferencePatternSystem_Session132 {
      * Dispose - cleanup
      */
     dispose() {
+        eventRegistrationRegistry.disposeOwner('WaveInterferencePatternSystem');
+        this._eventDisposers = [];
+        this._eventBus = null;
+
         // UNIFIED CLEANUP CONTRACT - Remove and dispose all tracked objects
         this._createdObjects.forEach(obj => {
             if (this.scene) this.scene.remove(obj);
@@ -1683,13 +1688,10 @@ export class WaveInterferencePatternSystem_Session132 {
         this._eventBus = bus;
 
         const register = (tag, handler) => {
-            if (typeof bus.subscribe === 'function') {
-                const unsub = bus.subscribe(tag, handler, { priority: bus.priority?.NORMAL });
-                this._eventDisposers.push(() => unsub?.());
-            } else if (typeof bus.on === 'function') {
-                bus.on(tag, handler, { priority: bus.priority?.NORMAL });
-                this._eventDisposers.push(() => bus.off?.(tag, handler));
-            }
+            const disposer = eventRegistrationRegistry.register(
+                'WaveInterferencePatternSystem', tag, handler, bus
+            );
+            this._eventDisposers.push(disposer);
         };
 
         // Canonical tiered events → boost interference intensity

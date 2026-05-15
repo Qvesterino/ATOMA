@@ -13,6 +13,7 @@
  */
 
 import { setNodeCorruption } from './src/utils/nodeCorruptionAccessor.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 export class PHASE5_CorruptionBridge {
   constructor(multiNetworkManager, config = {}) {
@@ -51,6 +52,33 @@ export class PHASE5_CorruptionBridge {
       totalFramesProcessed: 0,
       lastUpdateDuration: 0
     };
+
+    // Event bus infrastructure
+    this._eventBus = null;
+    this._eventDisposers = [];
+  }
+
+  setEventBus(bus) {
+    if (!bus || this._eventBus) return;
+    this._eventBus = bus;
+
+    const register = (tag, handler) => {
+      const disposer = eventRegistrationRegistry.register(
+        'PHASE5_CorruptionBridge', tag, handler, bus
+      );
+      this._eventDisposers.push(disposer);
+    };
+
+    // Global corruption tier events → accelerate inter-network corruption propagation
+    register('global.corruption.high', () => {
+      this.config._globalCorruptionBoost = 2.5;
+    });
+    register('global.corruption.mid', () => {
+      this.config._globalCorruptionBoost = 1.5;
+    });
+    register('global.corruption.low', () => {
+      this.config._globalCorruptionBoost = 1.0;
+    });
   }
   
   /**
@@ -148,8 +176,10 @@ export class PHASE5_CorruptionBridge {
       return 0;
     }
     
-    // Base transfer rate
-    const baseTransfer = this.config.corruptionTransferRate * deltaTime * connectionStrength;
+    const globalBoost = this.config._globalCorruptionBoost ?? 1.0;
+    
+    // Base transfer rate (boosted by global corruption tier)
+    const baseTransfer = this.config.corruptionTransferRate * deltaTime * connectionStrength * globalBoost;
     
     // Corruption drives transfer (higher source corruption = more transfer)
     const corruptionDriven = baseTransfer * sourceCorruption;
@@ -394,6 +424,10 @@ export class PHASE5_CorruptionBridge {
    * Dispose resources
    */
   dispose() {
+    eventRegistrationRegistry.disposeOwner('PHASE5_CorruptionBridge');
+    this._eventDisposers = [];
+    this._eventBus = null;
+
     this.transferHistory = [];
     this.activeTransfers.clear();
   }

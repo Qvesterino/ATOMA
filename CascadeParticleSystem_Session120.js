@@ -715,6 +715,80 @@ export class CascadeParticleSystem_Session120 {
     };
 
     bind('cascade.hop', onCascadeHop);
+
+    // Canonical tiered events → cascade particle response
+    const onLinkSynergyTier = (payload = {}) => {
+      const link = payload?.link || (payload?.linkId ? this._resolveLinkById(payload.linkId) : null);
+      if (!link) return;
+      const key = this._getLinkSemanticKey(link);
+      if (!key) return;
+      const tier = payload?.tier || 'mid';
+      const tierBoost = { low: 0.3, mid: 0.6, high: 1.0 }[tier] || 0.5;
+      const state = this._getOrCreateSemanticState(link);
+      if (!state) return;
+      const boost = state.cascadeIntensity * 0.5 + tierBoost * 0.5;
+      link.userData.cascadeParticleEmissionBoost = Math.max(
+        link.userData.cascadeParticleEmissionBoost ?? 1,
+        1 + boost * (this.config.maxEmissionMultiplier - 1)
+      );
+      requestRefresh();
+    };
+
+    const onNodeCorruptionTier = (payload = {}) => {
+      const nodeId = payload?.nodeId || payload?.id;
+      const node = nodeId ? this._resolveNodeById(nodeId) : null;
+      if (!node) return;
+      const tier = payload?.tier || 'mid';
+      const intensity = { low: 0.35, mid: 0.65, high: 0.95 }[tier] || 0.5;
+      const allLinks = this._resolvedLinksScratch || [];
+      if (!allLinks.length) return;
+      for (const lnk of allLinks) {
+        if (!lnk) continue;
+        const src = lnk.source ?? lnk.sourceNode ?? lnk.from;
+        const tgt = lnk.target ?? lnk.targetNode ?? lnk.to;
+        if (src === node || tgt === node) {
+          lnk.userData.cascadeIntensity = Math.max(
+            lnk.userData.cascadeIntensity ?? 0,
+            intensity
+          );
+          lnk.userData.cascadeConflictType = lnk.userData.cascadeConflictType || 'corruption';
+          requestRefresh();
+        }
+      }
+    };
+
+    bind('link.synergy.high', onLinkSynergyTier);
+    bind('link.synergy.mid', onLinkSynergyTier);
+    bind('link.synergy.low', onLinkSynergyTier);
+    bind('node.corruption.high', onNodeCorruptionTier);
+    bind('node.corruption.mid', onNodeCorruptionTier);
+    bind('node.corruption.low', onNodeCorruptionTier);
+  }
+
+  _resolveNodeById(nodeId) {
+    const key = String(nodeId ?? '').trim();
+    if (!key) return null;
+    for (const lnk of this._activeLinks) {
+      if (!lnk) continue;
+      const src = lnk.source ?? lnk.sourceNode ?? lnk.from;
+      const tgt = lnk.target ?? lnk.targetNode ?? lnk.to;
+      const sid = src?.userData?.nodeId ?? src?.userData?.id ?? src?.uuid ?? '';
+      const tid = tgt?.userData?.nodeId ?? tgt?.userData?.id ?? tgt?.uuid ?? '';
+      if (String(sid) === key) return src;
+      if (String(tid) === key) return tgt;
+    }
+    return null;
+  }
+
+  _resolveLinkById(linkId) {
+    const key = String(linkId ?? '').trim();
+    if (!key) return null;
+    for (const lnk of this._activeLinks) {
+      if (!lnk) continue;
+      const lid = lnk.uuid ?? lnk.id ?? lnk.name ?? '';
+      if (String(lid) === key) return lnk;
+    }
+    return null;
   }
 
   _isAuthoritativeCascadeEvent(event = {}) {

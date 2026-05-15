@@ -140,6 +140,7 @@ export class T2_HarmonyVisualConsumer_v1 {
     this._semanticSubscriptions = [];
     this._boundNodeHarmonyHigh = this._handleNodeHarmonyEvent.bind(this, 'high');
     this._boundNodeHarmonyMid = this._handleNodeHarmonyEvent.bind(this, 'mid');
+    this._boundNodeHarmonyLow = this._handleNodeHarmonyEvent.bind(this, 'low');
     this._setupSemanticSubscriptions();
   }
 
@@ -555,35 +556,17 @@ export class T2_HarmonyVisualConsumer_v1 {
     };
     reg('node.harmony.high', this._boundNodeHarmonyHigh);
     reg('node.harmony.mid', this._boundNodeHarmonyMid);
+    reg('node.harmony.low', this._boundNodeHarmonyLow);
     this._semanticSubscriptions.push(
       { type: 'node.harmony.high', handler: this._boundNodeHarmonyHigh },
-      { type: 'node.harmony.mid', handler: this._boundNodeHarmonyMid }
+      { type: 'node.harmony.mid', handler: this._boundNodeHarmonyMid },
+      { type: 'node.harmony.low', handler: this._boundNodeHarmonyLow }
     );
   }
 
   _teardownSemanticSubscriptions() {
-    // Registry disposers (preferred)
-    if (Array.isArray(this._regDisposers)) {
-      for (const disposer of this._regDisposers) {
-        try { disposer(); } catch (_) {}
-      }
-      this._regDisposers.length = 0;
-    }
-
-    // Fallback: native unsubscribe
-    if (this.semanticBus && this._semanticSubscriptions.length > 0) {
-      const unsubscribe = typeof this.semanticBus.off === 'function'
-        ? this.semanticBus.off.bind(this.semanticBus)
-        : typeof this.semanticBus.unsubscribe === 'function'
-          ? this.semanticBus.unsubscribe.bind(this.semanticBus)
-          : null;
-
-      if (unsubscribe) {
-        for (const subscription of this._semanticSubscriptions) {
-          try { unsubscribe(subscription.type, subscription.handler); } catch (_) {}
-        }
-      }
-    }
+    eventRegistrationRegistry.disposeOwner('T2_HarmonyVisualConsumer');
+    this._regDisposers = [];
 
     this._semanticSubscriptions = [];
   }
