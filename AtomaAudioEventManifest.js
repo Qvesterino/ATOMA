@@ -5,6 +5,8 @@
  * Keeps audio routing declarative and centralized.
  */
 
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
+
 export const AUDIO_EVENT_MANIFEST = {
     version: '2026-04-24',
     events: {
@@ -14,6 +16,54 @@ export const AUDIO_EVENT_MANIFEST = {
             cooldownMs: 1200,
             priority: 'NORMAL',
             action: 'playSynergyActive'
+        },
+        'link.created': {
+            cooldownMs: 140,
+            priority: 'INTERACTIVE',
+            action: 'playLinkCreated',
+            passPayload: true
+        },
+        'link:synergyThreshold': {
+            cooldownMs: 260,
+            priority: 'INTERACTIVE',
+            action: 'playLinkSynergyThreshold',
+            passPayload: true
+        },
+        'link:harmonicLock': {
+            cooldownMs: 340,
+            priority: 'INTERACTIVE',
+            action: 'playLinkHarmonicLock',
+            passPayload: true
+        },
+        'node.harmony.mid': {
+            cooldownMs: 420,
+            priority: 'NORMAL',
+            action: 'playNodeHarmonyMid',
+            passPayload: true
+        },
+        'node.harmony.high': {
+            cooldownMs: 720,
+            priority: 'NORMAL',
+            action: 'playNodeHarmonyHigh',
+            passPayload: true
+        },
+        'global.harmony.mid': {
+            cooldownMs: 1200,
+            priority: 'NORMAL',
+            action: 'playGlobalHarmonyMid',
+            passPayload: true
+        },
+        'global.harmony.high': {
+            cooldownMs: 1800,
+            priority: 'NORMAL',
+            action: 'playGlobalHarmonyHigh',
+            passPayload: true
+        },
+        'link.corruption.high': {
+            cooldownMs: 680,
+            priority: 'INTERACTIVE',
+            action: 'playLinkCorruptionHigh',
+            passPayload: true
         },
         'synergy.fade': {
             synth: 'synergySynth',
@@ -66,6 +116,7 @@ export function registerAtomaAudioEventManifest({ semanticBus, audioSystem }) {
 
     const lastTriggerAt = new Map();
     const unsubscribers = [];
+    eventRegistrationRegistry.disposeOwner('AtomaAudioEventManifest');
 
     const tryTrigger = (eventName, methodName, payload = undefined) => {
         const cfg = AUDIO_EVENT_MANIFEST.events[eventName];
@@ -90,7 +141,10 @@ export function registerAtomaAudioEventManifest({ semanticBus, audioSystem }) {
 
     Object.entries(AUDIO_EVENT_MANIFEST.events).forEach(([eventName, cfg]) => {
         const priority = resolvePriority(semanticBus, cfg.priority);
-        const unsubscribe = semanticBus.subscribe(eventName, (payload) => {
+        const unsubscribe = eventRegistrationRegistry.register(
+            'AtomaAudioEventManifest',
+            eventName,
+            (payload) => {
             if (cfg.routeByPayload) {
                 const eventType = payload?.type;
                 const methodName = cfg.routeByPayload[eventType];
@@ -98,7 +152,10 @@ export function registerAtomaAudioEventManifest({ semanticBus, audioSystem }) {
                 return;
             }
             tryTrigger(eventName, cfg.action, payload);
-        }, priority !== undefined ? { priority } : undefined);
+            },
+            semanticBus,
+            priority !== undefined ? { priority } : undefined
+        );
 
         if (typeof unsubscribe === 'function') {
             unsubscribers.push(unsubscribe);
@@ -106,6 +163,7 @@ export function registerAtomaAudioEventManifest({ semanticBus, audioSystem }) {
     });
 
     return () => {
+        eventRegistrationRegistry.disposeOwner('AtomaAudioEventManifest');
         unsubscribers.forEach((unsub) => {
             try {
                 unsub();

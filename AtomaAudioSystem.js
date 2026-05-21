@@ -12,6 +12,7 @@ import * as Tone from 'tone';
 
 const WORLD_MACRO_STATE_DEFAULT = 'DORMANT';
 const HAS_TONE_STUB = Reflect.get(Tone, '__ATOMA_TONE_STUB__') === true;
+const AUDIO_SCORE_STATE_DEFAULT = 'forward';
 
 const WORLD_MACRO_AUDIO_PROFILES = {
     DORMANT: {
@@ -178,6 +179,14 @@ export class AtomaAudioSystem {
             macroState: WORLD_MACRO_STATE_DEFAULT,
             macroProfile: { ...WORLD_MACRO_AUDIO_PROFILES[WORLD_MACRO_STATE_DEFAULT] }
         };
+        this._audioIdentity = {
+            world: null,
+            runPackage: 'surge_thread',
+            worldState: null,
+            buildState: 'FRAGILE EXPANSION',
+            scoreState: AUDIO_SCORE_STATE_DEFAULT
+        };
+        this._foregroundDuckUntil = 0;
         this._worldMacroState = WORLD_MACRO_STATE_DEFAULT;
         this._worldMacroProfile = { ...WORLD_MACRO_AUDIO_PROFILES[WORLD_MACRO_STATE_DEFAULT] };
         this._worldMacroTimers = {
@@ -457,6 +466,209 @@ export class AtomaAudioSystem {
         return current + (target - current) * alpha;
     }
 
+    _clamp01(value) {
+        const num = Number(value);
+        if (!Number.isFinite(num)) return 0;
+        return Math.max(0, Math.min(1, num));
+    }
+
+    _normalizeAudioIdentity(identity = {}) {
+        const source = identity && typeof identity === 'object' ? identity : {};
+        const scoreState = String(
+            source.scoreState
+            || source.score
+            || source.direction
+            || AUDIO_SCORE_STATE_DEFAULT
+        ).trim().toLowerCase();
+        const buildState = String(
+            source.buildState?.label
+            || source.buildState?.key
+            || source.buildState
+            || 'FRAGILE EXPANSION'
+        ).trim().toUpperCase();
+        return {
+            world: source.world ? String(source.world).trim().toLowerCase() : null,
+            runPackage: source.runPackage ? String(source.runPackage).trim().toLowerCase() : 'surge_thread',
+            worldState: source.worldState ? String(source.worldState).trim().toLowerCase() : null,
+            buildState,
+            scoreState
+        };
+    }
+
+    setAudioIdentityContext(identity = {}) {
+        const normalized = this._normalizeAudioIdentity(identity);
+        this._audioIdentity = {
+            ...this._audioIdentity,
+            ...normalized
+        };
+        return this.getAudioIdentitySnapshot();
+    }
+
+    getAudioIdentitySnapshot() {
+        return {
+            ...this._audioIdentity
+        };
+    }
+
+    _markForegroundAudio(durationMs = 1200) {
+        const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        this._foregroundDuckUntil = Math.max(this._foregroundDuckUntil || 0, now + Math.max(0, Number(durationMs) || 0));
+    }
+
+    getForegroundDuckFactor() {
+        const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        return now < (this._foregroundDuckUntil || 0) ? 0.38 : 1;
+    }
+
+    _resolveAudioFamilyProfile(family = 'generic', payload = {}) {
+        const identity = this._audioIdentity || {};
+        const profile = {
+            world: identity.world || 'quantum',
+            runPackage: identity.runPackage || 'surge_thread',
+            worldState: identity.worldState || null,
+            buildState: identity.buildState || 'FRAGILE EXPANSION',
+            attackScale: 1,
+            releaseScale: 1,
+            brightness: 1,
+            warmth: 1,
+            velocityScale: 1,
+            noiseScale: 1,
+            resonanceScale: 1,
+            tensionScale: 1
+        };
+
+        if (profile.world === 'desert') {
+            profile.attackScale *= 1.14;
+            profile.releaseScale *= 1.18;
+            profile.brightness *= 0.9;
+            profile.warmth *= 1.14;
+            profile.velocityScale *= 0.94;
+            profile.noiseScale *= 0.8;
+            profile.resonanceScale *= 1.08;
+        } else {
+            profile.attackScale *= 0.92;
+            profile.releaseScale *= 0.94;
+            profile.brightness *= 1.08;
+            profile.warmth *= 0.94;
+            profile.velocityScale *= 1.04;
+            profile.noiseScale *= 1.08;
+            profile.resonanceScale *= 1.04;
+        }
+
+        switch (profile.runPackage) {
+            case 'lattice_keeper':
+                profile.attackScale *= 1.12;
+                profile.releaseScale *= 1.18;
+                profile.brightness *= 0.92;
+                profile.warmth *= 1.12;
+                profile.velocityScale *= 0.94;
+                profile.noiseScale *= 0.82;
+                break;
+            case 'pivot_covenant':
+                profile.attackScale *= 1.02;
+                profile.releaseScale *= 1.05;
+                profile.brightness *= 1.0;
+                profile.warmth *= 1.04;
+                profile.velocityScale *= 0.99;
+                profile.noiseScale *= 0.94;
+                break;
+            default:
+                profile.attackScale *= 0.94;
+                profile.releaseScale *= 0.96;
+                profile.brightness *= 1.1;
+                profile.warmth *= 0.92;
+                profile.velocityScale *= 1.06;
+                profile.noiseScale *= 1.12;
+                profile.tensionScale *= 1.08;
+                break;
+        }
+
+        switch (profile.buildState) {
+            case 'VOLATILE SURGE':
+                profile.attackScale *= 0.9;
+                profile.brightness *= 1.08;
+                profile.noiseScale *= 1.15;
+                profile.tensionScale *= 1.12;
+                break;
+            case 'STABILIZED LATTICE':
+                profile.releaseScale *= 1.12;
+                profile.warmth *= 1.08;
+                profile.noiseScale *= 0.84;
+                profile.resonanceScale *= 1.08;
+                break;
+            case 'COLLAPSE DRIFT':
+                profile.attackScale *= 0.92;
+                profile.brightness *= 0.9;
+                profile.noiseScale *= 1.22;
+                profile.tensionScale *= 1.24;
+                break;
+            default:
+                break;
+        }
+
+        if (profile.worldState === 'quantum_probability_dawn') {
+            profile.brightness *= 1.04;
+            profile.noiseScale *= 0.9;
+            profile.resonanceScale *= 1.08;
+        } else if (profile.worldState === 'desert_mirage_wake') {
+            profile.attackScale *= 1.06;
+            profile.releaseScale *= 1.12;
+            profile.noiseScale *= 0.88;
+            profile.warmth *= 1.08;
+        }
+
+        if (family === 'corruption') {
+            profile.noiseScale *= 1.16;
+            profile.tensionScale *= 1.16;
+            profile.resonanceScale *= 0.9;
+        } else if (family === 'harmony') {
+            profile.noiseScale *= 0.76;
+            profile.resonanceScale *= 1.12;
+        } else if (family === 'surge' || family === 'victory') {
+            profile.velocityScale *= 1.08;
+            profile.resonanceScale *= 1.1;
+        }
+
+        return profile;
+    }
+
+    _extractLinkCueMetrics(payload = {}) {
+        const source = payload && typeof payload === 'object' ? payload : {};
+        const link = source.link || source.linkRef || null;
+        const metrics = link?.userData?.metrics && typeof link.userData.metrics === 'object'
+            ? link.userData.metrics
+            : {};
+        const quality = this._clamp01(
+            source.avgLinkQuality
+            ?? source.quality
+            ?? source.qualityScore
+            ?? source.normalizedScore
+            ?? metrics.quality
+            ?? metrics.qualityScore
+            ?? metrics.normalizedScore
+            ?? metrics.harmony
+            ?? 0.58
+        );
+        const harmony = this._clamp01(source.harmony ?? metrics.harmony ?? quality);
+        const corruption = this._clamp01(source.corruption ?? metrics.corruption ?? 0);
+        const loadPressure = this._clamp01(source.loadPressure ?? metrics.loadPressure ?? metrics.load ?? 0);
+        const stability = this._clamp01(source.stability ?? metrics.stability ?? 0.5);
+        const risk = this._clamp01(
+            Math.max(
+                source.risk ?? 0,
+                corruption * 0.58 + loadPressure * 0.42 + (1 - harmony) * 0.28 + (1 - stability) * 0.18
+            )
+        );
+        return {
+            quality,
+            harmony,
+            corruption,
+            loadPressure,
+            stability,
+            risk
+        };
+    }
+
     _resolveWorldMacroState(context = {}) {
         const normalized = context && typeof context === 'object' ? context : {};
         const worldContext = normalized.worldContext && typeof normalized.worldContext === 'object'
@@ -483,10 +695,19 @@ export class AtomaAudioSystem {
         const worldContext = normalized.worldContext && typeof normalized.worldContext === 'object'
             ? normalized.worldContext
             : normalized;
+        const audioIdentity = normalized.audioIdentity && typeof normalized.audioIdentity === 'object'
+            ? normalized.audioIdentity
+            : (worldContext.audioIdentity && typeof worldContext.audioIdentity === 'object'
+                ? worldContext.audioIdentity
+                : {});
         const macroState = this._resolveWorldMacroState(normalized);
         const macroProfile = normalized.macroProfile && typeof normalized.macroProfile === 'object'
             ? { ...normalized.macroProfile }
             : this._resolveWorldMacroProfile(macroState);
+        const mergedAudioIdentity = this.setAudioIdentityContext({
+            world: normalized.world || worldContext.world || this._audioIdentity.world,
+            ...audioIdentity
+        });
 
         this._worldContext = {
             consciousnessState: worldContext.consciousnessState || normalized.consciousnessState || null,
@@ -495,11 +716,13 @@ export class AtomaAudioSystem {
             liveMetrics: worldContext.liveMetrics || normalized.liveMetrics || normalized.metrics || null,
             worldMacroState: macroState,
             macroState,
-            macroProfile: { ...macroProfile }
+            macroProfile: { ...macroProfile },
+            audioIdentity: { ...mergedAudioIdentity }
         };
 
         return {
             ...this._worldContext,
+            audioIdentity: { ...mergedAudioIdentity },
             worldContext: { ...this._worldContext }
         };
     }
@@ -1222,13 +1445,34 @@ export class AtomaAudioSystem {
     }
 
     // --- TASK 3: Link Creation (Agreement) ---
-    playLinkCreated() {
+    playLinkCreated(payload = {}) {
         if (!this.initialized || !this.enabled) return;
-        if (!this.canTrigger('linkCreated', 60)) return;
-        // Harmonic interval (Perfect 5th) to signify stability/agreement
-        // "C5" + "G5"
-        // Slight delay between them handled by synth attack diff, or manually here
-        this.linkSynth.triggerAttackRelease(["C5", "G5"], "16n");
+        if (!this.canTrigger('linkCreated', 130)) return;
+
+        const profile = this._resolveAudioFamilyProfile('bond', payload);
+        const metrics = this._extractLinkCueMetrics(payload);
+        const now = Tone.now();
+        const strongBond = metrics.quality >= 0.72 && metrics.risk < 0.46;
+        const riskyBond = metrics.risk >= 0.58;
+        const primary = profile.world === 'desert' ? 'D5' : 'C5';
+        const secondary = strongBond
+            ? (profile.world === 'desert' ? 'A5' : 'G5')
+            : (profile.world === 'desert' ? 'G5' : 'F5');
+        const accent = riskyBond
+            ? (profile.world === 'desert' ? 'C6' : 'A#5')
+            : (profile.world === 'desert' ? 'F#5' : 'E5');
+        const velocity = Math.max(0.18, Math.min(0.62, (0.24 + metrics.quality * 0.26 - metrics.risk * 0.08) * profile.velocityScale));
+
+        this._setNodeVolume(this.linkSynth, -13 + metrics.quality * 3 - metrics.risk * 2, 'linkSynth.linkCreatedVolume');
+        this.linkSynth.triggerAttackRelease(primary, strongBond ? '8n' : '16n', now, velocity);
+        this.linkSynth.triggerAttackRelease(secondary, strongBond ? '8n' : '16n', now + 0.045 * profile.attackScale, velocity * 0.88);
+
+        if (riskyBond) {
+            this._setNodeVolume(this.eventAccentSynth, -24 + metrics.risk * 2.5, 'eventAccentSynth.linkRiskVolume');
+            this.eventAccentSynth.triggerAttackRelease(accent, '32n', now + 0.035, Math.min(0.42, velocity * 0.74));
+        } else {
+            this.selectionSynth.triggerAttackRelease(accent, '32n', now + 0.045, Math.min(0.32, velocity * 0.52));
+        }
     }
 
     // --- TASK 4: Link Breaking (Diffusing) ---
@@ -1246,20 +1490,91 @@ export class AtomaAudioSystem {
         this.unlinkSynth.triggerAttackRelease("16n");
     }
 
-    // --- TASK 5: Synergy Activation (Harmonic Bloom) ---
-    playSynergyActive() {
+    playLinkSynergyThreshold(payload = {}) {
         if (!this.initialized || !this.enabled) return;
-        // Major 9th chord for "Clarity" and "Expansion"
-        // C4, E4, G4, B4, D5
-        const chord = ["C4", "G4", "D5"]; 
-        this.synergySynth.triggerAttackRelease(chord, "2n", undefined, 0.5);
+        if (!this.canTrigger('linkSynergyThreshold', 260)) return;
+        const profile = this._resolveAudioFamilyProfile('bond', payload);
+        const metrics = this._extractLinkCueMetrics(payload);
+        const now = Tone.now();
+        const notes = profile.world === 'desert' ? ["F#5", "A5"] : ["E5", "A5"];
+        this._markForegroundAudio(520);
+        this.eventLeadSynth.triggerAttackRelease(notes, '8n', now, Math.max(0.18, 0.28 * profile.velocityScale));
+        this.eventAccentSynth.triggerAttackRelease(profile.world === 'desert' ? "D6" : "C6", '16n', now + 0.045, Math.max(0.12, 0.18 + metrics.quality * 0.12));
+    }
+
+    playLinkHarmonicLock(payload = {}) {
+        if (!this.initialized || !this.enabled) return;
+        if (!this.canTrigger('linkHarmonicLock', 340)) return;
+        const profile = this._resolveAudioFamilyProfile('harmony', payload);
+        const now = Tone.now();
+        const notes = profile.world === 'desert' ? ["A4", "D5", "F#5"] : ["G4", "C5", "E5"];
+        this._markForegroundAudio(640);
+        this.synergySynth.triggerAttackRelease(notes, '4n', now, 0.24 * profile.resonanceScale);
+        this.selectionSynth.triggerAttackRelease(profile.world === 'desert' ? "A5" : "G5", '8n', now + 0.06, 0.14 * profile.velocityScale);
+    }
+
+    playNodeHarmonyMid(payload = {}) {
+        if (!this.initialized || !this.enabled) return;
+        if (!this.canTrigger('nodeHarmonyMid', 420)) return;
+        const profile = this._resolveAudioFamilyProfile('harmony', payload);
+        const now = Tone.now();
+        this.eventLeadSynth.triggerAttackRelease(profile.world === 'desert' ? ["D4", "A4"] : ["C4", "G4"], '16n', now, 0.18 * profile.resonanceScale);
+    }
+
+    playNodeHarmonyHigh(payload = {}) {
+        if (!this.initialized || !this.enabled) return;
+        if (!this.canTrigger('nodeHarmonyHigh', 720)) return;
+        const profile = this._resolveAudioFamilyProfile('harmony', payload);
+        const now = Tone.now();
+        const notes = profile.world === 'desert' ? ["D4", "F#4", "A4"] : ["C4", "E4", "G4"];
+        this.synergySynth.triggerAttackRelease(notes, '2n', now, 0.2 * profile.resonanceScale);
+    }
+
+    playGlobalHarmonyMid(payload = {}) {
+        if (!this.initialized || !this.enabled) return;
+        if (!this.canTrigger('globalHarmonyMid', 1200)) return;
+        const profile = this._resolveAudioFamilyProfile('harmony', payload);
+        const notes = profile.world === 'desert' ? ["D3", "A3"] : ["C3", "G3"];
+        this.worldImpulseSynth?.triggerAttackRelease?.(notes, '8n', Tone.now(), 0.12 * profile.resonanceScale);
+    }
+
+    playGlobalHarmonyHigh(payload = {}) {
+        if (!this.initialized || !this.enabled) return;
+        if (!this.canTrigger('globalHarmonyHigh', 1800)) return;
+        const profile = this._resolveAudioFamilyProfile('harmony', payload);
+        const now = Tone.now();
+        const notes = profile.world === 'desert' ? ["D3", "A3", "E4"] : ["C3", "G3", "D4"];
+        this._markForegroundAudio(780);
+        this.worldDroneSynth?.triggerAttackRelease?.(notes, '1n', now, 0.12 * profile.resonanceScale);
+        this.worldImpulseSynth?.triggerAttackRelease?.([notes[1], notes[2]], '8n', now + 0.06, 0.1 * profile.velocityScale);
+    }
+
+    playLinkCorruptionHigh(payload = {}) {
+        if (!this.initialized || !this.enabled) return;
+        if (!this.canTrigger('linkCorruptionHigh', 680)) return;
+        const profile = this._resolveAudioFamilyProfile('corruption', payload);
+        const metrics = this._extractLinkCueMetrics(payload);
+        const now = Tone.now();
+        this._markForegroundAudio(780);
+        this.eventLeadSynth.triggerAttackRelease(profile.world === 'desert' ? ["C#3", "G3"] : ["C2", "F#2"], '8n', now, 0.18 * profile.tensionScale);
+        this.eventAccentSynth.triggerAttackRelease(profile.world === 'desert' ? "F4" : "A#3", '16n', now + 0.035, 0.16 + metrics.risk * 0.14);
+        this._triggerEventNoise('pressure-rumble', 0.36 * profile.noiseScale, profile.world === 'desert' ? 520 : 680, '16n');
+    }
+
+    // --- TASK 5: Synergy Activation (Harmonic Bloom) ---
+    playSynergyActive(payload = {}) {
+        if (!this.initialized || !this.enabled) return;
+        const profile = this._resolveAudioFamilyProfile('surge', payload);
+        const chord = profile.world === 'desert' ? ["D4", "A4", "E5"] : ["C4", "G4", "D5"];
+        this._setNodeVolume(this.synergySynth, profile.world === 'desert' ? -17 : -16, 'synergySynth.synergyActiveVolume');
+        this.synergySynth.triggerAttackRelease(chord, "2n", undefined, 0.46 * profile.velocityScale);
     }
 
     // --- TASK 6: Synergy Fading (Dissipate) ---
-    playSynergyFade() {
+    playSynergyFade(payload = {}) {
         if (!this.initialized || !this.enabled) return;
-        // Single lingering low tone fading out
-        this.synergySynth.triggerAttackRelease(["C3"], "1n", undefined, 0.2);
+        const profile = this._resolveAudioFamilyProfile('surge', payload);
+        this.synergySynth.triggerAttackRelease([profile.world === 'desert' ? "D3" : "C3"], "1n", undefined, 0.18 * profile.velocityScale);
     }
 
     // --- NETWORK TIME SCORE AUDIO CUES ---
@@ -1268,45 +1583,79 @@ export class AtomaAudioSystem {
      * Play ascending tone when Network Time starts rewinding (synergy sustained 7s).
      * Bright, hopeful — the reward moment.
      */
-    playScoreRewindStart() {
+    playScoreRewindStart(context = {}) {
         if (!this.initialized || !this.enabled) return;
         if (!this.canTrigger('score:rewind', 2000)) return;
+        this.setAudioIdentityContext({
+            scoreState: 'rewinding',
+            ...(context?.audioIdentity || context)
+        });
+        const profile = this._resolveAudioFamilyProfile('surge', context);
         const now = Tone.now();
-        // Ascending arpeggio: C5 → E5 → G5 (bright, hopeful)
-        this.synergySynth.triggerAttackRelease("C5", "16n", now, 0.4);
-        this.synergySynth.triggerAttackRelease("E5", "16n", now + 0.08, 0.35);
-        this.synergySynth.triggerAttackRelease("G5", "8n", now + 0.16, 0.45);
+        const rise = profile.world === 'desert'
+            ? ["D5", "F#5", "A5"]
+            : ["C5", "E5", "A5"];
+        const bed = profile.world === 'desert'
+            ? ["D3", "A3", "E4"]
+            : ["C3", "G3", "D4"];
+        this._markForegroundAudio(1850);
+        this.synergySynth.triggerAttackRelease(rise[0], "16n", now, 0.34 * profile.velocityScale);
+        this.synergySynth.triggerAttackRelease(rise[1], "16n", now + 0.07 * profile.attackScale, 0.32 * profile.velocityScale);
+        this.synergySynth.triggerAttackRelease(rise[2], "8n", now + 0.15 * profile.attackScale, 0.4 * profile.velocityScale);
+        this.worldDroneSynth?.triggerAttackRelease?.(bed, "1n", now + 0.2, 0.16 * profile.resonanceScale);
+        this.worldImpulseSynth?.triggerAttackRelease?.([rise[1], rise[2]], "8n", now + 0.24, 0.18 * profile.velocityScale);
     }
 
     /**
      * Play descending tone when rewind stops (synergy dropped).
      * Subtle, fading — the loss moment.
      */
-    playScoreRewindEnd() {
+    playScoreRewindEnd(context = {}) {
         if (!this.initialized || !this.enabled) return;
         if (!this.canTrigger('score:forward', 2000)) return;
+        this.setAudioIdentityContext({
+            scoreState: 'forward',
+            ...(context?.audioIdentity || context)
+        });
+        const profile = this._resolveAudioFamilyProfile('surge', context);
         const now = Tone.now();
-        // Descending: G4 → E4 → C4 (gentle fade)
-        this.synergySynth.triggerAttackRelease("G4", "16n", now, 0.25);
-        this.synergySynth.triggerAttackRelease("E4", "16n", now + 0.1, 0.2);
-        this.synergySynth.triggerAttackRelease("C4", "8n", now + 0.2, 0.15);
+        const notes = profile.world === 'desert'
+            ? ["A4", "F#4", "D4"]
+            : ["A4", "E4", "C4"];
+        this._markForegroundAudio(950);
+        this.synergySynth.triggerAttackRelease(notes[0], "16n", now, 0.22 * profile.velocityScale);
+        this.synergySynth.triggerAttackRelease(notes[1], "16n", now + 0.08 * profile.releaseScale, 0.18 * profile.velocityScale);
+        this.synergySynth.triggerAttackRelease(notes[2], "8n", now + 0.18 * profile.releaseScale, 0.14 * profile.velocityScale);
+        this.worldNoiseSynth?.triggerAttackRelease?.("32n", now + 0.05, 0.04);
     }
 
     /**
      * Play victory chord when Network Time reaches 0.
      * Full, resonant, satisfying — the completion moment.
      */
-    playScoreVictory() {
+    playScoreVictory(context = {}) {
         if (!this.initialized || !this.enabled) return;
         if (!this.canTrigger('score:won', 10000)) return;
+        this.setAudioIdentityContext({
+            scoreState: 'won',
+            ...(context?.audioIdentity || context)
+        });
+        const profile = this._resolveAudioFamilyProfile('victory', context);
         const now = Tone.now();
-        // Major chord spread: C4 → E4 → G4 → C5 (full resolution)
-        this.synergySynth.triggerAttackRelease("C4", "4n", now, 0.35);
-        this.synergySynth.triggerAttackRelease("E4", "4n", now + 0.06, 0.3);
-        this.synergySynth.triggerAttackRelease("G4", "4n", now + 0.12, 0.35);
-        this.synergySynth.triggerAttackRelease("C5", "2n", now + 0.2, 0.45);
-        // Add high shimmer
-        this.selectionSynth.triggerAttackRelease("E6", "2n", now + 0.3, 0.2);
+        const crest = profile.world === 'desert'
+            ? ["D4", "F#4", "A4", "D5"]
+            : ["C4", "E4", "A4", "C5"];
+        const tableau = profile.world === 'desert'
+            ? ["D3", "A3", "E4"]
+            : ["C3", "G3", "D4"];
+        this._markForegroundAudio(3200);
+        this.synergySynth.triggerAttackRelease(crest[0], "4n", now, 0.28 * profile.velocityScale);
+        this.synergySynth.triggerAttackRelease(crest[1], "4n", now + 0.06, 0.26 * profile.velocityScale);
+        this.synergySynth.triggerAttackRelease(crest[2], "4n", now + 0.12, 0.31 * profile.velocityScale);
+        this.synergySynth.triggerAttackRelease(crest[3], "2n", now + 0.22, 0.4 * profile.velocityScale);
+        this.worldDroneSynth?.triggerAttackRelease?.(tableau, "1n", now + 0.16, 0.18 * profile.resonanceScale);
+        this.worldImpulseSynth?.triggerAttackRelease?.([crest[1], crest[3]], "2n", now + 0.2, 0.14 * profile.velocityScale);
+        this.selectionSynth.triggerAttackRelease(profile.world === 'desert' ? "A5" : "E6", "2n", now + 0.28, 0.18 * profile.velocityScale);
     }
 
     /**
@@ -1359,10 +1708,12 @@ export class AtomaAudioSystem {
     playCollapseWarning(link, state) {
         if (!this.initialized || !this.enabled) return;
         if (!this.canTrigger('collapse:warning', 3000)) return;
+        const profile = this._resolveAudioFamilyProfile('corruption', { link, state });
         const now = Tone.now();
+        this._markForegroundAudio(1200);
         // Dissonant minor second: B2 → C3 (uneasy tension)
-        this.eventLeadSynth.triggerAttackRelease("B2", "2n", now, 0.18);
-        this.eventLeadSynth.triggerAttackRelease("C3", "2n", now + 0.05, 0.14);
+        this.eventLeadSynth.triggerAttackRelease(profile.world === 'desert' ? "C3" : "B2", "2n", now, 0.16 * profile.tensionScale);
+        this.eventLeadSynth.triggerAttackRelease(profile.world === 'desert' ? "D3" : "C3", "2n", now + 0.05, 0.12 * profile.tensionScale);
     }
 
     /**
@@ -1372,9 +1723,11 @@ export class AtomaAudioSystem {
     playCollapseCritical(link, state) {
         if (!this.initialized || !this.enabled) return;
         if (!this.canTrigger('collapse:critical', 2000)) return;
+        const profile = this._resolveAudioFamilyProfile('corruption', { link, state });
         const now = Tone.now();
+        this._markForegroundAudio(1650);
         // Metallic scrape: filtered noise burst
-        this.eventNoiseSynth.triggerAttackRelease("8n", now, 0.15);
+        this.eventNoiseSynth.triggerAttackRelease("8n", now, 0.12 + 0.03 * profile.noiseScale);
         // Rising tension: tritone A2 → D#3 → A3 (danger escalation)
         this.eventAccentSynth.triggerAttackRelease("A2", "8n", now + 0.1, 0.2);
         this.eventAccentSynth.triggerAttackRelease("D#3", "16n", now + 0.2, 0.22);
@@ -1391,10 +1744,12 @@ export class AtomaAudioSystem {
     playLinkCollapse(link, state, position) {
         if (!this.initialized || !this.enabled) return;
         if (!this.canTrigger('collapse:final', 5000)) return;
+        const profile = this._resolveAudioFamilyProfile('corruption', { link, state, position });
         const now = Tone.now();
+        this._markForegroundAudio(2400);
         // Deep impact: low C1-C2 rumble
-        this.worldDroneSynth.triggerAttackRelease("C1", "4n", now, 0.35);
-        this.worldDroneSynth.triggerAttackRelease("C2", "4n", now + 0.03, 0.28);
+        this.worldDroneSynth.triggerAttackRelease(profile.world === 'desert' ? "D1" : "C1", "4n", now, 0.3 * profile.tensionScale);
+        this.worldDroneSynth.triggerAttackRelease(profile.world === 'desert' ? "D2" : "C2", "4n", now + 0.03, 0.24 * profile.tensionScale);
         // Noise burst: energy discharge
         this.unlinkSynth.triggerAttackRelease("4n", now, 0.3);
         // Resonance decay: high harmonic fading
@@ -1410,10 +1765,11 @@ export class AtomaAudioSystem {
     playCollapseRecovery(link, state) {
         if (!this.initialized || !this.enabled) return;
         if (!this.canTrigger('collapse:recovery', 2000)) return;
+        const profile = this._resolveAudioFamilyProfile('harmony', { link, state });
         const now = Tone.now();
         // Gentle ascending resolution: C4 → E4 (relief)
-        this.synergySynth.triggerAttackRelease("C4", "8n", now, 0.15);
-        this.synergySynth.triggerAttackRelease("E4", "8n", now + 0.08, 0.12);
+        this.synergySynth.triggerAttackRelease(profile.world === 'desert' ? "D4" : "C4", "8n", now, 0.14 * profile.resonanceScale);
+        this.synergySynth.triggerAttackRelease(profile.world === 'desert' ? "F#4" : "E4", "8n", now + 0.08, 0.11 * profile.resonanceScale);
     }
 
     playRoutedEventAudio(payload = {}, eventName = 'semantic.event') {
@@ -1422,6 +1778,15 @@ export class AtomaAudioSystem {
         const cue = String(payload?.audioCue || eventName || 'audio.event');
         const layer = String(payload?.audioLayer || 'worldfx-bed');
         const intensity = Math.max(0.12, Math.min(1.6, Number(payload?.audioIntensity) || 0.6));
+        if (
+            cue.includes('fold')
+            || cue.includes('pressure')
+            || cue.includes('quantum')
+            || cue.includes('sigma')
+            || cue.includes('dramaturgy')
+        ) {
+            this._markForegroundAudio(cue.includes('dramaturgy') ? 1400 : 900);
+        }
         if (!this.canTrigger(`routed:${cue}`, this._resolveRoutedEventCooldown(cue, intensity))) return;
         if (!this.canTrigger(`routed-layer:${layer}`, this._resolveRoutedEventLayerCooldown(layer, cue, intensity))) return;
 
@@ -1785,6 +2150,7 @@ export class AtomaAudioSystem {
     }
 
     _resolveRoutedEventProfile(cue, layer, intensity) {
+        const audioProfile = this._resolveAudioFamilyProfile('world', { cue, layer, intensity });
         const profile = {
             leadDb: -24,
             accentDb: -30,
@@ -1935,6 +2301,29 @@ export class AtomaAudioSystem {
                 velocityScale: 0.64,
                 noiseScale: 0.18
             });
+        }
+
+        if (audioProfile.world === 'desert') {
+            profile.leadBaseFrequency *= 0.9;
+            profile.accentBaseFrequency *= 0.92;
+            profile.leadDb -= 0.5;
+            profile.accentDb -= 0.25;
+            profile.noiseDb -= 0.75;
+            profile.noiseScale *= 0.82;
+            profile.velocityScale *= 0.95;
+        } else {
+            profile.leadBaseFrequency *= 1.06;
+            profile.accentBaseFrequency *= 1.08;
+            profile.noiseScale *= 1.08;
+            profile.velocityScale *= 1.02;
+        }
+
+        if (audioProfile.runPackage === 'lattice_keeper') {
+            profile.noiseScale *= 0.88;
+            profile.velocityScale *= 0.94;
+        } else if (audioProfile.runPackage === 'surge_thread') {
+            profile.noiseScale *= 1.1;
+            profile.velocityScale *= 1.05;
         }
 
         profile.leadDb += Math.min(1.2, intensity * 0.45);

@@ -65,6 +65,13 @@ export class LinkQualityCalculator {
     
     // Internal tracking
     this.linkQualityCache = new Map(); // linkId → { lastUpdate, previousScore }
+    this.runIdentityProfile = {
+      structuralScale: 1,
+      harmonyScale: 1,
+      loadPenaltyScale: 1,
+      corruptionPenaltyScale: 1,
+      qualityBias: 0
+    };
   }
 
   _clamp01(value) {
@@ -135,6 +142,17 @@ export class LinkQualityCalculator {
       // Primary public surface for link-level reactions.
       semanticBus.emitImmediate(buildScopedMetricEventName('link', entry.metric, nextTier), payload, { priority: semanticBus.priority?.NORMAL });
     }
+  }
+
+  setRunIdentityProfile(profile = {}) {
+    const next = profile && typeof profile === 'object' ? profile : {};
+    this.runIdentityProfile = {
+      structuralScale: Number.isFinite(Number(next.structuralScale)) ? Number(next.structuralScale) : 1,
+      harmonyScale: Number.isFinite(Number(next.harmonyScale)) ? Number(next.harmonyScale) : 1,
+      loadPenaltyScale: Number.isFinite(Number(next.loadPenaltyScale)) ? Number(next.loadPenaltyScale) : 1,
+      corruptionPenaltyScale: Number.isFinite(Number(next.corruptionPenaltyScale)) ? Number(next.corruptionPenaltyScale) : 1,
+      qualityBias: Number.isFinite(Number(next.qualityBias)) ? Number(next.qualityBias) : 0
+    };
   }
   
   /**
@@ -331,6 +349,7 @@ export class LinkQualityCalculator {
     }
     
     // Clamp to valid range
+    score *= this.runIdentityProfile.structuralScale;
     score = Math.max(0, Math.min(100, score));
     
     return score;
@@ -371,7 +390,7 @@ export class LinkQualityCalculator {
       (nodePairHarmony * 0.30) +
       (alignmentScore * 0.25);
     
-    return Math.max(0, Math.min(100, score));
+    return Math.max(0, Math.min(100, score * this.runIdentityProfile.harmonyScale));
   }
   
   /**
@@ -397,7 +416,7 @@ export class LinkQualityCalculator {
       (averageLoad * 65) +
       (peakLoad * 25) +
       (Math.max(0, peakLoad - 0.55) * 40);
-    const score = 100 - penalty;
+    const score = 100 - (penalty * this.runIdentityProfile.loadPenaltyScale);
     
     return Math.max(0, Math.min(100, score));
   }
@@ -426,7 +445,7 @@ export class LinkQualityCalculator {
       (maxCorruption * 0.72) +
       (averageCorruption * 0.28) +
       (Math.max(0, maxCorruption - 35) * 0.20);
-    const score = 100 - penalty;
+    const score = 100 - (penalty * this.runIdentityProfile.corruptionPenaltyScale);
     
     return Math.max(0, Math.min(100, score));
   }
@@ -440,7 +459,8 @@ export class LinkQualityCalculator {
       (structuralScore * this.config.structuralWeight) +
       (harmonyScore * this.config.harmonyWeight) +
       (loadScore * this.config.loadWeight) +
-      (corruptionScore * this.config.corruptionWeight);
+      (corruptionScore * this.config.corruptionWeight) +
+      this.runIdentityProfile.qualityBias;
     
     // Clamp to valid range
     return Math.max(0, Math.min(100, score));

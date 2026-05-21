@@ -43,6 +43,13 @@ export class HarmonicAudioReactivitySystem_Session135 {
         this.isActive = true;
         this.networkHarmony = 0.5; // 0 = chaos, 1 = harmony
         this.networkCorruption = 0; // 0 = clean, 1 = fully corrupt
+        this.audioIdentity = {
+            world: null,
+            runPackage: 'surge_thread',
+            worldState: null,
+            buildState: 'FRAGILE EXPANSION',
+            scoreState: 'forward'
+        };
         
         // ====================================================================
         // HEALING TONE STATE
@@ -63,6 +70,19 @@ export class HarmonicAudioReactivitySystem_Session135 {
         this.ambientOscillator = null;
         
         console.log('✓ [S135] HarmonicAudioReactivitySystem constructed (waiting for user interaction)');
+    }
+
+    setAudioIdentityContext(context = {}) {
+        const source = context && typeof context === 'object' ? context : {};
+        this.audioIdentity = {
+            ...this.audioIdentity,
+            world: source.world ? String(source.world).trim().toLowerCase() : this.audioIdentity.world,
+            runPackage: source.runPackage ? String(source.runPackage).trim().toLowerCase() : this.audioIdentity.runPackage,
+            worldState: source.worldState ? String(source.worldState).trim().toLowerCase() : this.audioIdentity.worldState,
+            buildState: String(source.buildState?.label || source.buildState?.key || source.buildState || this.audioIdentity.buildState).trim().toUpperCase(),
+            scoreState: String(source.scoreState || source.direction || this.audioIdentity.scoreState).trim().toLowerCase()
+        };
+        return { ...this.audioIdentity };
     }
 
     async start() {
@@ -143,6 +163,8 @@ export class HarmonicAudioReactivitySystem_Session135 {
      */
     triggerHealingTone(position, intensity = 0.7) {
         if (!this.isActive || !this.initialized || !this.audioContext || !this.healingPanner || !this.healingGain) return;
+        const world = this.audioIdentity?.world || 'quantum';
+        const buildState = this.audioIdentity?.buildState || 'FRAGILE EXPANSION';
         
         // Stop existing healing tone
         if (this.healingOscillator) {
@@ -159,7 +181,10 @@ export class HarmonicAudioReactivitySystem_Session135 {
         
         // Modulate frequency based on network harmony
         // Harmony increases tone purity and coherence
-        const harmonyModulation = 1 + (this.networkHarmony * 0.2); // ±20% frequency shift
+        const harmonyModulation = 1
+            + (this.networkHarmony * 0.2)
+            + (world === 'desert' ? -0.04 : 0.05)
+            + (buildState === 'STABILIZED LATTICE' ? 0.03 : 0);
         this.healingOscillator.frequency.value = this.healingFrequency * harmonyModulation;
         
         // Connect through panner for 3D spatial audio
@@ -169,7 +194,7 @@ export class HarmonicAudioReactivitySystem_Session135 {
         this.healingPanner.setPosition(relativePos.x, relativePos.y, relativePos.z);
         
         // Set gain (intensity modulated)
-        const gainValue = intensity * (0.5 + this.networkHarmony * 0.5); // Harmony boosts volume
+        const gainValue = intensity * (0.5 + this.networkHarmony * 0.5) * (world === 'desert' ? 0.94 : 1.02);
         this.healingGain.gain.setValueAtTime(gainValue, this.audioContext.currentTime);
         this.healingGain.gain.exponentialRampToValueAtTime(0.001, this.audioContext.currentTime + 2);
         
@@ -186,6 +211,8 @@ export class HarmonicAudioReactivitySystem_Session135 {
      */
     triggerRuptureSound(position, intensity = 0.8) {
         if (!this.isActive || !this.initialized || !this.audioContext || !this.rupturePanner || !this.ruptureGain) return;
+        const world = this.audioIdentity?.world || 'quantum';
+        const buildState = this.audioIdentity?.buildState || 'FRAGILE EXPANSION';
         
         // Stop existing rupture oscillators
         for (const osc of this.ruptureOscillators) {
@@ -202,19 +229,18 @@ export class HarmonicAudioReactivitySystem_Session135 {
         const relativePos = position.clone().sub(this.camera.position);
         
         // Create multiple dissonant frequencies for harsh impact
-        const frequencies = [
-            150,  // Low fundamental
-            247,  // Minor second (dissonant)
-            389,  // Tritone (very dissonant)
-            600   // High dissonance
-        ];
+        const frequencies = world === 'desert'
+            ? [132, 220, 330, 520]
+            : [150, 247, 389, 600];
         
         for (const freq of frequencies) {
             const osc = this.audioContext.createOscillator();
             osc.type = 'square'; // Square wave for harsh sound
             
             // Corruption increases dissonance
-            const dissonanceModulation = 1 + (this.networkCorruption * 0.3);
+            const dissonanceModulation = 1
+                + (this.networkCorruption * 0.3)
+                + (buildState === 'COLLAPSE DRIFT' ? 0.08 : 0);
             osc.frequency.value = freq * dissonanceModulation;
             
             osc.connect(this.rupturePanner);
@@ -227,7 +253,7 @@ export class HarmonicAudioReactivitySystem_Session135 {
         this.rupturePanner.setPosition(relativePos.x, relativePos.y, relativePos.z);
         
         // Set rupture gain envelope (quick attack, fast decay)
-        const gainValue = intensity * (0.6 + this.networkCorruption * 0.4);
+        const gainValue = intensity * (0.6 + this.networkCorruption * 0.4) * (world === 'desert' ? 0.92 : 1.05);
         this.ruptureGain.gain.setValueAtTime(gainValue, this.audioContext.currentTime);
         this.ruptureGain.gain.exponentialRampToValueAtTime(0.001, this.audioContext.currentTime + 0.5);
         
@@ -249,13 +275,14 @@ export class HarmonicAudioReactivitySystem_Session135 {
         if (!this.initialized || !this.audioContext || !this.filterBiquad) return;
         this.networkHarmony = Math.max(0, Math.min(1, harmony));
         this.networkCorruption = Math.max(0, Math.min(1, corruption));
+        const world = this.audioIdentity?.world || 'quantum';
         
         // Update ambient hum based on harmony
         // Higher harmony = cleaner, purer tone
         // Higher corruption = more dissonant frequencies
         if (this.enableAmbientHum && this.ambientOscillator) {
             // Harmony drives base frequency upward (purity)
-            const baseFreq = 108 + (this.networkHarmony * 54); // 108-162 Hz range
+            const baseFreq = 108 + (this.networkHarmony * 54) + (world === 'desert' ? -6 : 6); // 108-162 Hz range
             const corruptionShift = this.networkCorruption * 20; // Corruption adds harshness
             
             this.ambientOscillator.frequency.setTargetAtTime(
@@ -267,7 +294,7 @@ export class HarmonicAudioReactivitySystem_Session135 {
         
         // Update ambient gain based on chaos level
         if (this.enableAmbientHum && this.ambientGain) {
-            const ambientIntensity = 0.1 + (this.networkHarmony * 0.1); // 0.1-0.2 range
+            const ambientIntensity = 0.1 + (this.networkHarmony * 0.1) + (world === 'desert' ? -0.01 : 0.01); // 0.1-0.2 range
             this.ambientGain.gain.setTargetAtTime(
                 ambientIntensity,
                 this.audioContext.currentTime,
@@ -277,7 +304,7 @@ export class HarmonicAudioReactivitySystem_Session135 {
         
         // Modulate filter cutoff based on corruption
         // Higher corruption = lower cutoff (muddier sound)
-        const cutoff = 2000 - (this.networkCorruption * 1500); // 2000-500 Hz range
+        const cutoff = 2000 - (this.networkCorruption * 1500) + (world === 'desert' ? -120 : 80); // 2000-500 Hz range
         this.filterBiquad.frequency.setTargetAtTime(
             cutoff,
             this.audioContext.currentTime,
@@ -342,6 +369,7 @@ export class HarmonicAudioReactivitySystem_Session135 {
     // ========================================================================
 
     setEventBus(semanticBus) {
+        eventRegistrationRegistry.disposeOwner('HarmonicAudioReactivitySystem_Session135');
         this.semanticBus = semanticBus;
         if (!this.semanticBus) return;
 
@@ -372,6 +400,13 @@ export class HarmonicAudioReactivitySystem_Session135 {
             const threePos = new THREE.Vector3(pos.x, pos.y, pos.z);
             this.triggerHealingTone(threePos, 0.7);
         };
+        this._onNodeHarmonyMid = (p = {}) => {
+            const pos = p?.position;
+            if (!pos) return;
+            const threePos = new THREE.Vector3(pos.x, pos.y, pos.z);
+            this.triggerHealingTone(threePos, 0.42);
+        };
+        reg('node.harmony.mid', this._onNodeHarmonyMid);
         reg('node.harmony.high', this._onNodeHarmonyHigh);
 
         // Link corruption high → rupture sound
@@ -391,6 +426,8 @@ export class HarmonicAudioReactivitySystem_Session135 {
      */
     dispose() {
         try {
+            eventRegistrationRegistry.disposeOwner('HarmonicAudioReactivitySystem_Session135');
+            this._regDisposers = [];
             if (this.healingOscillator) {
                 this.healingOscillator.stop();
                 this.healingOscillator.disconnect();

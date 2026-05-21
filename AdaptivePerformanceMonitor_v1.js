@@ -1,293 +1,442 @@
 /**
  * ============================================================================
- * ADAPTIVE PERFORMANCE MONITOR v1.0
+ * ADAPTIVE PERFORMANCE MONITOR v1.1
  * ============================================================================
- * 
- * PHASE 3C EXTENSION: Automatic FPS-based quality scaling
- * 
+ *
+ * Browser-grade runtime discipline for ATOMA.
+ *
  * PURPOSE:
- *   Monitor frame rate in real time and automatically toggle LowFX mode
- *   when performance degrades below target, or upgrade when it improves.
- *   Cooperates gracefully with manual F7 toggle overrides.
- * 
- * ARCHITECTURE:
- *   - Tracks smoothed FPS using exponential moving average (EMA)
- *   - Uses hysteresis thresholds to prevent rapid toggling
- *   - Measures time-below/time-above to confirm sustained performance changes
- *   - Supports two modes: AUTO (automatic) and MANUAL_LOCKED (user override)
- *   - Completely non-breaking to existing Phase 3c systems
- * 
- * KEY FEATURES:
- *   ✓ Smoothed FPS calculation (configurable EMA alpha)
- *   ✓ Hysteresis band prevents oscillation (±5 FPS around target)
- *   ✓ Time-window enforcement (3s below = ON, 5s above = OFF)
- *   ✓ Manual override locks auto system while user controls quality
- *   ✓ Graceful null-safety for fxPerformance dependency
- *   ✓ Negligible overhead (<0.05ms per frame)
- * 
- * PERFORMANCE:
- *   Per-frame overhead: ~0.02ms (< 0.1ms budget)
- *   Memory footprint: ~1KB
- *   No allocations per frame
- * 
- * USAGE:
- *   // Initialize with FXPerformanceController
- *   const monitor = new AdaptivePerformanceMonitor_v1(fxPerformance, {
- *       targetFPS: 60,
- *       hysteresisFPS: 5,
- *       lowFXDelaySec: 3.0,
- *       highFXDelaySec: 5.0,
- *       emaAlpha: 0.1
- *   });
- * 
- *   // Each frame
- *   monitor.update(deltaTime);
- * 
- *   // When user manually toggles (e.g., F7)
- *   monitor.notifyManualToggle(newLowFXState);
- * 
- *   // Optional: return to auto mode (on new map, etc)
- *   monitor.resetToAuto();
- * 
+ *   Move beyond a binary FPS -> LowFX switch and enforce soft runtime budgets:
+ *   - frame budget
+ *   - scene render budget
+ *   - post-processing budget
+ *   - draw-call budget
+ *   - entity/link budget
+ *   - active VFX budget
+ *
+ * DESIGN:
+ *   - keeps the legacy AUTO / MANUAL_LOCKED model
+ *   - supports explicit adaptive tiers: FULL / BALANCED / PERFORMANCE / SAFE
+ *   - degrades quickly under pressure, recovers slowly and one step at a time
+ *   - delegates the actual visual response through tierCallback when provided
+ *   - remains backward-compatible with legacy LowFX-only behavior
+ *
+ * NOTE:
+ *   This class does not own gameplay authority. It only recommends / applies
+ *   presentation-tier changes through provided callbacks.
+ *
  * ============================================================================
  */
 
+const TIER_RANK = Object.freeze({
+    FULL: 0,
+    BALANCED: 1,
+    PERFORMANCE: 2,
+    SAFE: 3
+});
+
+const DEFAULT_BUDGETS = Object.freeze({
+    frameMsSoft: 17.5,
+    frameMsHard: 28.0,
+    baseSceneMsSoft: 9.5,
+    baseSceneMsHard: 13.0,
+    postFXMsSoft: 4.5,
+    postFXMsHard: 8.0,
+    drawCallsSoft: 150,
+    drawCallsHard: 260,
+    trianglesSoft: 1_800_000,
+    trianglesHard: 3_000_000,
+    linksSoft: 36,
+    linksHard: 64,
+    nodesSoft: 180,
+    nodesHard: 260,
+    activeVfxSoft: 1400,
+    activeVfxHard: 2400,
+    programsHard: 110,
+    geometriesHard: 3500,
+    texturesHard: 800
+});
+
+function clamp01(value) {
+    if (!Number.isFinite(value)) return 0;
+    return Math.max(0, Math.min(1, value));
+}
+
+function normalizeTier(tier) {
+    const value = typeof tier === 'string' ? tier.toUpperCase() : 'FULL';
+    return TIER_RANK[value] !== undefined ? value : 'FULL';
+}
+
+function metricPressure(value, soft, hard) {
+    if (!Number.isFinite(value) || !Number.isFinite(soft) || !Number.isFinite(hard) || hard <= soft) {
+        return 0;
+    }
+    if (value <= soft) return 0;
+    if (value >= hard) return 1;
+    return clamp01((value - soft) / (hard - soft));
+}
+
 export class AdaptivePerformanceMonitor_v1 {
     /**
-     * Initialize the Adaptive Performance Monitor
-     * @param {FXPerformanceController_v1} fxPerformance - Centralized FX controller
-     * @param {Object} options - Configuration object
-     * @param {number} [options.targetFPS=60] - Target frame rate (FPS)
-     * @param {number} [options.hysteresisFPS=5] - Hysteresis band (±FPS around target)
-     * @param {number} [options.lowFXDelaySec=3.0] - Time below threshold before enabling LowFX
-     * @param {number} [options.highFXDelaySec=5.0] - Time above threshold before disabling LowFX
-     * @param {number} [options.emaAlpha=0.1] - EMA smoothing factor (0.0-1.0)
+     * @param {FXPerformanceController_v1} fxPerformance
+     * @param {Object} options
      */
     constructor(fxPerformance, options = {}) {
         this.fxPerformance = fxPerformance;
 
-        // =====================================================================
-        // CONFIGURATION
-        // =====================================================================
         this.targetFPS = options.targetFPS ?? 60;
         this.hysteresisFPS = options.hysteresisFPS ?? 5;
         this.lowFXDelaySec = options.lowFXDelaySec ?? 3.0;
         this.highFXDelaySec = options.highFXDelaySec ?? 5.0;
         this.emaAlpha = options.emaAlpha ?? 0.1;
 
-        // =====================================================================
-        // STATE TRACKING
-        // =====================================================================
-        // FPS smoothing via exponential moving average
+        this.snapshotProvider = typeof options.snapshotProvider === 'function'
+            ? options.snapshotProvider
+            : null;
+        this.tierCallback = typeof options.tierCallback === 'function'
+            ? options.tierCallback
+            : null;
+        this.transitionCallback = typeof options.transitionCallback === 'function'
+            ? options.transitionCallback
+            : null;
+        this.frameScheduler = options.frameScheduler ?? null;
+
+        this.budgetDisciplineEnabled = options.budgetDisciplineEnabled !== false;
+        this.budgets = {
+            ...DEFAULT_BUDGETS,
+            ...(options.budgets || {})
+        };
+
+        this.tierDelays = {
+            BALANCED: options.balancedDelaySec ?? 1.25,
+            PERFORMANCE: options.performanceDelaySec ?? 0.85,
+            SAFE: options.safeDelaySec ?? 0.45,
+            FULL: options.recoveryDelaySec ?? Math.max(this.highFXDelaySec, 4.5)
+        };
+
         this.fpsEMA = this.targetFPS;
-        
-        // Time accumulators for sustained performance changes
-        this.timeBelow = 0;  // Time FPS sustained below low threshold
-        this.timeAbove = 0;  // Time FPS sustained above high threshold
-
-        // Mode: 'AUTO' (automatic toggling) or 'MANUAL_LOCKED' (user override)
+        this.frameMsEMA = 1000 / Math.max(1, this.targetFPS);
+        this.timeBelow = 0;
+        this.timeAbove = 0;
         this.mode = 'AUTO';
-
-        // Last decision made by the system (for logging/debugging)
         this.lastDecision = null;
-
-        // Overall enable/disable flag
         this.enabled = true;
 
-        // =====================================================================
-        // TRANSITION CALLBACK (Week 4.5 integration)
-        // =====================================================================
-        // Optional callback when auto-toggle occurs
-        // Called with: transitionCallback(toLowFX)
-        this.transitionCallback = options.transitionCallback ?? null;
+        this.currentTier = 'FULL';
+        this.pendingTier = 'FULL';
+        this.pendingTierTime = 0;
+        this.recommendedTier = 'FULL';
+        this.lastSnapshot = null;
+        this.lastAssessment = null;
+        this.lastAppliedLowFX = this.fxPerformance?.isLowFX?.() ?? false;
     }
 
-    /**
-     * Update the monitor with current frame deltaTime
-     * Called once per frame from main game loop
-     * 
-     * @param {number} deltaTime - Frame time in seconds
-     */
     update(deltaTime) {
-        // Safety checks
-        if (!this.enabled || !this.fxPerformance || deltaTime <= 0) {
-            
+        if (!this.enabled || !this.fxPerformance || !Number.isFinite(deltaTime) || deltaTime <= 0) {
             return;
         }
- if (!this.frameScheduler?.shouldRunSimulation?.()) return;
-        // =====================================================================
-        // FPS CALCULATION & SMOOTHING
-        // =====================================================================
-        const fpsInstant = 1 / deltaTime;
-        
-        // Exponential moving average: smoother FPS representation
-        // Higher alpha → faster response to changes (less smoothing)
-        // Lower alpha → slower response (more smoothing)
-        this.fpsEMA = this.fpsEMA * (1 - this.emaAlpha) + fpsInstant * this.emaAlpha;
+        if (this.frameScheduler?.shouldRunSimulation && !this.frameScheduler.shouldRunSimulation()) {
+            return;
+        }
 
-        // =====================================================================
-        // THRESHOLD COMPUTATION (with hysteresis band)
-        // =====================================================================
-        // Hysteresis prevents rapid oscillation at the threshold
-        // Low threshold = target - hysteresis (e.g., 55 FPS for target=60, hyst=5)
-        // High threshold = target + hysteresis (e.g., 65 FPS)
+        const fpsInstant = 1 / deltaTime;
+        const frameMsInstant = deltaTime * 1000;
+        this.fpsEMA = this.fpsEMA * (1 - this.emaAlpha) + fpsInstant * this.emaAlpha;
+        this.frameMsEMA = this.frameMsEMA * (1 - this.emaAlpha) + frameMsInstant * this.emaAlpha;
+
+        const snapshot = this._sampleSnapshot();
+        const assessment = this._assessTier(snapshot);
+        this.lastSnapshot = assessment.snapshot;
+        this.lastAssessment = assessment;
+        this.recommendedTier = assessment.tier;
+
+        if (this.mode === 'MANUAL_LOCKED') {
+            this.timeBelow = 0;
+            this.timeAbove = 0;
+            this.pendingTier = this.currentTier;
+            this.pendingTierTime = 0;
+            return;
+        }
+
+        if (this.tierCallback || this.budgetDisciplineEnabled) {
+            this._advanceTierDecision(assessment.tier, deltaTime, assessment);
+            return;
+        }
+
+        this._runLegacyLowFxFallback(deltaTime);
+    }
+
+    _runLegacyLowFxFallback(deltaTime) {
         const lowThreshold = this.targetFPS - this.hysteresisFPS;
         const highThreshold = this.targetFPS + this.hysteresisFPS;
 
-        // =====================================================================
-        // MODE HANDLING
-        // =====================================================================
-        if (this.mode === 'MANUAL_LOCKED') {
-            // In manual override mode, we track metrics but don't auto-toggle
-            // Reset timers to prevent auto-switching when we unlock
-            this.timeBelow = 0;
-            this.timeAbove = 0;
-            return;
-        }
-
-        // =====================================================================
-        // AUTO MODE LOGIC
-        // =====================================================================
-        
-        // Categorize current performance relative to thresholds
         if (this.fpsEMA < lowThreshold) {
-            // Poor performance: accumulate time below threshold
             this.timeBelow += deltaTime;
-            this.timeAbove = 0;  // Reset "above" timer
+            this.timeAbove = 0;
         } else if (this.fpsEMA > highThreshold) {
-            // Good performance: accumulate time above threshold
             this.timeAbove += deltaTime;
-            this.timeBelow = 0;  // Reset "below" timer
+            this.timeBelow = 0;
         } else {
-            // Within hysteresis band: neutral zone
-            // Reset both timers to avoid spurious transitions
             this.timeAbove = 0;
             this.timeBelow = 0;
         }
 
-        // =====================================================================
-        // DECISION: Enable LowFX if performance sustained below threshold
-        // =====================================================================
         if (this.timeBelow >= this.lowFXDelaySec && !this.fxPerformance.isLowFX()) {
             this.fxPerformance.setLowFX(true);
             this.lastDecision = 'AUTO_LOWFX_ON';
-            this.timeBelow = 0;  // Reset to avoid repeated toggles
-            
-            // Trigger smooth transition effect (Week 4.5)
-            if (this.transitionCallback && typeof this.transitionCallback === 'function') {
-                this.transitionCallback(true);
-            }
-            
-            // Optional: Log this decision (useful for performance monitoring)
-            if (typeof console !== 'undefined' && console.log) {
-                console.log(
-                    `[AdaptivePerformanceMonitor] AUTO: Enabling LowFX ` +
-                    `(FPS: ${this.fpsEMA.toFixed(1)}, threshold: ${lowThreshold})`
-                );
-            }
+            this.timeBelow = 0;
+            this.lastAppliedLowFX = true;
+            this.currentTier = 'PERFORMANCE';
+            this.transitionCallback?.(true);
         }
 
-        // =====================================================================
-        // DECISION: Disable LowFX if performance sustained above threshold
-        // =====================================================================
         if (this.timeAbove >= this.highFXDelaySec && this.fxPerformance.isLowFX()) {
             this.fxPerformance.setLowFX(false);
             this.lastDecision = 'AUTO_LOWFX_OFF';
-            this.timeAbove = 0;  // Reset to avoid repeated toggles
-            
-            // Trigger smooth transition effect (Week 4.5)
-            if (this.transitionCallback && typeof this.transitionCallback === 'function') {
-                this.transitionCallback(false);
-            }
-            
-            // Optional: Log this decision
-            if (typeof console !== 'undefined' && console.log) {
-                console.log(
-                    `[AdaptivePerformanceMonitor] AUTO: Disabling LowFX ` +
-                    `(FPS: ${this.fpsEMA.toFixed(1)}, threshold: ${highThreshold})`
-                );
-            }
+            this.timeAbove = 0;
+            this.lastAppliedLowFX = false;
+            this.currentTier = 'FULL';
+            this.transitionCallback?.(false);
         }
     }
 
-    /**
-     * Notify the monitor that user manually toggled performance mode
-     * 
-     * This locks the automatic system into MANUAL_LOCKED mode,
-     * preventing auto-toggling until explicitly reset or new map loads.
-     * 
-     * @param {boolean} isLowFX - The new LowFX state (true = quality reduced)
-     */
-    notifyManualToggle(isLowFX) {
-        // Lock into manual mode: auto system will not override user choice
-        this.mode = 'MANUAL_LOCKED';
-        
-        // Reset timers to avoid auto-toggling when/if we return to AUTO
-        this.timeBelow = 0;
-        this.timeAbove = 0;
-        
-        // Record the manual decision
-        this.lastDecision = isLowFX ? 'MANUAL_LOWFX_ON' : 'MANUAL_LOWFX_OFF';
+    _sampleSnapshot() {
+        const external = this.snapshotProvider ? (this.snapshotProvider() || {}) : {};
+        const render = external.render || {};
+
+        return {
+            fpsEMA: this.fpsEMA,
+            frameMsEMA: this.frameMsEMA,
+            drawCalls: Number.isFinite(external.drawCalls) ? external.drawCalls : 0,
+            triangles: Number.isFinite(external.triangles) ? external.triangles : 0,
+            programs: Number.isFinite(external.programs) ? external.programs : 0,
+            geometries: Number.isFinite(external.geometries) ? external.geometries : 0,
+            textures: Number.isFinite(external.textures) ? external.textures : 0,
+            nodes: Number.isFinite(external.nodes) ? external.nodes : 0,
+            links: Number.isFinite(external.links) ? external.links : 0,
+            activeVfx: Number.isFinite(external.activeVfx) ? external.activeVfx : 0,
+            visualQualityLevel: external.visualQualityLevel || 'HIGH',
+            adaptiveTier: external.adaptiveTier || this.currentTier,
+            baseSceneMs: Number.isFinite(external.baseSceneMs)
+                ? external.baseSceneMs
+                : (render.baseSceneRender?.avg ?? 0),
+            postFXMs: Number.isFinite(external.postFXMs)
+                ? external.postFXMs
+                : (render.postProcessing?.avg ?? 0),
+            finalRenderMs: Number.isFinite(external.finalRenderMs)
+                ? external.finalRenderMs
+                : (render.finalRender?.avg ?? 0),
+            context: external.context || null
+        };
     }
 
-    /**
-     * Reset the monitor back to AUTO mode
-     * 
-     * Useful when transitioning to a new map/level or allowing
-     * the user to re-enable automatic performance management.
-     * Call this after map load completes.
-     */
+    _assessTier(snapshot) {
+        const budgets = this.budgets;
+        const constraints = [
+            {
+                id: 'frameMs',
+                label: 'frame budget',
+                value: snapshot.frameMsEMA,
+                pressure: metricPressure(snapshot.frameMsEMA, budgets.frameMsSoft, budgets.frameMsHard),
+                weight: 0.34
+            },
+            {
+                id: 'baseSceneMs',
+                label: 'scene budget',
+                value: snapshot.baseSceneMs,
+                pressure: metricPressure(snapshot.baseSceneMs, budgets.baseSceneMsSoft, budgets.baseSceneMsHard),
+                weight: 0.18
+            },
+            {
+                id: 'postFXMs',
+                label: 'post FX budget',
+                value: snapshot.postFXMs,
+                pressure: metricPressure(snapshot.postFXMs, budgets.postFXMsSoft, budgets.postFXMsHard),
+                weight: 0.08
+            },
+            {
+                id: 'drawCalls',
+                label: 'draw-call budget',
+                value: snapshot.drawCalls,
+                pressure: metricPressure(snapshot.drawCalls, budgets.drawCallsSoft, budgets.drawCallsHard),
+                weight: 0.18
+            },
+            {
+                id: 'triangles',
+                label: 'triangle budget',
+                value: snapshot.triangles,
+                pressure: metricPressure(snapshot.triangles, budgets.trianglesSoft, budgets.trianglesHard),
+                weight: 0.08
+            },
+            {
+                id: 'links',
+                label: 'link budget',
+                value: snapshot.links,
+                pressure: metricPressure(snapshot.links, budgets.linksSoft, budgets.linksHard),
+                weight: 0.05
+            },
+            {
+                id: 'nodes',
+                label: 'node budget',
+                value: snapshot.nodes,
+                pressure: metricPressure(snapshot.nodes, budgets.nodesSoft, budgets.nodesHard),
+                weight: 0.03
+            },
+            {
+                id: 'activeVfx',
+                label: 'VFX budget',
+                value: snapshot.activeVfx,
+                pressure: metricPressure(snapshot.activeVfx, budgets.activeVfxSoft, budgets.activeVfxHard),
+                weight: 0.06
+            }
+        ];
+
+        const weightedPressure = constraints.reduce((sum, entry) => sum + entry.pressure * entry.weight, 0);
+        const primaryConstraint = constraints
+            .slice()
+            .sort((a, b) => b.pressure - a.pressure)[0] || null;
+
+        let tier = 'FULL';
+        if (
+            snapshot.frameMsEMA >= budgets.frameMsHard ||
+            snapshot.drawCalls >= Math.round(budgets.drawCallsHard * 1.2) ||
+            snapshot.activeVfx >= Math.round(budgets.activeVfxHard * 1.25) ||
+            snapshot.postFXMs >= budgets.postFXMsHard ||
+            snapshot.programs >= budgets.programsHard ||
+            snapshot.geometries >= budgets.geometriesHard ||
+            snapshot.textures >= budgets.texturesHard ||
+            this.fpsEMA <= 42
+        ) {
+            tier = 'SAFE';
+        } else if (
+            weightedPressure >= 0.62 ||
+            snapshot.drawCalls >= budgets.drawCallsHard ||
+            snapshot.activeVfx >= budgets.activeVfxHard ||
+            snapshot.baseSceneMs >= budgets.baseSceneMsHard ||
+            this.fpsEMA <= 49
+        ) {
+            tier = 'PERFORMANCE';
+        } else if (
+            weightedPressure >= 0.24 ||
+            snapshot.drawCalls >= budgets.drawCallsSoft ||
+            snapshot.activeVfx >= budgets.activeVfxSoft ||
+            snapshot.baseSceneMs >= budgets.baseSceneMsSoft ||
+            snapshot.postFXMs >= budgets.postFXMsSoft ||
+            this.fpsEMA <= 57
+        ) {
+            tier = 'BALANCED';
+        }
+
+        return {
+            tier,
+            pressureScore: Number(weightedPressure.toFixed(4)),
+            primaryConstraint,
+            constraints,
+            snapshot
+        };
+    }
+
+    _advanceTierDecision(desiredTier, deltaTime, assessment) {
+        const normalizedDesired = normalizeTier(desiredTier);
+        const currentRank = TIER_RANK[this.currentTier] ?? 0;
+        const desiredRank = TIER_RANK[normalizedDesired] ?? 0;
+
+        let stagedDesired = normalizedDesired;
+        if (desiredRank < currentRank - 1) {
+            stagedDesired = Object.keys(TIER_RANK).find((key) => TIER_RANK[key] === currentRank - 1) || normalizedDesired;
+        }
+
+        if (stagedDesired !== this.pendingTier) {
+            this.pendingTier = stagedDesired;
+            this.pendingTierTime = 0;
+            return;
+        }
+
+        this.pendingTierTime += deltaTime;
+        const delay = this.tierDelays[stagedDesired] ?? 1.0;
+        if (this.pendingTierTime < delay) {
+            return;
+        }
+
+        if (stagedDesired === this.currentTier) {
+            this.pendingTierTime = 0;
+            return;
+        }
+
+        const previousTier = this.currentTier;
+        this.currentTier = stagedDesired;
+        this.pendingTierTime = 0;
+        this.lastDecision = `AUTO_TIER_${stagedDesired}`;
+
+        const nextLowFX = stagedDesired === 'PERFORMANCE' || stagedDesired === 'SAFE';
+        const lowFxChanged = nextLowFX !== this.lastAppliedLowFX;
+
+        if (this.tierCallback) {
+            this.tierCallback(stagedDesired, assessment.snapshot, {
+                previousTier,
+                lowFxChanged,
+                recommendedTier: this.recommendedTier,
+                primaryConstraint: assessment.primaryConstraint,
+                pressureScore: assessment.pressureScore
+            });
+        } else {
+            this.fxPerformance.setLowFX(nextLowFX);
+            if (lowFxChanged) {
+                this.transitionCallback?.(nextLowFX);
+            }
+        }
+
+        this.lastAppliedLowFX = nextLowFX;
+    }
+
+    notifyManualToggle(isLowFX) {
+        this.mode = 'MANUAL_LOCKED';
+        this.timeBelow = 0;
+        this.timeAbove = 0;
+        this.pendingTierTime = 0;
+        this.pendingTier = this.currentTier;
+        this.currentTier = isLowFX ? 'PERFORMANCE' : 'FULL';
+        this.recommendedTier = this.currentTier;
+        this.lastDecision = isLowFX ? 'MANUAL_LOWFX_ON' : 'MANUAL_LOWFX_OFF';
+        this.lastAppliedLowFX = !!isLowFX;
+    }
+
     resetToAuto() {
         this.mode = 'AUTO';
         this.timeBelow = 0;
         this.timeAbove = 0;
+        this.pendingTier = this.currentTier;
+        this.pendingTierTime = 0;
         this.lastDecision = null;
-        
-        if (typeof console !== 'undefined' && console.log) {
-            console.log('[AdaptivePerformanceMonitor] Reset to AUTO mode');
-        }
     }
 
-    /**
-     * Get current monitor state (for debugging/telemetry)
-     * @returns {Object} State snapshot
-     */
     getState() {
         return {
             fpsEMA: this.fpsEMA,
+            frameMsEMA: this.frameMsEMA,
             targetFPS: this.targetFPS,
-            lowThreshold: this.targetFPS - this.hysteresisFPS,
-            highThreshold: this.targetFPS + this.hysteresisFPS,
-            timeBelow: this.timeBelow,
-            timeAbove: this.timeAbove,
             mode: this.mode,
             lastDecision: this.lastDecision,
-            isLowFX: this.fxPerformance?.isLowFX() ?? false,
-            enabled: this.enabled
+            currentTier: this.currentTier,
+            pendingTier: this.pendingTier,
+            pendingTierTime: this.pendingTierTime,
+            recommendedTier: this.recommendedTier,
+            isLowFX: this.fxPerformance?.isLowFX?.() ?? false,
+            enabled: this.enabled,
+            budgets: { ...this.budgets },
+            assessment: this.lastAssessment
+                ? {
+                    tier: this.lastAssessment.tier,
+                    pressureScore: this.lastAssessment.pressureScore,
+                    primaryConstraint: this.lastAssessment.primaryConstraint,
+                    constraints: this.lastAssessment.constraints
+                }
+                : null,
+            snapshot: this.lastSnapshot
         };
     }
 
-    /**
-     * Enable/disable the monitor
-     * When disabled, update() returns early
-     * @param {boolean} enable - Enable or disable
-     */
     setEnabled(enable) {
         this.enabled = Boolean(enable);
     }
 }
-
-// ============================================================================
-// EXPORT SUMMARY
-// ============================================================================
-// 
-// export class AdaptivePerformanceMonitor_v1 {
-//   constructor(fxPerformance, options = {})
-//   update(deltaTime)
-//   notifyManualToggle(isLowFX)
-//   resetToAuto()
-//   getState()
-//   setEnabled(enable)
-// }
-//
-// ============================================================================

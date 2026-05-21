@@ -451,6 +451,12 @@ export class EnvironmentDomainController {
 
     this.instances = {};
     this.schedulerId = 'visual.environmentDomain';
+    this.releaseAtmosphereOverlay = null;
+  }
+
+  setReleaseAtmosphereOverlay(overlay = null) {
+    this.releaseAtmosphereOverlay = overlay && typeof overlay === 'object' ? overlay : null;
+    this._syncEnvironmentWorldContext();
   }
 
   init() {
@@ -1298,19 +1304,42 @@ export class EnvironmentDomainController {
     };
   }
 
+  _mergeReleaseAtmosphereOverlay(baseProfile, overlay = null) {
+    if (!overlay || typeof overlay !== 'object') {
+      return baseProfile;
+    }
+
+    const mergeNumbers = (base = {}, delta = {}) => {
+      const next = { ...base };
+      for (const [key, value] of Object.entries(delta || {})) {
+        if (!Number.isFinite(Number(value))) continue;
+        next[key] = THREE.MathUtils.clamp((Number(next[key]) || 0) + Number(value), 0, 1);
+      }
+      return next;
+    };
+
+    return {
+      ...baseProfile,
+      vector: mergeNumbers(baseProfile.vector, overlay.vector),
+      worldFX: mergeNumbers(baseProfile.worldFX, overlay.worldFX),
+      hazards: mergeNumbers(baseProfile.hazards, overlay.hazards),
+      runIdentitySkin: overlay.environmentSkin || baseProfile.runIdentitySkin || null
+    };
+  }
+
   _buildEnvironmentWorldBinding(worldContext) {
     const macroState = String(worldContext?.worldMacroState || worldContext?.macroState || 'DORMANT').toUpperCase();
     const macroProfile = worldContext?.macroProfile || null;
     const moodState = this._resolveEnvironmentMoodState();
     const dramaturgyState = this._resolveEnvironmentDramaturgyState();
     const metricAccents = this._resolveControllerMetricAccents();
-    const releaseAtmosphere = this._buildReleaseAtmosphereProfile(
+    const releaseAtmosphere = this._mergeReleaseAtmosphereOverlay(this._buildReleaseAtmosphereProfile(
       macroState,
       macroProfile,
       moodState,
       dramaturgyState,
       metricAccents
-    );
+    ), this.releaseAtmosphereOverlay);
 
     return {
       worldContext,

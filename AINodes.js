@@ -841,6 +841,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
        lastAdvancedAt: 0,
        skippedSinceSuccess: 0,
      };
+    this.runIdentityProfile = null;
     this._pendingCyclicCandidate = null;
     
     // DEBUG: Log spawn cycle initialization
@@ -1059,21 +1060,52 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       'quantum', 'sigma', 'mythic', 'prime', 'error', 'emotional'
     ];
 
+    let nextOrder = defaultOrder;
+
     if (normalizedWorld === 'quantum') {
-      return [
+      nextOrder = [
         'quantum', 'process', 'integration', 'analytics', 'emotional', 'sigma',
         'input', 'mythic', 'storage', 'control', 'prime', 'error'
       ];
-    }
-
-    if (normalizedWorld === 'desert') {
-      return [
+    } else if (normalizedWorld === 'desert') {
+      nextOrder = [
         'storage', 'control', 'prime', 'input', 'sigma', 'mythic',
         'integration', 'analytics', 'process', 'emotional', 'quantum', 'error'
       ];
     }
 
-    return defaultOrder;
+    return this._applyRunIdentitySpawnBias(nextOrder);
+  }
+
+  _applyRunIdentitySpawnBias(baseOrder = []) {
+    const runBias = Array.isArray(this.runIdentityProfile?.spawnBiasOrder)
+      ? this.runIdentityProfile.spawnBiasOrder.map((category) => String(category || '').trim().toLowerCase()).filter(Boolean)
+      : [];
+    if (!runBias.length) {
+      return [...baseOrder];
+    }
+
+    const seen = new Set();
+    const preferred = [];
+    for (const category of runBias) {
+      if (seen.has(category)) continue;
+      if (!baseOrder.includes(category)) continue;
+      seen.add(category);
+      preferred.push(category);
+    }
+
+    for (const category of baseOrder) {
+      if (seen.has(category)) continue;
+      seen.add(category);
+      preferred.push(category);
+    }
+
+    return preferred;
+  }
+
+  setRunIdentityProfile(profile = null) {
+    this.runIdentityProfile = profile && typeof profile === 'object' ? { ...profile } : null;
+    this._syncSpawnCycleOrderToWorld();
   }
 
   _syncSpawnCycleOrderToWorld(world = null) {

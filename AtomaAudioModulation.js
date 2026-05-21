@@ -54,6 +54,13 @@ export class AtomaAudioModulation {
         this.audioSystem = audioSystem;
         this.enabled = true;
         this.backend = HAS_TONE_STUB ? 'fallback' : 'real-tone';
+        this.audioIdentity = {
+            world: null,
+            runPackage: 'surge_thread',
+            worldState: null,
+            buildState: 'FRAGILE EXPANSION',
+            scoreState: 'forward'
+        };
         
         // Current metric values (smoothed)
         this.smoothedSynergy = 0;
@@ -169,14 +176,28 @@ export class AtomaAudioModulation {
         }
         return false;
     }
+
+    setAudioIdentityContext(context = {}) {
+        const source = context && typeof context === 'object' ? context : {};
+        this.audioIdentity = {
+            ...this.audioIdentity,
+            world: source.world ? String(source.world).trim().toLowerCase() : this.audioIdentity.world,
+            runPackage: source.runPackage ? String(source.runPackage).trim().toLowerCase() : this.audioIdentity.runPackage,
+            worldState: source.worldState ? String(source.worldState).trim().toLowerCase() : this.audioIdentity.worldState,
+            buildState: String(source.buildState?.label || source.buildState?.key || source.buildState || this.audioIdentity.buildState).trim().toUpperCase(),
+            scoreState: String(source.scoreState || source.direction || this.audioIdentity.scoreState).trim().toLowerCase()
+        };
+        return { ...this.audioIdentity };
+    }
     
     /**
      * Main update loop - call this from main animation frame
      * @param {number} deltaTime - Frame delta in seconds
      * @param {object} metrics - { synergy: 0-100, harmony: 0-100, corruption: 0-100 }
      */
-    update(deltaTime, metrics) {
+    update(deltaTime, metrics, context = {}) {
         if (!this.enabled || !metrics) return;
+        this.setAudioIdentityContext(context?.audioIdentity || context);
         
         // Normalize metrics to 0-1 range
         const synergy = (metrics.synergy ?? 0) / 100;
@@ -266,34 +287,50 @@ export class AtomaAudioModulation {
      * As local nodes align, the audio becomes clearer and more spatially coherent
      */
     applySynergyModulation(deltaTime) {
+        const buildState = this.audioIdentity?.buildState || 'FRAGILE EXPANSION';
+        const runPackage = this.audioIdentity?.runPackage || 'surge_thread';
+        const duck = this.audioSystem?.getForegroundDuckFactor?.() ?? 1;
+        const synergyTimerScale = runPackage === 'lattice_keeper'
+            ? 1.22
+            : runPackage === 'surge_thread'
+                ? 0.88
+                : 1.0;
         // Harmonic clarity: as synergy increases, boost high-mid clarity
         // Q value drives resonance: low synergy = flat, high synergy = sharp peak
         // Range: 0.5 to 3.0 (safe from RangeError, always > SAFE_AUDIO_FLOOR)
-        const clarityQ = this.clampToRange(0.5 + this.smoothedSynergy * 2.5, 0.5, 3.0);
+        const clarityQ = this.clampToRange(
+            0.5 + this.smoothedSynergy * 2.5 + (buildState === 'VOLATILE SURGE' ? 0.22 : 0),
+            0.5,
+            3.2
+        );
         this.safeRamp(this.synergyFilter.Q, clarityQ, 0.3);
         
         // Frequency shifts slightly up with synergy (more "awake")
         // Range: 250 to 550 Hz (safe from RangeError, always > SAFE_AUDIO_FLOOR)
-        const clarityFreq = this.clampToRange(250 + this.smoothedSynergy * 300, 250, 550);
+        const clarityFreq = this.clampToRange(
+            250 + this.smoothedSynergy * 300 + (buildState === 'VOLATILE SURGE' ? 30 : buildState === 'STABILIZED LATTICE' ? -18 : 0),
+            220,
+            620
+        );
         this.safeRamp(this.synergyFilter.frequency, clarityFreq, 0.3);
         
         // Sub-bass reinforcement: plays subtle 50Hz tone when synergy is high
         // Frequency: 50Hz (sub-bass fundamental)
         // Volume: proportional to synergy (-35 to -20 dB)
         // Tone.js volume parameter supports negative dB values safely
-        const subBassVolume = -35 - this.smoothedSynergy * 15; // -35 to -20 dB
+        const subBassVolume = (-35 - this.smoothedSynergy * 15) + (duck < 1 ? -6 : 0); // -35 to -20 dB
         this.safeRamp(this.synergySynth.volume, subBassVolume, 0.5);
         
         // Trigger sub-bass tone periodically (every 2 seconds) when synergy > 0.4
         if (this.smoothedSynergy > 0.4) {
             // Use a timer to trigger periodically
             if (!this.synergyToneTimer) {
-                this.synergyToneTimer = 2.0;
+                this.synergyToneTimer = 2.0 * synergyTimerScale;
                 this.synergySynth.triggerAttackRelease('C1', '1n');
             }
             this.synergyToneTimer -= deltaTime;
             if (this.synergyToneTimer <= 0) {
-                this.synergyToneTimer = 2.0;
+                this.synergyToneTimer = 2.0 * synergyTimerScale;
                 this.synergySynth.triggerAttackRelease('C1', '1n');
             }
         }
@@ -305,28 +342,45 @@ export class AtomaAudioModulation {
      */
     applyHarmonyModulation(deltaTime) {
         if (!Number.isFinite(deltaTime)) return;
+        const buildState = this.audioIdentity?.buildState || 'FRAGILE EXPANSION';
+        const world = this.audioIdentity?.world || 'quantum';
+        const duck = this.audioSystem?.getForegroundDuckFactor?.() ?? 1;
 
         // LFO rate: high harmony = slow, meditative; low harmony = faster, searching
         // Range: 0.08 Hz (very slow, peaceful) to 0.35 Hz (active, restless)
         // Safe from RangeError: always > SAFE_AUDIO_FLOOR
-        const lfoFreq = this.clampToRange(0.08 + (1 - this.smoothedHarmony) * 0.27, 0.08, 0.35);
+        const lfoFreq = this.clampToRange(
+            0.08 + (1 - this.smoothedHarmony) * 0.27
+            + (buildState === 'VOLATILE SURGE' ? 0.03 : 0)
+            + (world === 'desert' ? -0.02 : 0.01),
+            0.06,
+            0.38
+        );
         this.safeRamp(this.harmonyLFO.frequency, lfoFreq, 1.0);
         
         // Filter cutoff: high harmony = bright, open; low harmony = duller, constrained
         // Range: 5000 Hz (constrained) to 10000 Hz (open, spacious)
         // Safe from RangeError: always > SAFE_AUDIO_FLOOR
-        const harmonyFreq = this.clampToRange(5000 + this.smoothedHarmony * 5000, 5000, 10000);
+        const harmonyFreq = this.clampToRange(
+            5000 + this.smoothedHarmony * 5000 + (world === 'desert' ? -350 : 220),
+            4200,
+            10800
+        );
         this.safeRamp(this.harmonyFilter.frequency, harmonyFreq, 1.0);
         
         // Filter Q: high harmony = gentle rolloff; low harmony = sharper cutoff
         // Range: 0.5 to 1.5 (safe from RangeError, always > SAFE_AUDIO_FLOOR)
-        const harmonyQ = this.clampToRange(0.5 + (1 - this.smoothedHarmony) * 1.0, 0.5, 1.5);
+        const harmonyQ = this.clampToRange(
+            0.5 + (1 - this.smoothedHarmony) * 1.0 + (buildState === 'COLLAPSE DRIFT' ? 0.18 : 0),
+            0.5,
+            1.7
+        );
         this.safeRamp(this.harmonyFilter.Q, harmonyQ, 1.0);
         
         // Ambient noise volume: increases slightly when harmony is low (uncertainty)
         // Range: -42 dB (high harmony, subtle) to -38 dB (low harmony, more present)
         // Tone.js volume parameter supports negative dB values safely (no RangeError)
-        const ambientVolume = -42 + (1 - this.smoothedHarmony) * 4;
+        const ambientVolume = (-42 + (1 - this.smoothedHarmony) * 4) + (duck < 1 ? -8 : 0);
         this.safeRamp(this.harmonyNoise.volume, ambientVolume, 2.0);
         
         // Continuous ambient texture: trigger harmonyNoise periodically for sustained texture
@@ -339,7 +393,7 @@ export class AtomaAudioModulation {
             // Trigger harmonyNoise with its long envelope (2.8s attack+sustain)
             this.harmonyNoise.triggerAttackRelease(this.harmonyNoiseDuration);
             // Reschedule: every 3.5s for 95% overlap, creating seamless ambience
-            this.harmonyNoiseTimer = 3.5;
+            this.harmonyNoiseTimer = world === 'desert' ? 4.1 : 3.2;
         }
         
         // Drive LFO into filter for slow motion
@@ -353,6 +407,9 @@ export class AtomaAudioModulation {
      * Systemic entropy creates subtle phase stability and texture degradation
      */
     applyCorruptionModulation(deltaTime) {
+        const buildState = this.audioIdentity?.buildState || 'FRAGILE EXPANSION';
+        const world = this.audioIdentity?.world || 'quantum';
+        const duck = this.audioSystem?.getForegroundDuckFactor?.() ?? 1;
         // Phase stability: oscillating phase offset on noise
         // Range: 0 to 0.3 radians (mathematical only, doesn't touch audio parameters)
         this.corruptionPhaseShift += this.corruptionPhaseRate * this.smoothedCorruption * deltaTime;
@@ -363,14 +420,21 @@ export class AtomaAudioModulation {
         // Corruption noise volume: increases as entropy rises
         // Range: -48 dB (no corruption) to -42 dB (high corruption, more texture stability)
         // Tone.js volume parameter supports negative dB values safely (no RangeError)
-        const corruptionVolume = this.clampToRange(-48 + this.smoothedCorruption * 6, -48, -42);
+        const corruptionVolume = this.clampToRange(
+            (-48 + this.smoothedCorruption * 6)
+            + (buildState === 'COLLAPSE DRIFT' ? 1.4 : buildState === 'VOLATILE SURGE' ? 0.6 : 0)
+            + (world === 'desert' ? -0.4 : 0.4)
+            + (duck < 1 ? -5 : 0),
+            -50,
+            -40
+        );
         this.safeRamp(this.corruptionNoise.volume, corruptionVolume, 1.5);
         
         // Texture randomness: as corruption increases, play noise bursts at irregular intervals
         // This creates gentle unpredictability without glitches
         if (this.smoothedCorruption > 0.2) {
             if (!this.corruptionBurstTimer) {
-                this.corruptionBurstTimer = Math.random() * (1 + this.smoothedCorruption * 2);
+                this.corruptionBurstTimer = Math.random() * ((world === 'desert' ? 1.4 : 1.0) + this.smoothedCorruption * 2);
             }
             this.corruptionBurstTimer -= deltaTime;
             if (this.corruptionBurstTimer <= 0) {
@@ -378,7 +442,7 @@ export class AtomaAudioModulation {
                 const burstDuration = 0.2 + Math.random() * 0.3;
                 this.corruptionNoise.triggerAttackRelease(burstDuration);
                 // Randomize next burst timing
-                this.corruptionBurstTimer = Math.random() * (2 + this.smoothedCorruption * 3);
+                this.corruptionBurstTimer = Math.random() * ((world === 'desert' ? 2.6 : 2.0) + this.smoothedCorruption * 3);
             }
         }
     }
@@ -406,6 +470,7 @@ export class AtomaAudioModulation {
             synergy: this.smoothedSynergy.toFixed(3),
             harmony: this.smoothedHarmony.toFixed(3),
             corruption: this.smoothedCorruption.toFixed(3),
+            audioIdentity: { ...this.audioIdentity },
             description: `Synergy: ${(this.smoothedSynergy * 100).toFixed(0)}% | Harmony: ${(this.smoothedHarmony * 100).toFixed(0)}% | Corruption: ${(this.smoothedCorruption * 100).toFixed(0)}%`
         };
     }

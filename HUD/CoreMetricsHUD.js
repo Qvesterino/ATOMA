@@ -57,6 +57,9 @@ export class CoreMetricsHUD {
       networkTime: null,
       buildStateLabel: null,
       buildStateGuidance: null,
+      runIdentitySection: null,
+      runIdentityTitle: null,
+      runIdentityDetail: null,
       onboardingObjectiveSection: null,
       onboardingObjectiveTitle: null,
       onboardingObjectiveDetail: null
@@ -115,6 +118,7 @@ export class CoreMetricsHUD {
     this._lastNewEventFlags = null;
     this._lastDeltaTime = 0.016;
     this._currentBuildState = null;
+    this._currentRunIdentityTag = null;
     this._currentOnboardingObjective = null;
     
     // Network Time direction indicator
@@ -549,6 +553,19 @@ export class CoreMetricsHUD {
     buildStateSection.appendChild(buildStateGuidance);
     ntSection.appendChild(buildStateSection);
 
+    const runIdentitySection = document.createElement('div');
+    runIdentitySection.className = 'onboarding-objective run-identity-tag';
+
+    const runIdentityTitle = document.createElement('div');
+    runIdentityTitle.className = 'onboarding-objective-title';
+
+    const runIdentityDetail = document.createElement('div');
+    runIdentityDetail.className = 'onboarding-objective-detail';
+
+    runIdentitySection.appendChild(runIdentityTitle);
+    runIdentitySection.appendChild(runIdentityDetail);
+    ntSection.appendChild(runIdentitySection);
+
     const onboardingObjectiveSection = document.createElement('div');
     onboardingObjectiveSection.className = 'onboarding-objective';
 
@@ -569,6 +586,9 @@ export class CoreMetricsHUD {
     this.hudElements.networkTimeGoal = ntGoal;
     this.hudElements.buildStateLabel = buildStateLabel;
     this.hudElements.buildStateGuidance = buildStateGuidance;
+    this.hudElements.runIdentitySection = runIdentitySection;
+    this.hudElements.runIdentityTitle = runIdentityTitle;
+    this.hudElements.runIdentityDetail = runIdentityDetail;
     this.hudElements.onboardingObjectiveSection = onboardingObjectiveSection;
     this.hudElements.onboardingObjectiveTitle = onboardingObjectiveTitle;
     this.hudElements.onboardingObjectiveDetail = onboardingObjectiveDetail;
@@ -1158,6 +1178,21 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
     return this._currentBuildState || this._classifyBuildState(null);
   }
 
+  setRunIdentityTag(tag = null) {
+    this._currentRunIdentityTag = tag && typeof tag === 'object'
+      ? {
+          title: String(tag.title || '').trim(),
+          detail: String(tag.detail || '').trim()
+        }
+      : null;
+    this._applyRunIdentityTag();
+  }
+
+  clearRunIdentityTag() {
+    this._currentRunIdentityTag = null;
+    this._applyRunIdentityTag();
+  }
+
   setOnboardingObjective(objective = null) {
     this._currentOnboardingObjective = objective && typeof objective === 'object'
       ? {
@@ -1183,6 +1218,19 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
     const visible = Boolean(objective?.title || objective?.detail);
     title.textContent = objective?.title || '';
     detail.textContent = objective?.detail || '';
+    section.classList.toggle('visible', visible);
+  }
+
+  _applyRunIdentityTag() {
+    const section = this.hudElements.runIdentitySection;
+    const title = this.hudElements.runIdentityTitle;
+    const detail = this.hudElements.runIdentityDetail;
+    if (!section || !title || !detail) return;
+
+    const tag = this._currentRunIdentityTag;
+    const visible = Boolean(tag?.title || tag?.detail);
+    title.textContent = tag?.title || '';
+    detail.textContent = tag?.detail || '';
     section.classList.toggle('visible', visible);
   }
 

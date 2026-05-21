@@ -5,6 +5,7 @@ import {
     getLoreSectionById,
     getLoreSections,
 } from './LoreRegistry.js';
+import { META_PROGRESSION_VERSION, sanitizeMetaProgression } from './RunIdentityProfiles.js';
 import { ATOMA_VERSION } from './src/config/version.js';
 
 const MENU_PROFILE_STORAGE_KEY = 'atoma.menu.profile.v1';
@@ -363,6 +364,10 @@ function sanitizeProfile(value) {
         selectedMapId: sanitizeSelectedMapId(profile.selectedMapId),
         settings: sanitizeSettings(profile.settings),
         onboarding: sanitizeOnboarding(profile.onboarding),
+        metaProgression: sanitizeMetaProgression({
+            version: META_PROGRESSION_VERSION,
+            ...(profile.metaProgression || {})
+        }),
     };
 }
 

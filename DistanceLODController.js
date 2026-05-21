@@ -1,6 +1,7 @@
 export class DistanceLODController {
     constructor(camera) {
         this.camera = camera || null;
+        this.performanceTier = 'FULL';
     }
 
     getLODLevel(position) {
@@ -20,12 +21,12 @@ export class DistanceLODController {
 
     getLODProfile(position) {
         const level = this.getLODLevel(position);
-        return DistanceLODController.getLODProfileForLevel(level);
+        return this._applyPerformanceTier(DistanceLODController.getLODProfileForLevel(level));
     }
 
     getColonyLODProfile(position, nearDistance = 20, farDistance = 50) {
         const level = this.getColonyLODLevel(position, nearDistance, farDistance);
-        return DistanceLODController.getColonyLODProfileForLevel(level);
+        return this._applyPerformanceTier(DistanceLODController.getColonyLODProfileForLevel(level));
     }
 
     getColonyLODLevel(position, nearDistance = 20, farDistance = 50) {
@@ -142,5 +143,82 @@ export class DistanceLODController {
             maxRings: 6,
             allowBeam: true
         };
+    }
+
+    setPerformanceTier(tier = 'FULL') {
+        const normalized = typeof tier === 'string' ? tier.toUpperCase() : 'FULL';
+        if (normalized === 'SAFE' || normalized === 'PERFORMANCE' || normalized === 'BALANCED') {
+            this.performanceTier = normalized;
+        } else {
+            this.performanceTier = 'FULL';
+        }
+        return this.performanceTier;
+    }
+
+    getPerformanceTier() {
+        return this.performanceTier || 'FULL';
+    }
+
+    _applyPerformanceTier(profile = {}) {
+        const tier = this.getPerformanceTier();
+        if (tier === 'FULL') {
+            return { ...profile, performanceTier: tier };
+        }
+
+        const next = {
+            ...profile,
+            performanceTier: tier
+        };
+
+        if (tier === 'BALANCED') {
+            next.particleScale = (profile.particleScale ?? 1) * 0.9;
+            next.motionScale = (profile.motionScale ?? 1) * 0.94;
+            next.cadenceScale = (profile.cadenceScale ?? 1) * 1.12;
+            if (Number.isFinite(profile.maxRings)) {
+                next.maxRings = Math.max(1, Math.floor(profile.maxRings * 0.85));
+            }
+            return next;
+        }
+
+        if (tier === 'PERFORMANCE') {
+            next.visualScale = (profile.visualScale ?? 1) * 0.92;
+            next.particleScale = (profile.particleScale ?? 1) * 0.72;
+            next.motionScale = (profile.motionScale ?? 1) * 0.86;
+            next.cadenceScale = (profile.cadenceScale ?? 1) * 1.38;
+            if (profile.level >= 2 && 'allowParticles' in next) {
+                next.allowParticles = false;
+            }
+            if (Number.isFinite(profile.maxRings)) {
+                next.maxRings = Math.max(1, Math.floor(profile.maxRings * 0.66));
+            }
+            if (profile.level >= 1 && 'allowBeam' in next) {
+                next.allowBeam = false;
+            }
+            return next;
+        }
+
+        next.visualScale = (profile.visualScale ?? 1) * 0.84;
+        next.particleScale = (profile.particleScale ?? 1) * 0.48;
+        next.motionScale = (profile.motionScale ?? 1) * 0.74;
+        next.cadenceScale = (profile.cadenceScale ?? 1) * 1.85;
+        if ('allowParticles' in next) {
+            next.allowParticles = profile.level <= 0 ? next.allowParticles : false;
+        }
+        if (profile.level >= 1 && 'allowSecondaryVfx' in next) {
+            next.allowSecondaryVfx = false;
+        }
+        if (Number.isFinite(profile.maxRings)) {
+            next.maxRings = Math.max(0, Math.floor(profile.maxRings * 0.4));
+        }
+        if (profile.level >= 1 && 'allowBeam' in next) {
+            next.allowBeam = false;
+        }
+        if (profile.level >= 1 && 'allowGlow' in next) {
+            next.allowGlow = false;
+        }
+        if (profile.level >= 1 && 'allowCanopy' in next) {
+            next.allowCanopy = false;
+        }
+        return next;
     }
 }

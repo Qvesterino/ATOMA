@@ -568,8 +568,10 @@ function markReleaseContainmentRuntime(game, systemKey, patch = {}) {
 import { CoreMetricsOverlay } from './HUD/CoreMetricsOverlay.js';
 import { GameplayHintLayer } from './HUD/GameplayHintLayer.js';
 import { FirstRunGuidanceDirector, GUIDED_FLOW_VERSION } from './HUD/FirstRunGuidanceDirector.js';
+import { RunIdentityDirector } from './HUD/RunIdentityDirector.js';
 import { createEmptyCoreMetricsViewModel, updateCoreMetricsViewModel } from './HUD/CoreMetricsViewModel.js';
 import { loadMenuProfile, saveMenuProfile } from './MainMenu.js';
+import { composeRunIdentitySelection, isRunIdentityWorld } from './RunIdentityProfiles.js';
 import { SystemStateOverlay } from './SystemStateOverlay.js';
 import { ZoneAudioReactivity } from './ZoneAudioReactivity.js';
 // DISABLED: Legacy metric reactive system (replaced by Phase 5-7 architecture)
@@ -4212,7 +4214,11 @@ class AtomaGame {
         this._hintRewindBlockShown = false;
         this._hintRewindStartShown = false;
         this.firstRunGuidanceDirector = null;
+        this.runIdentityDirector = null;
+        this.activeRunIdentitySelection = null;
+        this._runIdentityPendingSelection = null;
         this._setupFirstRunGuidanceDirector();
+        this._setupRunIdentityDirector();
         
         // ========================================================================
         // PHASE MMD-1: MATERIAL MUTATION DETECTOR
@@ -4518,11 +4524,12 @@ class AtomaGame {
         }, 'simulation.fxPerformanceTransition');
         this.frameScheduler.register('simulation', () => {
             if (this.audioSystem) {
-                const canonicalWorldContext = this._getCanonicalWorldContext();
+                const canonicalWorldContext = this._getAudioWorldContext();
                 this.audioSystem.update?.(dt, {
                     ...canonicalWorldContext,
                     semanticBus: this.semanticBus
                 });
+                this.harmonicAudio?.setAudioIdentityContext?.(canonicalWorldContext.audioIdentity);
             }
             this.metricDirtyQueue?.clear();
         }, 'simulation.metricDirtyQueueReset');
@@ -4721,7 +4728,7 @@ class AtomaGame {
                     synergy: this.nodeDynamicMetrics.avgSynergy || 0,
                     harmony: this.nodeDynamicMetrics.avgHarmony || 50,
                     corruption: this.nodeDynamicMetrics.avgCorruption || 0
-                });
+                }, this._buildAudioIdentityContext());
             }
             if (this.audioSystem && this.nodeDynamicMetrics) {
                 const avgSynergy = this.nodeDynamicMetrics?.avgSynergy ?? 0.0;
@@ -5501,6 +5508,7 @@ this.setHudDirty('nodeInspect');
                 if (!this.audioModulation) {
                     this.audioModulation = new AtomaAudioModulation(this.audioSystem);
                 }
+                this.audioModulation?.setAudioIdentityContext?.(this._buildAudioIdentityContext());
             } catch (error) {
                 console.warn('[ATOMA AUDIO] Audio modulation init degraded:', error);
                 this._pushOptionalAudioError('modulation-init', error);
@@ -5511,6 +5519,8 @@ this.setHudDirty('nodeInspect');
                 if (this.harmonicAudio?.start) {
                     await this.harmonicAudio.start();
                 }
+                this.audioSystem?.setWorldContext?.(this._getAudioWorldContext());
+                this.harmonicAudio?.setAudioIdentityContext?.(this._buildAudioIdentityContext());
             } catch (error) {
                 console.warn('[ATOMA AUDIO] Harmonic audio init degraded:', error);
                 this._pushOptionalAudioError('harmonic-audio-start', error);
@@ -5539,6 +5549,11 @@ this.setHudDirty('nodeInspect');
             }
         };
         window.audioStatus = () => ({ ...this._refreshAudioDiagnostics() });
+        window.__ATOMA_AUDIO_IDENTITY__ = () => ({
+            audioSystem: this.audioSystem?.getAudioIdentitySnapshot?.() || null,
+            modulation: this.audioModulation?.getStatus?.()?.audioIdentity || null,
+            harmonic: this.harmonicAudio?.audioIdentity ? { ...this.harmonicAudio.audioIdentity } : null
+        });
         window.resetAtomaAudioStartLock = () => {
             this.audioStartFatalLocked = false;
             this.audioStartLastError = null;
@@ -7062,8 +7077,225 @@ window.__ATOMA_SCENE__ = this.scene;
             return this._trackVisualTransition(transitionPromise);
         };
         this.cinematicNodeShadersEnabled = true;
+        this.performanceDisciplineBaseSettings = null;
+        this.performanceDisciplineCurrentTier = 'FULL';
+        this.performanceDisciplineState = null;
+        this._recordPerformanceDisciplinePreference = (patch = {}) => {
+            const base = this.performanceDisciplineBaseSettings || (this.performanceDisciplineBaseSettings = {});
+            Object.assign(base, patch);
+            return base;
+        };
+        this.capturePerformanceDisciplineBaseline = (force = false) => {
+            if (this.performanceDisciplineBaseSettings && !force) {
+                return { ...this.performanceDisciplineBaseSettings };
+            }
+
+            this.performanceDisciplineBaseSettings = {
+                visuals: this.visualQualityLevel || 'HIGH',
+                postProcessing: this.postProcessingEnabled !== false,
+                luminosityBloom: this.luminosityBloomEnabled === true,
+                cinematicNodeShaders: this.cinematicNodeShadersEnabled !== false,
+                nodeRotations: this.nodeRotationsEnabled !== false,
+                semanticPictograms: this.semanticPictogramsEnabled !== false,
+                environmentalHazards: this.environmentalHazardsEnabled !== false
+            };
+            return { ...this.performanceDisciplineBaseSettings };
+        };
+        this.buildPerformanceBudgetSnapshot = () => {
+            const renderInfo = this.renderer?.info?.render || {};
+            const memoryInfo = this.renderer?.info?.memory || {};
+            const programs = Array.isArray(this.renderer?.info?.programs)
+                ? this.renderer.info.programs.length
+                : (this.renderer?.info?.programs ?? 0);
+            const renderAverages = this.renderProfile?.getAverages?.() || {};
+            const links = Array.isArray(this.linkingSystem?.links) ? this.linkingSystem.links : [];
+            const nodes = Array.isArray(this.aiNodes?.nodes) ? this.aiNodes.nodes : [];
+            const waveCounts = this.particleEmitter?.activeCount;
+            const waveActiveCount = typeof waveCounts === 'number'
+                ? waveCounts
+                : Object.values(waveCounts || {}).reduce((sum, value) => sum + (Number.isFinite(value) ? value : 0), 0);
+            const activeEchoes = Array.isArray(this.resonanceEchoTrailSystem?.echoInstances)
+                ? this.resonanceEchoTrailSystem.echoInstances.reduce((sum, echo) => sum + (echo?.active ? 1 : 0), 0)
+                : 0;
+            const activeVfx = (
+                (this.cascadeVisualizer?.stats?.particlesActive ?? 0) +
+                (this.cascadeParticleSystem?.activeCount ?? 0) +
+                waveActiveCount +
+                activeEchoes
+            );
+
+            return {
+                drawCalls: renderInfo.calls ?? 0,
+                triangles: renderInfo.triangles ?? 0,
+                geometries: memoryInfo.geometries ?? 0,
+                textures: memoryInfo.textures ?? 0,
+                programs: Number.isFinite(programs) ? programs : 0,
+                nodes: nodes.length,
+                links: links.length,
+                activeVfx,
+                baseSceneMs: renderAverages.baseSceneRender?.avg ?? 0,
+                postFXMs: renderAverages.postProcessing?.avg ?? 0,
+                finalRenderMs: renderAverages.finalRender?.avg ?? 0,
+                visualQualityLevel: this.visualQualityLevel || 'HIGH',
+                adaptiveTier: this.performanceDisciplineCurrentTier || 'FULL',
+                context: {
+                    postProcessingEnabled: this.postProcessingEnabled !== false,
+                    luminosityBloomEnabled: this.luminosityBloomEnabled === true,
+                    semanticPictogramsEnabled: this.semanticPictogramsEnabled !== false,
+                    environmentalHazardsEnabled: this.environmentalHazardsEnabled !== false
+                }
+            };
+        };
+        this.applyAdaptivePerformanceTier = (tier = 'FULL', snapshot = null, meta = null) => {
+            const normalized = typeof tier === 'string' ? tier.toUpperCase() : 'FULL';
+            const nextTier = ['BALANCED', 'PERFORMANCE', 'SAFE'].includes(normalized) ? normalized : 'FULL';
+            const previousTier = this.performanceDisciplineCurrentTier || 'FULL';
+            this.performanceDisciplineCurrentTier = nextTier;
+            this.performanceDisciplineState = {
+                tier: nextTier,
+                previousTier,
+                snapshot: snapshot || null,
+                meta: meta || null,
+                appliedAt: performance.now?.() ?? Date.now()
+            };
+            if (this.adaptivePerformanceMonitor) {
+                this.adaptivePerformanceMonitor.currentTier = nextTier;
+                this.adaptivePerformanceMonitor.pendingTier = nextTier;
+                this.adaptivePerformanceMonitor.recommendedTier = nextTier;
+            }
+
+            const baseline = this.capturePerformanceDisciplineBaseline();
+            const preferredQuality = typeof baseline.visuals === 'string' ? baseline.visuals.toUpperCase() : 'HIGH';
+            const clampQuality = (maxTier = 'HIGH') => {
+                const rank = { LOW: 0, MEDIUM: 1, HIGH: 2 };
+                const cappedMax = rank[maxTier] ?? 2;
+                const preferredRank = rank[preferredQuality] ?? 2;
+                return preferredRank <= cappedMax
+                    ? preferredQuality
+                    : Object.keys(rank).find((key) => rank[key] === cappedMax) || maxTier;
+            };
+
+            let nextLowFX = false;
+            let customMultipliers = null;
+            const desired = {
+                visuals: preferredQuality,
+                postProcessing: baseline.postProcessing !== false,
+                luminosityBloom: baseline.luminosityBloom === true,
+                cinematicNodeShaders: baseline.cinematicNodeShaders !== false,
+                nodeRotations: baseline.nodeRotations !== false,
+                semanticPictograms: baseline.semanticPictograms !== false,
+                environmentalHazards: baseline.environmentalHazards !== false
+            };
+
+            if (nextTier === 'BALANCED') {
+                desired.visuals = clampQuality('MEDIUM');
+                desired.luminosityBloom = false;
+                desired.cinematicNodeShaders = false;
+                customMultipliers = {
+                    clarity: 0.94,
+                    resonance: 0.94,
+                    entropy: 0.9,
+                    focus: 0.92,
+                    corruption: 0.94,
+                    vfxIntensity: 0.88,
+                    shaderIntensity: 0.9
+                };
+            } else if (nextTier === 'PERFORMANCE') {
+                desired.visuals = 'LOW';
+                desired.luminosityBloom = false;
+                desired.cinematicNodeShaders = false;
+                desired.semanticPictograms = false;
+                desired.environmentalHazards = false;
+                nextLowFX = true;
+                customMultipliers = {
+                    clarity: 0.74,
+                    resonance: 0.72,
+                    entropy: 0.5,
+                    focus: 0.62,
+                    corruption: 0.7,
+                    vfxIntensity: 0.68,
+                    shaderIntensity: 0.66
+                };
+            } else if (nextTier === 'SAFE') {
+                desired.visuals = 'LOW';
+                desired.postProcessing = false;
+                desired.luminosityBloom = false;
+                desired.cinematicNodeShaders = false;
+                desired.nodeRotations = false;
+                desired.semanticPictograms = false;
+                desired.environmentalHazards = false;
+                nextLowFX = true;
+                customMultipliers = {
+                    clarity: 0.58,
+                    resonance: 0.56,
+                    entropy: 0.34,
+                    focus: 0.46,
+                    corruption: 0.58,
+                    vfxIntensity: 0.5,
+                    shaderIntensity: 0.48
+                };
+            } else {
+                customMultipliers = {
+                    clarity: 1.0,
+                    resonance: 1.0,
+                    entropy: 1.0,
+                    focus: 1.0,
+                    corruption: 1.0,
+                    vfxIntensity: 1.0,
+                    shaderIntensity: 1.0
+                };
+            }
+
+            this.distanceLOD?.setPerformanceTier?.(nextTier);
+
+            const currentLowFX = this.fxPerformance?.isLowFX?.() ?? false;
+            if (currentLowFX !== nextLowFX) {
+                this.fxPerformance?.setLowFX?.(nextLowFX);
+                this.fxPerformanceTransition?.startTransition?.(nextLowFX);
+            }
+            if (this.adaptivePerformanceMonitor) {
+                this.adaptivePerformanceMonitor.lastAppliedLowFX = nextLowFX;
+            }
+            if (customMultipliers) {
+                this.fxPerformance?.setCustomMultipliers?.(customMultipliers);
+            }
+
+            if (this.visualQualityLevel !== desired.visuals) {
+                this.setVisualQuality(desired.visuals, { performanceOverride: true });
+            }
+            if (this.cinematicNodeShadersEnabled !== desired.cinematicNodeShaders) {
+                this.setCinematicNodeShadersEnabled(desired.cinematicNodeShaders, { performanceOverride: true });
+            }
+            if (this.semanticPictogramsEnabled !== desired.semanticPictograms) {
+                this.setSemanticPictogramsEnabled(desired.semanticPictograms, { performanceOverride: true });
+            }
+            if (this.environmentalHazardsEnabled !== desired.environmentalHazards) {
+                this.setEnvironmentalHazardsEnabled(desired.environmentalHazards, { performanceOverride: true });
+            }
+            if (this.nodeRotationsEnabled !== desired.nodeRotations) {
+                this.setNodeRotationsEnabled(desired.nodeRotations, { performanceOverride: true });
+            }
+
+            if (this.luminosityBloomEnabled !== desired.luminosityBloom) {
+                void this.setLuminosityBloomEnabled(desired.luminosityBloom, {
+                    showLoading: false,
+                    performanceOverride: true
+                });
+            }
+            if (this.postProcessingEnabled !== desired.postProcessing) {
+                void this.setPostProcessingEnabled(desired.postProcessing, {
+                    showLoading: false,
+                    performanceOverride: true
+                });
+            }
+
+            return this.performanceDisciplineState;
+        };
         this.setPostProcessingEnabled = (enabled = true, options = {}) => {
             const next = !!enabled;
+            if (!options.performanceOverride) {
+                this._recordPerformanceDisciplinePreference({ postProcessing: next });
+            }
             if (this.postProcessingEnabled === next) {
                 return Promise.resolve(this.postProcessingEnabled);
             }
@@ -7117,6 +7349,9 @@ window.__ATOMA_SCENE__ = this.scene;
 
         this.setLuminosityBloomEnabled = (enabled = true, options = {}) => {
             const next = !!enabled;
+            if (!options.performanceOverride) {
+                this._recordPerformanceDisciplinePreference({ luminosityBloom: next });
+            }
             if (this.luminosityBloomEnabled === next) {
                 return Promise.resolve(this.luminosityBloomEnabled);
             }
@@ -7179,22 +7414,31 @@ window.__ATOMA_SCENE__ = this.scene;
             return next;
         };
 
-        this.setCinematicNodeShadersEnabled = (enabled = true) => {
+        this.setCinematicNodeShadersEnabled = (enabled = true, options = {}) => {
             const next = !!enabled;
+            if (!options.performanceOverride) {
+                this._recordPerformanceDisciplinePreference({ cinematicNodeShaders: next });
+            }
             this.cinematicNodeShadersEnabled = next;
             this._syncCinematicNodeShaders();
             return this.cinematicNodeShadersEnabled;
         };
 
-        this.setNodeRotationsEnabled = (enabled = true) => {
+        this.setNodeRotationsEnabled = (enabled = true, options = {}) => {
             const next = !!enabled;
+            if (!options.performanceOverride) {
+                this._recordPerformanceDisciplinePreference({ nodeRotations: next });
+            }
             EnhancedNodeModels.nodeRotationsEnabled = next;
             this.nodeRotationsEnabled = next;
             return this.nodeRotationsEnabled;
         };
 
-        this.setSemanticPictogramsEnabled = (enabled = true) => {
+        this.setSemanticPictogramsEnabled = (enabled = true, options = {}) => {
             const next = !!enabled;
+            if (!options.performanceOverride) {
+                this._recordPerformanceDisciplinePreference({ semanticPictograms: next });
+            }
             const pictogramSystem = this.linkPictogramSystem || this.linkSemanticPictograms || null;
             if (pictogramSystem) {
                 if (next) {
@@ -7209,8 +7453,11 @@ window.__ATOMA_SCENE__ = this.scene;
             return this.semanticPictogramsEnabled;
         };
 
-        this.setEnvironmentalHazardsEnabled = (enabled = true) => {
+        this.setEnvironmentalHazardsEnabled = (enabled = true, options = {}) => {
             const next = !!enabled;
+            if (!options.performanceOverride) {
+                this._recordPerformanceDisciplinePreference({ environmentalHazards: next });
+            }
             const hazardSystem = this.environmentDomain?.instances?.environmentalHazards || this.hazards || null;
             if (hazardSystem?.setEnabled) {
                 hazardSystem.setEnabled(next);
@@ -7228,8 +7475,11 @@ window.__ATOMA_SCENE__ = this.scene;
         // LOW    → VisualUpgradeSuperpack OFF, CinematicUpgrade OFF
         // MEDIUM → VisualUpgradeSuperpack ON,  CinematicUpgrade OFF
         // HIGH   → VisualUpgradeSuperpack ON,  CinematicUpgrade ON
-        this.setVisualQuality = (level) => {
+        this.setVisualQuality = (level, options = {}) => {
             const normalized = typeof level === 'string' ? level.toUpperCase() : 'HIGH';
+            if (!options.performanceOverride) {
+                this._recordPerformanceDisciplinePreference({ visuals: normalized });
+            }
             this.visualQualityLevel = normalized;
 
             const superpackOn = normalized === 'MEDIUM' || normalized === 'HIGH';
@@ -7297,6 +7547,7 @@ window.__ATOMA_SCENE__ = this.scene;
                 this.setVisualQuality(bootMenuSettings.visuals);
             }
         }
+        this.capturePerformanceDisciplineBaseline(true);
 
         // === Wave shader stack (init early so warm-up uses patched shaders) ===
         try {
@@ -8681,6 +8932,7 @@ window.__ATOMA_SCENE__ = this.scene;
         // Create AI nodes for this environment
         this._allowRegistryReset = true;
         this.createAINodes(reasonForCreate);
+        this._applyRunIdentitySelection(this._runIdentityPendingSelection, { source: 'world-load' });
         this.ensureCascadeEventBridge();
         this._rebindWorldLifecycleSystems();
         this.setupSignatureMomentDirector();
@@ -8739,6 +8991,7 @@ window.__ATOMA_SCENE__ = this.scene;
                 this.gameplayHintLayer.show('start', { world: this.currentMode });
             }
         }
+        this._triggerRunIdentityOverlayForCurrentWorld();
         } finally {
             this._worldTransitionInProgress = false;
         }
@@ -8779,6 +9032,9 @@ window.__ATOMA_SCENE__ = this.scene;
         }
 
         this.aiNodes = new AINodes(this.scene, this.nodesRoot, this.player, sessionVariantEngine);
+        if (this.activeRunIdentitySelection?.runPackage) {
+            this.aiNodes.setRunIdentityProfile(this.activeRunIdentitySelection.runPackage);
+        }
         if (this.vfxLoader) {
             this.vfxLoader.aiNodes = this.aiNodes;
         }
@@ -8999,16 +9255,12 @@ window.__ATOMA_SCENE__ = this.scene;
             this.linkingSystem.__audioInvalidLinkAuthorityBound = true;
         }
         if (this.linkingSystem?.registerLinkCreatedCallback && !this.linkingSystem.__audioLinkAuthorityBound) {
-            const playLinkAudio = (type) => {
+            const playLinkAudio = () => {
                 if (!this.audioSystem) return;
                 if (this.audioSystem.enabled === false) return;
                 const play = () => {
                     if (!this.audioSystem?.initialized) return;
-                    if (type === 'create') {
-                        this.audioSystem.playLinkCreated?.();
-                    } else {
-                        this.audioSystem.playLinkBroken?.();
-                    }
+                    this.audioSystem.playLinkBroken?.();
                 };
                 if (this.audioSystem.initialized) {
                     play();
@@ -9019,11 +9271,7 @@ window.__ATOMA_SCENE__ = this.scene;
                     .catch(() => {});
             };
 
-            this.linkingSystem.registerLinkCreatedCallback(() => playLinkAudio('create'), {
-                layerKey: 'LINK_IMPACTS',
-                immediate: true
-            });
-            this.linkingSystem.registerLinkRemovedCallback(() => playLinkAudio('remove'), {
+            this.linkingSystem.registerLinkRemovedCallback(() => playLinkAudio(), {
                 layerKey: 'LINK_IMPACTS',
                 immediate: true
             });
@@ -10034,6 +10282,9 @@ window.__ATOMA_SCENE__ = this.scene;
         );
         this.linkQualityCalculator.frameScheduler = this.frameScheduler;
         this.linkQualityCalculator.semanticBus = this.semanticBus;
+        if (this.activeRunIdentitySelection?.linkQualityProfile) {
+            this.linkQualityCalculator.setRunIdentityProfile(this.activeRunIdentitySelection.linkQualityProfile);
+        }
         if (this.frameScheduler) {
             this.frameScheduler.register('simulation', (dt) => {
                 this.linkQualityCalculator?.update?.(dt);
@@ -10970,11 +11221,10 @@ window.__ATOMA_SCENE__ = this.scene;
                     lowFXDelaySec: 3.0,
                     highFXDelaySec: 5.0,
                     emaAlpha: 0.1,
-                    // Callback for smooth transitions (Week 4.5)
-                    transitionCallback: (toLowFX) => {
-                        if (this.fxPerformanceTransition?.startTransition) {
-                            this.fxPerformanceTransition.startTransition(toLowFX);
-                        }
+                    frameScheduler: this.frameScheduler,
+                    snapshotProvider: () => this.buildPerformanceBudgetSnapshot?.() || {},
+                    tierCallback: (tier, snapshot, meta) => {
+                        this.applyAdaptivePerformanceTier?.(tier, snapshot, meta);
                     }
                 }
             );
@@ -10998,6 +11248,7 @@ window.__ATOMA_SCENE__ = this.scene;
                     enableDebug: false
                 }
             );
+            this.fxPerformanceTransition.frameScheduler = this.frameScheduler;
             console.log('[main.js] FXPerformanceSmoothTransition_v1 initialized ✓');
         } catch (err) {
             console.warn('[main.js] Failed to initialize FXPerformanceSmoothTransition_v1:', err);
@@ -11207,6 +11458,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                 if (this.fxPerformance) {
                     const newState = !this.fxPerformance.isLowFX();
                     this.fxPerformance.setLowFX(newState);
+                    this.performanceDisciplineCurrentTier = newState ? 'PERFORMANCE' : 'FULL';
                     console.log(`[FXPerformanceMode] LowFX: ${newState ? 'ON' : 'OFF'} (manual)`);
 
                     // Notify adaptive monitor that user manually overrode auto system
@@ -11277,6 +11529,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
             const previousWorldId = this.currentMode ?? null;
             this.currentMode = worldId;
             this.currentTheme = worldId;
+            this._prepareRunIdentityForWorld(worldId);
 
             this._pendingCreateWorldReason = 'MAP_SWITCH';
             fn();
@@ -11284,7 +11537,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
 
             // Apply per-world score difficulty config
             if (this.visualNetworkTimeElasticity?.applyWorldConfig) {
-                const worldScoreConfig = AtomaGame.WORLD_SCORE_CONFIG[worldId];
+                const worldScoreConfig = this._getRunIdentityScoreConfigForWorld(worldId);
                 if (worldScoreConfig) {
                     this.visualNetworkTimeElasticity.applyWorldConfig(worldScoreConfig);
                 }
@@ -11650,7 +11903,8 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         // Visual: animation time reversal during rewind
         if (this.visualNetworkTimeElasticity) {
             const rawNetworkMetrics = this.metricsRuntime_v1?.getRawNetworkMetrics?.() || null;
-            this.visualNetworkTimeElasticity.setNetworkMetricsSnapshot(rawNetworkMetrics || {});
+            const runIdentityMetrics = this._applyRunIdentityMetricsOverlay(rawNetworkMetrics || {});
+            this.visualNetworkTimeElasticity.setNetworkMetricsSnapshot(runIdentityMetrics || {});
             this.visualNetworkTimeElasticity.update(deltaTime, this.time);
             
             // Store visual time for use in animation systems
@@ -11906,18 +12160,19 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         // REMOVED: regGuard for harmonicNodeResonanceHalos — moved to LEGACY (2026-05-14)
         regGuard('audioSynergyMonitor', 'simulation.audioSynergyMonitor', (dt) => {
             if (this.audioSystem) {
-                const canonicalWorldContext = this._getCanonicalWorldContext();
+                const canonicalWorldContext = this._getAudioWorldContext();
                 this.audioSystem.update?.(dt, {
                     ...canonicalWorldContext,
                     semanticBus: this.semanticBus
                 });
+                this.harmonicAudio?.setAudioIdentityContext?.(canonicalWorldContext.audioIdentity);
             }
             if (this.audioSystem?.initialized && this.audioModulation && this.nodeDynamicMetrics) {
                 this.audioModulation.update(dt, {
                     synergy: this.nodeDynamicMetrics.avgSynergy || 0,
                     harmony: this.nodeDynamicMetrics.avgHarmony || 50,
                     corruption: this.nodeDynamicMetrics.avgCorruption || 0
-                });
+                }, this._buildAudioIdentityContext());
             }
             if (this.audioSystem && this.nodeDynamicMetrics) {
                 const avgSynergy = this.nodeDynamicMetrics?.avgSynergy ?? 0.0;
@@ -13456,6 +13711,39 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         return canonicalContext;
     }
 
+    _buildAudioIdentityContext({ scoreState = null, buildState = null, scoreStateLabel = null } = {}) {
+        const resolvedScoreState = scoreState || this.visualNetworkTimeElasticity?.getScoreState?.() || null;
+        const resolvedBuildState = buildState || this.coreMetricsOverlay?.hud?.getCurrentBuildState?.(resolvedScoreState) || null;
+        const direction = String(
+            scoreStateLabel
+            || resolvedScoreState?.direction
+            || this.visualNetworkTimeElasticity?.getDirection?.()
+            || 'forward'
+        ).trim().toLowerCase();
+        return {
+            world: String(this.currentMode || '').trim().toLowerCase() || null,
+            runPackage: this.activeRunIdentitySelection?.packageId || 'surge_thread',
+            worldState: this.activeRunIdentitySelection?.worldStateId || null,
+            buildState: resolvedBuildState?.label || resolvedBuildState?.key || resolvedBuildState || null,
+            scoreState: direction
+        };
+    }
+
+    _getAudioWorldContext(options = {}) {
+        const canonicalWorldContext = this._getCanonicalWorldContext();
+        const audioIdentity = this._buildAudioIdentityContext(options);
+        const worldContext = {
+            ...(canonicalWorldContext.worldContext || {}),
+            audioIdentity
+        };
+        return {
+            ...canonicalWorldContext,
+            world: audioIdentity.world,
+            audioIdentity,
+            worldContext
+        };
+    }
+
     /**
      * Setup cinematic visual upgrade
      */
@@ -13959,6 +14247,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
 
         // Wire score system to HUD (score system may already be created)
         this._wireScoreSystemToHUD();
+        this._setupRunIdentityDirector();
 
         // Store reference to game in window for console access
         window.game = this;
@@ -13999,6 +14288,134 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
             hud: this.coreMetricsOverlay?.hud || null,
             loreFragmentEmitter: this.loreFragmentEmitter || null
         });
+    }
+
+    _setupRunIdentityDirector() {
+        if (!this.runIdentityDirector) {
+            this.runIdentityDirector = new RunIdentityDirector({
+                hud: this.coreMetricsOverlay?.hud || null,
+                onCommitSelection: (selection) => {
+                    this._applyRunIdentitySelection(selection, { source: 'overlay' });
+                    this.resume();
+                }
+            });
+            return;
+        }
+
+        this.runIdentityDirector.bind({
+            hud: this.coreMetricsOverlay?.hud || null
+        });
+    }
+
+    _prepareRunIdentityForWorld(worldId) {
+        if (!this.runIdentityDirector || !isRunIdentityWorld(worldId)) {
+            this.activeRunIdentitySelection = null;
+            this._runIdentityPendingSelection = null;
+            this.coreMetricsOverlay?.hud?.clearRunIdentityTag?.();
+            return null;
+        }
+
+        this._runIdentityPendingSelection = this.runIdentityDirector.prepareWorld(worldId);
+        this.activeRunIdentitySelection = this._runIdentityPendingSelection;
+        this.coreMetricsOverlay?.hud?.setRunIdentityTag?.({
+            title: this._runIdentityPendingSelection?.hudTitle,
+            detail: this._runIdentityPendingSelection?.hudDetail
+        });
+        return this._runIdentityPendingSelection;
+    }
+
+    _getRunIdentityScoreConfigForWorld(worldId) {
+        const baseConfig = { ...(AtomaGame.WORLD_SCORE_CONFIG?.[worldId] || {}) };
+        const identity = this.activeRunIdentitySelection || this._runIdentityPendingSelection || null;
+        if (!identity || identity.world !== String(worldId || '').toLowerCase()) {
+            return baseConfig;
+        }
+
+        const delta = identity.scoreConfigDelta || {};
+        const nextConfig = { ...baseConfig };
+        for (const [key, value] of Object.entries(delta)) {
+            if (!Number.isFinite(Number(value))) continue;
+            nextConfig[key] = (Number(nextConfig[key]) || 0) + Number(value);
+        }
+        return nextConfig;
+    }
+
+    _applyRunIdentitySelection(selection = null, { source = 'runtime' } = {}) {
+        const nextSelection = selection || this._runIdentityPendingSelection || null;
+        if (!nextSelection) {
+          this.activeRunIdentitySelection = null;
+          this.coreMetricsOverlay?.hud?.clearRunIdentityTag?.();
+          return null;
+        }
+
+        this.activeRunIdentitySelection = composeRunIdentitySelection(nextSelection.world, nextSelection);
+        this._runIdentityPendingSelection = this.activeRunIdentitySelection;
+
+        this.semanticBus?.setSemanticProfile?.(this.activeRunIdentitySelection.semanticProfile);
+        this.aiNodes?.setRunIdentityProfile?.(this.activeRunIdentitySelection.runPackage);
+        this.linkQualityCalculator?.setRunIdentityProfile?.(this.activeRunIdentitySelection.linkQualityProfile);
+        this.environmentDomain?.setReleaseAtmosphereOverlay?.({
+            ...(this.activeRunIdentitySelection.atmosphereOverlay || {}),
+            environmentSkin: this.activeRunIdentitySelection.worldState?.environmentSkin || null,
+            hazards: {
+                ...(this.activeRunIdentitySelection.atmosphereOverlay?.hazards || {}),
+                ...(this.environmentalHazardsEnabled === false ? { intensity: -1, density: -1 } : {})
+            }
+        });
+        this.coreMetricsOverlay?.hud?.setRunIdentityTag?.({
+            title: this.activeRunIdentitySelection.hudTitle,
+            detail: this.activeRunIdentitySelection.hudDetail
+        });
+        this.audioSystem?.setWorldContext?.(this._getAudioWorldContext());
+        this.audioModulation?.setAudioIdentityContext?.(this._buildAudioIdentityContext());
+        this.harmonicAudio?.setAudioIdentityContext?.(this._buildAudioIdentityContext());
+
+        if (source === 'overlay' && this.visualNetworkTimeElasticity?.applyWorldConfig) {
+            this.visualNetworkTimeElasticity.applyWorldConfig(this._getRunIdentityScoreConfigForWorld(this.currentMode));
+        }
+
+        if (typeof window !== 'undefined') {
+            window.__ATOMA_RUN_IDENTITY__ = this.activeRunIdentitySelection;
+        }
+
+        return this.activeRunIdentitySelection;
+    }
+
+    _applyRunIdentityMetricsOverlay(rawMetrics = null) {
+        const identity = this.activeRunIdentitySelection || this._runIdentityPendingSelection || null;
+        if (!rawMetrics || !identity?.metricsOverlay) {
+            return rawMetrics || {};
+        }
+
+        const overlay = identity.metricsOverlay;
+        const nextMetrics = { ...rawMetrics };
+        const scaleMetric = (key, scale) => {
+            if (!Number.isFinite(Number(scale))) return;
+            const current = Number(nextMetrics[key]);
+            if (!Number.isFinite(current)) return;
+            nextMetrics[key] = Math.max(0, Math.min(1, current * Number(scale)));
+        };
+
+        scaleMetric('networkSynergy', overlay.networkSynergyScale);
+        scaleMetric('avgLinkQuality', overlay.avgLinkQualityScale);
+        scaleMetric('loadPressure', overlay.loadPressureScale);
+        scaleMetric('corruption', overlay.corruptionScale);
+        scaleMetric('corruptionLevel', overlay.corruptionScale);
+        scaleMetric('harmonyFlow', overlay.harmonyScale);
+        scaleMetric('networkStress', overlay.stabilityScale);
+        return nextMetrics;
+    }
+
+    _triggerRunIdentityOverlayForCurrentWorld() {
+        if (!this.runIdentityDirector?.handleWorldLoad?.(this.currentMode)) {
+            return false;
+        }
+        this.pause();
+        return true;
+    }
+
+    _handleRunIdentityMilestone(milestone, world = this.currentMode) {
+        this.runIdentityDirector?.handleMilestone?.(milestone, world);
     }
 
     runCoreMetricsOverlayTick(deltaTime) {
@@ -16674,7 +17091,12 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
             console.log('%c🛡️ STABILIZATION ACHIEVED — COLLAPSE PREVENTED', 'color: #00ff88; font-size: 18px; font-weight: bold;');
             console.log('  Game Time:', payload.gameTime.toFixed(1), 'seconds');
             console.log('  Final Synergy:', (payload.avgSynergy * 100).toFixed(1) + '%');
-            if (this.audioSystem?.playScoreVictory) this.audioSystem.playScoreVictory();
+            if (this.audioSystem?.playScoreVictory) {
+                this.audioSystem.playScoreVictory({
+                    ...this._buildAudioIdentityContext({ scoreStateLabel: 'won' }),
+                    scoreSnapshot: this.visualNetworkTimeElasticity?.getScoreState?.() || null
+                });
+            }
             this._handleGameWon(payload);
         });
 
@@ -16682,7 +17104,14 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         this.visualNetworkTimeElasticity.on('score:rewinding', (payload) => {
             console.log('%c⏪ STABILIZATION SURGE ACTIVE', 'color: #ff8c00; font-weight: bold;',
                 'Time:', payload.networkTime, 'Synergy:', (payload.avgSynergy * 100).toFixed(1) + '%');
-            if (this.audioSystem?.playScoreRewindStart) this.audioSystem.playScoreRewindStart();
+            if (this.audioSystem?.playScoreRewindStart) {
+                const scoreState = this.visualNetworkTimeElasticity?.getScoreState?.() || null;
+                this.audioSystem.playScoreRewindStart({
+                    ...this._buildAudioIdentityContext({ scoreState, scoreStateLabel: 'rewinding' }),
+                    scoreSnapshot: scoreState
+                });
+            }
+            this._handleRunIdentityMilestone('rewind', this.currentMode);
             if (this.gameplayHintLayer && !this._hintRewindStartShown) {
                 this._hintRewindStartShown = true;
                 if (this.firstRunGuidanceDirector?.isActive?.()) {
@@ -16705,7 +17134,13 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
 
         // Wire score:forward event — descending audio cue (rewind ended) + restore temporal
         this.visualNetworkTimeElasticity.on('score:forward', (payload) => {
-            if (this.audioSystem?.playScoreRewindEnd) this.audioSystem.playScoreRewindEnd();
+            if (this.audioSystem?.playScoreRewindEnd) {
+                const scoreState = this.visualNetworkTimeElasticity?.getScoreState?.() || null;
+                this.audioSystem.playScoreRewindEnd({
+                    ...this._buildAudioIdentityContext({ scoreState, scoreStateLabel: 'forward' }),
+                    scoreSnapshot: scoreState
+                });
+            }
             // Restore temporal system to normal speed
             if (this.coreMetricsOverlay?.temporalSystem?.setTimeScale) {
                 this.coreMetricsOverlay.temporalSystem.setTimeScale(1.0, false);
@@ -16756,6 +17191,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
      * Handle game won — calculate score, submit to leaderboard, show victory overlay.
      */
     _handleGameWon(payload) {
+        this._handleRunIdentityMilestone('won', this.currentMode);
         this.firstRunGuidanceDirector?.handleWin?.({
             world: this.currentMode,
             scoreState: this.visualNetworkTimeElasticity?.getScoreState?.() || null,
@@ -17210,6 +17646,12 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         window.atoma = this;
         window.__ATOMA_RELEASE_CONTAINMENT_PROFILE__ = () => getAtomaReleaseContainmentProfile(window);
         window.__ATOMA_RELEASE_CONTAINMENT_STATUS__ = () => this.getReleaseContainmentStatus();
+        window.__ATOMA_PERFORMANCE_DISCIPLINE__ = () => this.adaptivePerformanceMonitor?.getState?.() || null;
+        window.__ATOMA_CAPTURE_PERF_BASELINE__ = () => this.capturePerformanceDisciplineBaseline?.(true) || null;
+        window.__ATOMA_APPLY_PERF_TIER__ = (tier = 'FULL') => this.applyAdaptivePerformanceTier?.(tier, this.buildPerformanceBudgetSnapshot?.() || null, {
+            source: 'window.__ATOMA_APPLY_PERF_TIER__',
+            manual: true
+        }) || null;
         window.__DEBUG = window.__DEBUG || {};
         window.__DEBUG.getLinkingSystem = () => this.linkingSystem ?? this.nodeLinkingSystem ?? this.nodeLinking ?? null;
         window.__DEBUG.getCollapseSystem = () => this.linkCollapseSystem ?? null;

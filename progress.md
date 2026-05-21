@@ -100,6 +100,17 @@ Original prompt: tak jako composite glyphy mali lietať po orbite nodov ako Glyp
 - `PHASE5_CascadePropagationVisuals` now listens directly to `link.harmony.low|mid|high`, resolves a link anchor midpoint from the active linking system, and spawns a visibly separated 3-ring echo cluster with a 3 second cooldown. This replaced the invisible dependency on cascade bridge timing for the main visible path.
 - `ResonanceRuptureVisualSystem_Session133` thresholds were relaxed so normal 4-5 link smoke runs produce visible scars again, which in turn reactivates `HealingParticleSystem_Session136` and `HarmonicHealingVisualSystem_Session134` output.
 
+## 2026-05-21 — Meta Progression + Run Identity Pass v1
+- Added `RunIdentityProfiles.js` for v1 meta progression source of truth.
+- Added `HUD/RunIdentityDirector.js` for release-world start overlay + unlock toasts.
+- Menu profile now persists `metaProgression`.
+- `main.js` now prepares/applies run identity on `quantum` / `desert` and processes milestone unlocks from `score:rewinding` + `game:won`.
+- `AINodes`, `LinkQualityCalculator`, `EnvironmentDomainController`, and `CoreMetricsHUD` all gained light run-identity hooks.
+- Runtime smoke artifacts: `output/web-game/run-identity-pass/`.
+- Next useful follow-up:
+  - manual feel pass for package differentiation (`surge_thread` vs `pivot_covenant` vs `lattice_keeper`)
+  - optional visual polish on the run identity overlay if we want a more bespoke start panel later
+
 ## 2026-04-04
 - `WaveParticleEmitter_v1` was moved toward direct semantic metric-tier listeners for node-driven particle emission.
 - The emitter now binds to `node.synergy.*`, `node.harmony.*`, `node.stability.*`, `node.corruption.*`, and `node.loadPressure.*` via `semanticBus` and keeps the wave snapshot path only as fallback when no tier listeners are active.
@@ -450,6 +461,23 @@ ode --check after the change.
   - do one longer manual Quantum run and one Dream Desert run to validate that `Aha 2` and first `REWIND` happen naturally, not only through UI-facing smoke assistance
   - if Quantum first rewind still misses the 5-minute target in human play, follow up with gameplay tuning rather than another onboarding rewrite
 
+- Browser-grade performance discipline is now wired into runtime instead of being only a backlog idea:
+  - `AdaptivePerformanceMonitor_v1` now evaluates explicit browser budgets and produces `FULL / BALANCED / PERFORMANCE / SAFE` tiers
+  - `DistanceLODController` now accepts a performance tier overlay for softer degradation of cadence / particles / secondary VFX
+  - `main.js` now captures a player-preferred visual baseline and temporarily overrides it under pressure, then restores it cleanly afterward
+  - runtime debug hooks now expose the live state through `window.__ATOMA_PERFORMANCE_DISCIPLINE__()` and `window.__ATOMA_APPLY_PERF_TIER__(...)`
+- Verified in live smoke on `http://127.0.0.1:5173/`:
+  - forced `SAFE` tier drives low-FX + low visual quality + safe LOD tier
+  - forced `FULL` restores the baseline
+  - synthetic AUTO pressure pushes the monitor into `SAFE`
+- Important boundary:
+  - this pass created discipline and graceful fallback
+  - it did not yet tune the top offenders from the alpha hotspot report
+- Best next optimization wave:
+  - `LinkRendererConduit` draw-call / strand-update reduction
+  - `SynergyCascadeVisualizer` forced-spawn budget cleanup
+  - `CascadeParticleSystem_Session120` live particle/trail budget tightening
+
 ## 2026-05-21 — Signature Setpieces Pass v1
 - Curated release-world signature roster is now active for `quantum` and `desert` through `SignatureMomentDirector`.
 - Release-world allowlist now keeps the foreground focused on:
@@ -476,6 +504,54 @@ ode --check after the change.
 - TODO for next agent:
   - do one manual visual review pass in Quantum and Dream Desert to tune cadence and ensure no signature family is still overfiring under real play
   - if any setpiece still reads too similarly, next work should be world-specific art tuning, not new moment families
+
+## 2026-05-21 — Audio-Reactive Identity Pass v1
+- Procedural-only audio identity pass landed without adding external assets or new gameplay authority.
+- `AtomaAudioSystem.js`
+  - now owns a shared audio identity context (`world`, `runPackage`, `worldState`, `buildState`, `scoreState`)
+  - bond / surge / harmony / corruption / world resonance cue families now tint by world and run identity
+  - added foreground ducking so hero audio cues can briefly own the mix
+- `AtomaAudioEventManifest.js`
+  - semantic routing now covers:
+    - `link.created`
+    - `link:synergyThreshold`
+    - `link:harmonicLock`
+    - `node.harmony.mid/high`
+    - `global.harmony.mid/high`
+    - `link.corruption.high`
+  - manifest subscriptions now go through `eventRegistrationRegistry`
+- `AtomaAudioModulation.js`
+  - modulation now responds to build state and ducks under surge/victory/breach cues
+- `harmony/HarmonicAudioReactivitySystem_Session135.js`
+  - added `node.harmony.mid` puncta
+  - now respects audio identity context
+  - now disposes/rebinds semantic registrations cleanly
+- `main.js`
+  - added `_buildAudioIdentityContext()` and `_getAudioWorldContext()`
+  - score milestone audio now passes explicit audio identity context
+  - run identity selection now syncs into all three audio layers
+  - direct link-create audio callback ownership was removed so semantic `link.created` is the main bond cue path
+  - added debug helper `window.__ATOMA_AUDIO_IDENTITY__()`
+- Verification:
+  - `node --check AtomaAudioSystem.js`
+  - `node --check AtomaAudioEventManifest.js`
+  - `node --check AtomaAudioModulation.js`
+  - `node --check harmony/HarmonicAudioReactivitySystem_Session135.js`
+  - `node --check main.js`
+  - live Edge/playwright fallback smoke on `http://127.0.0.1:5173/`
+- Runtime smoke artifacts:
+  - `output/web-game/audio-identity-pass/audio-identity-smoke.png`
+  - `output/web-game/audio-identity-pass/audio-identity-smoke.json`
+  - `output/web-game/audio-identity-pass/audio-identity-gameplay.png`
+  - `output/web-game/audio-identity-pass/audio-identity-gameplay.json`
+- Important note:
+  - the official `develop-web-game` Playwright client was attempted first, but it is still blocked locally by missing Playwright browser cache
+  - fallback validation used repo `playwright` + system Edge
+- Known unrelated console error still present:
+  - `[MetricAuthorityGuard] Invalid writer metrics for: HarmonicHealingRecoveryVisualSystem`
+- Next useful follow-up:
+  - do one manual listen pass in Quantum and Dream Desert to tune loudness and cadence by ear
+  - if the new language still feels too subtle, next wave should be authored signature stingers or a light music layer, not more generic cue proliferation
 
 ## 2026-04-17
 - QuantumIsland cleanup: disabled the map-owned reference plane for `QuantumIsland` and stopped creating the local mist plane so the square ground-sheet artifacts disappear from this world.
