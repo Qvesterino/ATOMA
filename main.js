@@ -1,4 +1,4 @@
-﻿// ============================================================================
+// ============================================================================
 // [BOOT] SAFETY LOGGING - Module Load Verification
 // ============================================================================
 // === GLOBAL CONSOLE GATE ===
@@ -566,6 +566,7 @@ function markReleaseContainmentRuntime(game, systemKey, patch = {}) {
 // REMOVED: NodePersonality2_0 - moved to LEGACY (2026-04-03)
 // import { NodePersonality2_0 } from './NodePersonality2_0.js';
 import { CoreMetricsOverlay } from './HUD/CoreMetricsOverlay.js';
+import { GameplayHintLayer } from './HUD/GameplayHintLayer.js';
 import { createEmptyCoreMetricsViewModel, updateCoreMetricsViewModel } from './HUD/CoreMetricsViewModel.js';
 import { SystemStateOverlay } from './SystemStateOverlay.js';
 import { ZoneAudioReactivity } from './ZoneAudioReactivity.js';
@@ -4198,6 +4199,15 @@ class AtomaGame {
         this.isPaused = false;
         this._switchInProgress = false;
         this._switchCallId = 0;
+
+        // PERFORMANCE: Per-frame memoized caches
+        this._activeLinkCountCache = 0;
+        this._activeLinkCountFrame = -1;
+
+        // ALPHA CLARITY: Minimal gameplay hint layer
+        this.gameplayHintLayer = new GameplayHintLayer();
+        this._hintFirstLinkShown = false;
+        this._hintRewindBlockShown = false;
         
         // ========================================================================
         // PHASE MMD-1: MATERIAL MUTATION DETECTOR
@@ -4525,7 +4535,9 @@ class AtomaGame {
         this.frameScheduler.register('simulation', (dt) => {
             if (this.synapticFatigueAdapter && this.aiNodes) {
                 const currentTimeMs = this.time * 1000;
-                const gatingResult = this.synapticGatingAdapter?.updateNodeGates(this.aiNodes.nodes || [], currentTimeMs) || null;
+                const gatingResult = this.synapticGatingAdapter?.nodeGateMap
+                    ? { gateMap: this.synapticGatingAdapter.nodeGateMap, dirtyNodeIds: this.synapticGatingAdapter.dirtyNodeIds }
+                    : this.synapticGatingAdapter?.updateNodeGates(this.aiNodes.nodes || [], currentTimeMs) || null;
                 this.metricDirtyQueue?.markNodes(gatingResult?.dirtyNodeIds || this.synapticGatingAdapter?.dirtyNodeIds || null);
                 const dirtyNodeIds = this.metricDirtyQueue?.snapshotNodeIds() || gatingResult?.dirtyNodeIds || null;
                 this.synapticFatigueAdapter.updateFatigue(
@@ -4579,10 +4591,7 @@ class AtomaGame {
         }, 'simulation.cascadeEventBridge');
         this.frameScheduler.register('visual', (dt) => {
             if (this.linkCorruptionTransmission) {
-                const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
-                    ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                    : 0);
-                if (activeLinkCount === 0) return;
+                if (this.activeLinkCount === 0) return;
                 this.linkCorruptionTransmission.updateTransmission(dt);
             }
         }, 'visual.linkCorruptionTransmission');
@@ -4928,17 +4937,11 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => this.glyphFusionOverlay?.update?.(dt), 'visual.glyphFusionOverlay');
         this.frameScheduler.register('visual', (dt) => this.linkedGlyphSync?.update?.(dt, this.aiNodes, this.linkingSystem), 'visual.linkedGlyphSync');
         this.frameScheduler.register('visual', (dt) => {
-            const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
-                ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                : 0);
-            if (activeLinkCount === 0) return;
+            if (this.activeLinkCount === 0) return;
             this.cascadePropagationVisuals?.update?.(dt);
         }, 'visual.cascadePropagation');
         this.frameScheduler.register('simulation', () => {
-            const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
-                ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                : 0);
-            if (activeLinkCount === 0) return;
+            if (this.activeLinkCount === 0) return;
             this.cascadePropagationVisuals?.checkCascadeEvents?.();
         }, 'simulation.phase5CascadeEventCheck');
         // REMOVED (2026-05-14): evolvingLinkFX — moved to LEGACY
@@ -5207,10 +5210,7 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => {
             const resonanceCascadeVisualization = this.resonanceCascadeVisualization || this.resonanceCascade;
             if (resonanceCascadeVisualization && resonanceCascadeVisualization.enabled !== false) {
-                const activeLinkCount = Array.isArray(this.linkingSystem?.links)
-                    ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                    : 0;
-                if (activeLinkCount === 0) return;
+                if (this.activeLinkCount === 0) return;
                 resonanceCascadeVisualization.update(dt, this.aiNodes?.nodes, this.linkingSystem?.links);
             }
         }, 'visual.resonanceCascadeVisualization');
@@ -5222,10 +5222,7 @@ class AtomaGame {
         }, 'visual.healingParticles');
         this.frameScheduler.register('visual', (dt) => {
             if (this.harmonicHealingRecovery) {
-                const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
-                    ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                    : 0);
-                if (activeLinkCount === 0) return;
+                if (this.activeLinkCount === 0) return;
                 this.harmonicHealingRecovery.update(dt, this.time, this.networkState || {});
             }
         }, 'visual.harmonicHealingRecovery');
@@ -6510,9 +6507,7 @@ this.setHudDirty('nodeInspect');
 
             const readWaveDebugState = () => {
                 const dbg = window.atomaDebug || {};
-                const activeLinks = Array.isArray(this.linkingSystem?.links)
-                    ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                    : 0;
+                const activeLinks = this.activeLinkCount;
                 const reflectionActive =
                     dbg.reflection?.reflectionPulsePool?.filter?.((p) => p?.active)?.length ??
                     dbg.reflection?.reflectionPulses?.filter?.((p) => p?.active)?.length ??
@@ -6809,6 +6804,17 @@ this.setHudDirty('nodeInspect');
         this.configureSystemRegistry();
         this.animate();
 
+    }
+
+    get activeLinkCount() {
+        if (this._activeLinkCountFrame !== this.frameCount) {
+            this._activeLinkCountFrame = this.frameCount;
+            this._activeLinkCountCache = this.aiNodes?._getActiveLinkCount?.()
+                ?? (Array.isArray(this.linkingSystem?.links)
+                    ? this.linkingSystem.links.reduce((n, link) => n + (link && link.active !== false ? 1 : 0), 0)
+                    : 0);
+        }
+        return this._activeLinkCountCache;
     }
 
     /**
@@ -8231,6 +8237,13 @@ window.__ATOMA_SCENE__ = this.scene;
 
         this._worldTransitionInProgress = true;
 
+        // ALPHA CLARITY: reset per-world hint flags so hints can re-show
+        this._hintFirstLinkShown = false;
+        this._hintRewindBlockShown = false;
+        if (this.gameplayHintLayer) {
+            this.gameplayHintLayer.reset();
+        }
+
         try {
             // Cleanup old world event listeners
             this.disposeWorldListeners();
@@ -8710,6 +8723,11 @@ window.__ATOMA_SCENE__ = this.scene;
             mode: this.currentMode,
             worldRootChildren: this.worldRoot?.children?.length
         });
+
+        // ALPHA CLARITY: show start hint on first world load
+        if (this.gameplayHintLayer) {
+            this.gameplayHintLayer.show('start');
+        }
         } finally {
             this._worldTransitionInProgress = false;
         }
@@ -9213,10 +9231,7 @@ window.__ATOMA_SCENE__ = this.scene;
             );
             this.frameScheduler.register('visual', (dt) => {
                 if (this.standingWaveRenderer) {
-                    const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
-                        ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                        : 0);
-                    if (activeLinkCount === 0) return;
+                    if (this.activeLinkCount === 0) return;
                     this.standingWaveRenderer.update(dt, this.time);
                 }
             }, 'visual.waveStandingRenderer');
@@ -9232,10 +9247,7 @@ window.__ATOMA_SCENE__ = this.scene;
                 'simulation',
                 (dt) => {
                     const sys = this.aiNodes?.linkCorruption;
-                    const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
-                        ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                        : 0);
-                    if (activeLinkCount === 0) return;
+                    if (this.activeLinkCount === 0) return;
                     if (sys?.updateTransmission) {
                         sys.updateTransmission(dt);
                     }
@@ -9255,10 +9267,7 @@ window.__ATOMA_SCENE__ = this.scene;
                 'visual',
                 (dt) => {
                     if (!this.corruptionVisualFX?.applyCorruptionEffects || !this.aiNodes?.nodes) return;
-                    const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
-                        ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                        : 0);
-                    if (activeLinkCount === 0) return;
+                    if (this.activeLinkCount === 0) return;
                     const time = this.time ?? performance.now();
                     for (const node of this.aiNodes.nodes) {
                         const visualTarget = node?.traverse ? node : (node?.mesh || node);
@@ -9274,10 +9283,7 @@ window.__ATOMA_SCENE__ = this.scene;
                                      visualTarget?.userData?.visualLayer === 'CORE';
 
                 if (corruptionLevel > 0 && isNodeVisual) {
-                    const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
-                        ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                        : 0);
-                    if (activeLinkCount === 0) return;
+                    if (this.activeLinkCount === 0) return;
                     this.corruptionVisualFX.applyCorruptionEffects(
                         visualTarget,
                         dt,
@@ -9402,6 +9408,12 @@ window.__ATOMA_SCENE__ = this.scene;
         this.linkingSystem.createLink = (sourceNode, targetNode) => {
             const result = originalCreateLink(sourceNode, targetNode);
             if (result) {
+                // ALPHA CLARITY: first-link hint
+                if (this.gameplayHintLayer && !this._hintFirstLinkShown) {
+                    this._hintFirstLinkShown = true;
+                    this.gameplayHintLayer.show('firstLink');
+                }
+
                 const fanoutLink = () => {
                     if (!this.linkingSystem?.links?.includes(result)) {
                         return;
@@ -10892,10 +10904,7 @@ window.__ATOMA_SCENE__ = this.scene;
 
             // FrameScheduler: drive particle emitter at visual cadence (30 Hz)
             this.frameScheduler?.register('visual', (dt) => {
-                const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
-                    ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                    : 0);
-                if (activeLinkCount === 0) return;
+                if (this.activeLinkCount === 0) return;
                 this.particleEmitter?.update?.(
                     dt,
                     this.aiNodes?.nodes || [],
@@ -11195,12 +11204,12 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
 
     // ── Unified release score config (mirrors MENU_MAPS scoreConfig) ──
     static WORLD_SCORE_CONFIG = Object.freeze({
-        fractal:  { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5 },
-        desert:   { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5 },
-        desert2:  { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5 },
-        quantum:  { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5 },
-        memory:   { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5 },
-        sigma:    { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5 },
+        fractal:  { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5, synergyThreshold: 0.55 },
+        desert:   { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5, synergyThreshold: 0.55 },
+        desert2:  { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5, synergyThreshold: 0.55 },
+        quantum:  { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5, synergyThreshold: 0.55 },
+        memory:   { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5, synergyThreshold: 0.55 },
+        sigma:    { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5, synergyThreshold: 0.55 },
     });
 
     loadWorld(worldId) {
@@ -11629,6 +11638,14 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
             // Store score state for HUD and other consumers
             window.__ATOMA_NETWORK_TIME__ = this.visualNetworkTimeElasticity.getNetworkTime();
             window.__ATOMA_SCORE_DIRECTION__ = this.visualNetworkTimeElasticity.getDirection();
+
+            // ALPHA CLARITY: show rewind-block hint once when blocked
+            const scoreState = this.visualNetworkTimeElasticity.getScoreState?.() || null;
+            const dir = this.visualNetworkTimeElasticity.getDirection();
+            if (this.gameplayHintLayer && !this._hintRewindBlockShown && dir === 'FORWARD' && scoreState?.rewindBlockReason) {
+                this._hintRewindBlockShown = true;
+                this.gameplayHintLayer.show('rewindBlock');
+            }
         }
 
         // Update LinkCollapseEventFX (shockwave animations, burst lifecycle)
@@ -11956,10 +11973,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
 
 
         regGuard('standingWaveRenderer', 'visual.waveStandingRenderer', (dt) => {
-            const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
-                ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                : 0);
-            if (activeLinkCount === 0) return;
+            if (this.activeLinkCount === 0) return;
             this.standingWaveRenderer?.update?.(dt, this.time);
         });
         regGuard('nodeAuraRenderer', 'visual.nodeAuraRenderer', (dt) => {
@@ -11977,10 +11991,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
             wavePatternSystem?.update?.(dt, this.time);
         });
         regGuard('waveParticleEmitter', 'visual.harmony.waveParticleEmitter', (dt) => {
-            const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
-                ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                : 0);
-            if (activeLinkCount === 0) return;
+            if (this.activeLinkCount === 0) return;
             this.particleEmitter?.update?.(
                 dt,
                 this.aiNodes?.nodes || [],
@@ -12019,10 +12030,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         regGuard('phase5MultiNetworkOrchestrator', 'simulation.phase5MultiNetworkOrchestrator', (dt) => this.phase5MultiNetworkOrchestrator?.update?.(dt));
         regGuard('phase5InterNetworkVisualizationBridge', 'visual.phase5InterNetworkVisualizationBridge', (dt) => this.phase5InterNetworkVisualizationBridge?.update?.(dt));
         regGuard('cascadePropagationVisuals', 'visual.cascadePropagation', (dt) => {
-            const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
-                ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                : 0);
-            if (activeLinkCount === 0) return;
+            if (this.activeLinkCount === 0) return;
             this.cascadePropagationVisuals?.update?.(dt);
         });
         regGuard('phase5CascadeVisualizationBridge', 'visual.phase5CascadeVisualizationBridge', (dt) => this.phase5CascadeVisualizationBridge?.update?.(dt));
@@ -15578,7 +15586,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                     this.scene,
                     this.resonanceRupture,
                     this.harmonicAudio,
-                    { maxParticles: 5000 }
+                    { maxParticles: 2500 }
                 );
                 console.log('[main.js] HealingParticleSystem initialized ✓');
             }

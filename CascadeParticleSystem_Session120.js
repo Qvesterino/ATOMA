@@ -42,7 +42,7 @@ export class CascadeParticleSystem_Session120 {
     this.scene = scene;
     
     this.config = {
-      maxParticles: config.maxParticles ?? 3000,
+      maxParticles: config.maxParticles ?? 1500,
       baseSize: config.baseSize ?? 4.8,
       visualSizeBoost: config.visualSizeBoost ?? 1.6,
       emissionRate: config.emissionRate ?? 4.8,

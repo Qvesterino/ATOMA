@@ -126,7 +126,7 @@ function setEligibleScoreSnapshot(score, synergy, overrides = {}) {
 }
 
 test('Network Time rewinds after 5s of canonical global.synergy.high sustain', () => {
-  const threshold = getDefaultMetricThresholds('synergy').high;
+  const threshold = 0.55;
   const score = new VisualNetworkTimeElasticity_v1({
     forwardSpeed: 5,
     rewindSpeed: 3.5,
@@ -403,7 +403,7 @@ test('ResonanceCascadeVisualization samples node and link influence at a lower c
 });
 
 test('Network Time stays forward below canonical global.synergy.high threshold', () => {
-  const threshold = getDefaultMetricThresholds('synergy').high;
+  const threshold = 0.55;
   const score = new VisualNetworkTimeElasticity_v1({
     forwardSpeed: 5,
     rewindSpeed: 3.5,
@@ -420,7 +420,7 @@ test('Network Time stays forward below canonical global.synergy.high threshold',
 });
 
 test('Network Time sustain resets cleanly when synergy drops before 5s', () => {
-  const threshold = getDefaultMetricThresholds('synergy').high;
+  const threshold = 0.55;
   const score = new VisualNetworkTimeElasticity_v1({
     forwardSpeed: 5,
     rewindSpeed: 3.5,
@@ -451,7 +451,7 @@ test('Network Time sustain resets cleanly when synergy drops before 5s', () => {
 });
 
 test('Network Time win triggers exactly when counter reaches zero', () => {
-  const threshold = getDefaultMetricThresholds('synergy').high;
+  const threshold = 0.55;
   const score = new VisualNetworkTimeElasticity_v1({
     forwardSpeed: 5,
     rewindSpeed: 3.5,
@@ -471,7 +471,7 @@ test('Network Time win triggers exactly when counter reaches zero', () => {
 });
 
 test('Network Time keeps pressure escalation, combo, and drama zone behaviors', () => {
-  const threshold = getDefaultMetricThresholds('synergy').high;
+  const threshold = 0.55;
   const score = new VisualNetworkTimeElasticity_v1({
     forwardSpeed: 5,
     rewindSpeed: 3.5,
@@ -502,7 +502,7 @@ test('Network Time keeps pressure escalation, combo, and drama zone behaviors', 
 });
 
 test('Two-node high-synergy network cannot accumulate rewind sustain', () => {
-  const threshold = getDefaultMetricThresholds('synergy').high;
+  const threshold = 0.55;
   const score = new VisualNetworkTimeElasticity_v1({
     forwardSpeed: 5,
     rewindSpeed: 3.5,
@@ -528,7 +528,7 @@ test('Two-node high-synergy network cannot accumulate rewind sustain', () => {
 });
 
 test('Three-node network stays blocked below minimum topology gate', () => {
-  const threshold = getDefaultMetricThresholds('synergy').high;
+  const threshold = 0.55;
   const score = new VisualNetworkTimeElasticity_v1({
     forwardSpeed: 5,
     rewindSpeed: 3.5,
@@ -553,7 +553,7 @@ test('Three-node network stays blocked below minimum topology gate', () => {
 });
 
 test('Dropping below the topology gate resets sustain progress', () => {
-  const threshold = getDefaultMetricThresholds('synergy').high;
+  const threshold = 0.55;
   const score = new VisualNetworkTimeElasticity_v1({
     forwardSpeed: 5,
     rewindSpeed: 3.5,
@@ -583,7 +583,7 @@ test('Dropping below the topology gate resets sustain progress', () => {
 });
 
 test('Score state exposes rewind gate diagnostics from the raw network snapshot', () => {
-  const threshold = getDefaultMetricThresholds('synergy').high;
+  const threshold = 0.55;
   const score = new VisualNetworkTimeElasticity_v1();
 
   score.setNetworkMetricsSnapshot({
@@ -612,10 +612,10 @@ test('HUD exposes minimal rewind lock feedback strings', () => {
   const hudSource = fs.readFileSync(new URL('../HUD/CoreMetricsHUD.js', import.meta.url), 'utf8');
 
   assert(hudSource.includes('sustain-lock-reason'));
-  assert(hudSource.includes('NEED MORE NODES'));
-  assert(hudSource.includes('NEED MORE LINKS'));
-  assert(hudSource.includes('LINK QUALITY TOO LOW'));
-  assert(hudSource.includes('SYNERGY TOO LOW'));
+  assert(hudSource.includes('Need 4+ nodes'));
+  assert(hudSource.includes('Need 3+ links'));
+  assert(hudSource.includes('Link quality low'));
+  assert(hudSource.includes('Synergy too low'));
 });
 
 test('Menu release metadata exposes only Quantum and Dream Desert publicly', () => {

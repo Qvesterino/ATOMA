@@ -257,7 +257,7 @@ class ResonanceField {
 
 const PROBABILITY_CLOUDS_CONFIG = {
     enabled: true,
-    maxParticles: 8000,
+    maxParticles: 4000,
     particlesPerRadiusUnit: 8,  // Dynamic particles based on field size
     particleSize: 0.15,
 

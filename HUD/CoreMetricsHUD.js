@@ -176,7 +176,7 @@ export class CoreMetricsHUD {
           letter-spacing: 0.14em;
           text-transform: uppercase;
           color: rgba(200, 225, 245, 0.35);
-          width: 28px;
+          width: 52px;
           flex-shrink: 0;
           font-weight: 700;
         }
@@ -275,6 +275,14 @@ export class CoreMetricsHUD {
         @keyframes atoma-won-pulse {
           0%, 100% { text-shadow: 0 0 20px rgba(0, 255, 136, 0.3); }
           50% { text-shadow: 0 0 30px rgba(0, 255, 136, 0.8); }
+        }
+        #core-metrics-hud .network-time-goal {
+          font-size: 7px;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: rgba(0, 200, 220, 0.35);
+          margin-top: 2px;
+          width: 100%;
         }
         #core-metrics-hud .temporal-rewinding {
           color: #ff8c00 !important;
@@ -384,6 +392,19 @@ export class CoreMetricsHUD {
         #core-metrics-hud .sustain-lock-reason.visible {
           opacity: 1;
         }
+        #core-metrics-hud .sustain-hint {
+          min-height: 10px;
+          margin-top: 2px;
+          font-size: 6px;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: rgba(0, 212, 255, 0.75);
+          opacity: 0;
+          transition: opacity 0.25s ease;
+        }
+        #core-metrics-hud .sustain-hint.visible {
+          opacity: 1;
+        }
         #core-metrics-hud .nt-sparkline-container {
           margin-top: 6px;
           opacity: 0.8;
@@ -422,11 +443,11 @@ export class CoreMetricsHUD {
 
     // ── Metric rows ──────────────────────────────────────────────────
     const metrics = [
-      { key: 'synergy', label: 'SYN', color: this.colors.synergy },
-      { key: 'harmony', label: 'HRM', color: this.colors.harmony },
-      { key: 'stability', label: 'STB', color: this.colors.stability },
-      { key: 'corruption', label: 'CPT', color: this.colors.corruption },
-      { key: 'loadPressure', label: 'LOD', color: this.colors.loadPressure }
+      { key: 'synergy', label: 'Synergy', color: this.colors.synergy },
+      { key: 'harmony', label: 'Harmony', color: this.colors.harmony },
+      { key: 'stability', label: 'Stability', color: this.colors.stability },
+      { key: 'corruption', label: 'Corruption', color: this.colors.corruption },
+      { key: 'loadPressure', label: 'Load', color: this.colors.loadPressure }
     ];
 
     metrics.forEach(metric => {
@@ -440,7 +461,7 @@ export class CoreMetricsHUD {
 
     const ntLabel = document.createElement('span');
     ntLabel.className = 'network-time-label';
-    ntLabel.textContent = 'NET TIME';
+    ntLabel.textContent = 'Network Time';
 
     const ntArrow = document.createElement('span');
     ntArrow.className = 'network-time-arrow';
@@ -454,6 +475,12 @@ export class CoreMetricsHUD {
     ntSection.appendChild(ntLabel);
     ntSection.appendChild(ntArrow);
     ntSection.appendChild(ntValue);
+
+    const ntGoal = document.createElement('div');
+    ntGoal.className = 'network-time-goal';
+    ntGoal.textContent = 'Build network → rewind time';
+    ntSection.appendChild(ntGoal);
+
     this.hudContainer.appendChild(ntSection);
     this.hudElements.networkTime = ntValue;
     this.hudElements.networkTimeArrow = ntArrow;
@@ -473,17 +500,22 @@ export class CoreMetricsHUD {
 
     const sustainLabel = document.createElement('div');
     sustainLabel.className = 'sustain-progress-label';
-    sustainLabel.textContent = 'SYNERGY SUSTAIN';
+    sustainLabel.textContent = 'Rewind Charge';
     sustainSection.appendChild(sustainLabel);
 
     const sustainLockReason = document.createElement('div');
     sustainLockReason.className = 'sustain-lock-reason';
     sustainSection.appendChild(sustainLockReason);
 
+    const sustainHint = document.createElement('div');
+    sustainHint.className = 'sustain-hint';
+    sustainSection.appendChild(sustainHint);
+
     this.hudContainer.appendChild(sustainSection);
     this.hudElements.sustainProgress = sustainFill;
     this.hudElements.sustainSection = sustainSection;
     this.hudElements.sustainLockReason = sustainLockReason;
+    this.hudElements.sustainHint = sustainHint;
 
     // ── Network Time Sparkline (Phase 6B) ─────────────────────────────
     const sparklineContainer = document.createElement('div');
@@ -938,10 +970,16 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
       const isComplete = sustainRatio >= 1.0;
       const lockReason = scoreState?.rewindBlockReason ?? null;
       const lockReasonText = {
-        'need-more-nodes': 'NEED MORE NODES',
-        'need-more-links': 'NEED MORE LINKS',
-        'quality-too-low': 'LINK QUALITY TOO LOW',
-        'synergy-too-low': 'SYNERGY TOO LOW'
+        'need-more-nodes': 'Need 4+ nodes',
+        'need-more-links': 'Need 3+ links',
+        'quality-too-low': 'Link quality low',
+        'synergy-too-low': 'Synergy too low'
+      }[lockReason] || '';
+      const hintText = {
+        'need-more-nodes': 'Place more nodes to grow the network',
+        'need-more-links': 'Create links between nodes',
+        'quality-too-low': 'Link compatible categories for better quality',
+        'synergy-too-low': 'Raise synergy by linking matching nodes'
       }[lockReason] || '';
       const shouldShowLockReason = direction !== SCORE_DIRECTION.REWIND
         && direction !== SCORE_DIRECTION.WON
@@ -963,6 +1001,11 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
       if (this.hudElements.sustainLockReason) {
         this.hudElements.sustainLockReason.textContent = shouldShowLockReason ? lockReasonText : '';
         this.hudElements.sustainLockReason.classList.toggle('visible', shouldShowLockReason);
+      }
+      if (this.hudElements.sustainHint) {
+        const showHint = shouldShowLockReason && !!hintText;
+        this.hudElements.sustainHint.textContent = showHint ? hintText : '';
+        this.hudElements.sustainHint.classList.toggle('visible', showHint);
       }
     }
 

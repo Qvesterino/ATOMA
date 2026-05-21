@@ -43,7 +43,7 @@ const MENU_MAPS = Object.freeze([
         prosperity: 'moderate',
         accentColor: '#00d4ff',
         accentRgb: '0, 212, 255',
-        scoreConfig: { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5 },  // unified release score rule
+        scoreConfig: { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5, synergyThreshold: 0.55 },  // unified release score rule
     },
     {
         id: 'desert',
@@ -58,7 +58,7 @@ const MENU_MAPS = Object.freeze([
         prosperity: 'moderate',
         accentColor: '#ffc107',
         accentRgb: '255, 193, 7',
-        scoreConfig: { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5 },  // unified release score rule
+        scoreConfig: { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5, synergyThreshold: 0.55 },  // unified release score rule
     },
     {
         id: 'memory',
@@ -74,7 +74,7 @@ const MENU_MAPS = Object.freeze([
         prosperity: 'moderate',
         accentColor: '#b44dff',
         accentRgb: '180, 77, 255',
-        scoreConfig: { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5 },  // unified release score rule
+        scoreConfig: { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5, synergyThreshold: 0.55 },  // unified release score rule
     },
     {
         id: 'sigma',
@@ -90,7 +90,7 @@ const MENU_MAPS = Object.freeze([
         prosperity: 'extreme',
         accentColor: '#ff3d8e',
         accentRgb: '255, 61, 142',
-        scoreConfig: { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5 },  // unified release score rule
+        scoreConfig: { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5, synergyThreshold: 0.55 },  // unified release score rule
     },
     {
         id: 'desert2',
@@ -106,7 +106,7 @@ const MENU_MAPS = Object.freeze([
         prosperity: 'high',
         accentColor: '#ff9800',
         accentRgb: '255, 152, 0',
-        scoreConfig: { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5 },  // unified release score rule
+        scoreConfig: { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5, synergyThreshold: 0.55 },  // unified release score rule
     },
     {
         id: 'fractal',
@@ -122,7 +122,7 @@ const MENU_MAPS = Object.freeze([
         prosperity: 'high',
         accentColor: '#00e5a0',
         accentRgb: '0, 229, 160',
-        scoreConfig: { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5 },  // unified release score rule
+        scoreConfig: { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5, synergyThreshold: 0.55 },  // unified release score rule
     },
 ]);
 

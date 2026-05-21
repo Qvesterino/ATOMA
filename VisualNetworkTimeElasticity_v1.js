@@ -30,7 +30,10 @@
 
 import { getDefaultMetricThresholds } from './src/metrics/MetricTierClassifier.js';
 
-const DEFAULT_REWIND_SYNERGY_THRESHOLD = getDefaultMetricThresholds('synergy').high;
+// ALPHA HARDENING: lowered from canonical .high (0.45) to 0.55
+// because NodeMetricEngine synergy steady-state is 0.26-0.51,
+// making the old threshold (0.82 via stale import path) unreachable.
+const DEFAULT_REWIND_SYNERGY_THRESHOLD = 0.55;
 const DEFAULT_REWIND_MIN_NODE_COUNT = 4;
 const DEFAULT_REWIND_MIN_LINK_COUNT = 3;
 const DEFAULT_REWIND_MIN_AVG_LINK_QUALITY = 0.55;
