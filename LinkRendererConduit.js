@@ -3133,11 +3133,14 @@ export class LinkRendererConduit {
             blending: THREE.AdditiveBlending
         }).clone();
         skinMaterial.userData = {};
-        skinMaterial.customProgramCacheKey = null;
+        // Alpha: do NOT clear customProgramCacheKey — _bindLinkProgramCacheKey wraps it safely.
+        // Clearing it can trigger shader recompilation on clone.
         skinMaterial.onBeforeCompile = null;
         const skinGeometry = createLinkAuraGeometry(0.4, 16);
         const skinMesh = new THREE.Mesh(skinGeometry, skinMaterial);
         skinMesh.frustumCulled = false;
+        skinMesh.matrixAutoUpdate = false;
+        skinMesh.updateMatrix();
         ensureUserData(skinMaterial);
         skinMaterial.userData.__owner = 'LinkRenderer';
         skinMaterial.userData.__domain = 'link';

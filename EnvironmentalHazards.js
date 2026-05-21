@@ -1056,15 +1056,23 @@ export class EnvironmentalHazards {
       mesh.scale.setScalar(baseScale * (0.92 + slowPulse * 0.08 + crestBias * 0.05));
     });
 
-    hazard.bolts.forEach((bolt, index) => {
-      this._updateStormBolt(hazard, bolt, deltaTime, {
-        crestBias,
-        lodScale,
-        edgeColor: signals.corruptionHigh ? HAZARD_PALETTE.breachRose : palette.edge,
-        coreColor: signals.stabilityHigh ? HAZARD_PALETTE.ritualWhite : palette.core,
-        boltIndex: index
+    // Alpha: skip bolt updates when very distant (lodScale < 0.4)
+    if (lodScale >= 0.4) {
+      hazard.bolts.forEach((bolt, index) => {
+        this._updateStormBolt(hazard, bolt, deltaTime, {
+          crestBias,
+          lodScale,
+          edgeColor: signals.corruptionHigh ? HAZARD_PALETTE.breachRose : palette.edge,
+          coreColor: signals.stabilityHigh ? HAZARD_PALETTE.ritualWhite : palette.core,
+          boltIndex: index
+        });
       });
-    });
+    } else {
+      // Hide bolts entirely when too far
+      hazard.bolts.forEach((bolt) => {
+        if (bolt.mesh) bolt.mesh.visible = false;
+      });
+    }
 
     this._updateShardField(hazard.shardField, hazard, deltaTime, {
       radialSpeed: 0.18 + pressureBoost * 0.18,
@@ -1775,8 +1783,10 @@ export class EnvironmentalHazards {
     return geometry;
   }
 
-  _createShardField({ count, radius, height, size, colorA, colorB, opacity = 0.25 }) {
-    const positions = new Float32Array(count * 3);
+  _createShardField({ count, radius, height, size, colorA, colorB, opacity = 0.25, lodScale = 1 }) {
+    // Alpha: LOD-scale shard count to reduce vertex cost for distant hazards
+    const scaledCount = Math.max(1, Math.ceil(count * Math.max(0.25, Math.min(1, lodScale || 1))));
+    const positions = new Float32Array(scaledCount * 3);
     const colors = new Float32Array(count * 3);
     const angles = new Float32Array(count);
     const radii = new Float32Array(count);
@@ -1787,8 +1797,8 @@ export class EnvironmentalHazards {
     const colorStart = this._colorScratchA.set(colorA).clone();
     const colorEnd = this._colorScratchB.set(colorB).clone();
 
-    for (let i = 0; i < count; i++) {
-      const mix = count <= 1 ? 0 : i / (count - 1);
+    for (let i = 0; i < scaledCount; i++) {
+      const mix = scaledCount <= 1 ? 0 : i / (scaledCount - 1);
       angles[i] = Math.random() * TAU;
       radii[i] = radius * (0.55 + Math.random() * 0.45);
       verticals[i] = (Math.random() - 0.5) * height;
@@ -1828,7 +1838,7 @@ export class EnvironmentalHazards {
       radii,
       verticals,
       phases,
-      count,
+      count: scaledCount,
       baseRadius: radius,
       baseHeight: height,
       baseSize: size

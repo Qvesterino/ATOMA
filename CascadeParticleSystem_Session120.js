@@ -1064,13 +1064,19 @@ export class CascadeParticleSystem_Session120 {
       return;
     }
 
+    // Alpha: gate semantic layer updates to 10 Hz
+    this._semanticUpdateAccumulator = (this._semanticUpdateAccumulator || 0) + (deltaTime || 0);
+    if (this._semanticUpdateAccumulator < 0.1) return;
+    const safeDelta = this._semanticUpdateAccumulator;
+    this._semanticUpdateAccumulator = 0;
+
     const semanticEnabled = this.config.cascadeEmissionBoostEnabled !== false
       || this.config.cascadeColorTintingEnabled !== false
       || this.config.particleSemanticDensityEnabled !== false;
 
     if (!semanticEnabled) return;
 
-    this._semanticTime += Math.max(0, Number(deltaTime) || 0);
+    this._semanticTime += Math.max(0, Number(safeDelta) || 0);
 
     this._semanticStats.activeBoosts = 0;
     this._semanticStats.activeColorTints = 0;
@@ -1103,9 +1109,9 @@ export class CascadeParticleSystem_Session120 {
         )
       );
 
-      this._updateLinkEmissionBoost(link, state, cascadeIntensity, deltaTime);
-      this._updateLinkColorTint(link, state, cascadeIntensity, conflictType, conflictIntensity, deltaTime);
-      this._updateLinkSemanticDensity(link, state, conflictSystem, cascadeIntensity, deltaTime, now);
+      this._updateLinkEmissionBoost(link, state, cascadeIntensity, safeDelta);
+      this._updateLinkColorTint(link, state, cascadeIntensity, conflictType, conflictIntensity, safeDelta);
+      this._updateLinkSemanticDensity(link, state, conflictSystem, cascadeIntensity, safeDelta, now);
 
       if (cascadeIntensity > 0.01 || conflictType !== 'none') {
         this._semanticStats.activeColorTints++;
@@ -1218,6 +1224,10 @@ export class CascadeParticleSystem_Session120 {
     if (this.config.particleSemanticDensityEnabled === false) {
       return;
     }
+
+    // Alpha: disable semantic density for mid/far links (LOD >= 1)
+    const lod = this._getLinkLODLevel(link);
+    if (lod >= 1) return;
 
     const u = link.userData;
     const prevCascade = Number(u._prevCascadeIntensity ?? 0) || 0;
@@ -1343,7 +1353,22 @@ export class CascadeParticleSystem_Session120 {
       return;
     }
 
-    const safeDelta = Number.isFinite(deltaTime) && deltaTime > 0 ? deltaTime : 0;
+    // Alpha: gate trail updates to 10 Hz
+    this._trailUpdateAccumulator = (this._trailUpdateAccumulator || 0) + (deltaTime || 0);
+    if (this._trailUpdateAccumulator < 0.1) return;
+    const safeDelta = this._trailUpdateAccumulator;
+    this._trailUpdateAccumulator = 0;
+
+    // Alpha: skip trails for far links (LOD >= 2)
+    if (this._activeLinks?.length > 0) {
+      const lod = this._getLinkLODLevel(this._activeLinks[0]);
+      if (lod >= 2) {
+        if (this.trailMesh.visible) this.trailMesh.visible = false;
+        return;
+      }
+    }
+    if (!this.trailMesh.visible) this.trailMesh.visible = true;
+
     this._updateExistingTrailParticles(safeDelta);
     this._spawnNewTrailParticles(safeDelta);
     this._updateTrailGPUBuffers();

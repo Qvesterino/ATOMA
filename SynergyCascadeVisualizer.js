@@ -79,7 +79,7 @@ export class SynergyCascadeVisualizer {
         flowParticles: true,           // Directional particles
         burstParticles: true,          // Compact burst at cascade start / hop
         rippleEffect: true,            // Expanding rings
-        harmonicShimmer: true          // Oscillating colors
+        harmonicShimmer: false         // DISABLED for alpha: oscillating colors are expensive and low-readability
       },
       
       // Particle system
@@ -130,9 +130,9 @@ export class SynergyCascadeVisualizer {
       
       // Performance
       batchSize: 30,                  // Update cascades in batches
-      updateFrequency: 1,             // Update every N frames
+      updateFrequency: 2,             // Update every N frames (alpha: 2 for ~50% CPU reduction)
       maxActiveCascades: 50,          // Max simultaneous cascades
-      maxActiveParticles: 240,        // Hard cap for live particle meshes
+      maxActiveParticles: 120,        // Hard cap for live particle meshes (alpha: halved from 240)
       hopLifetime: 0.7,               // Seconds each hop stays visually active
       forcedFlowIntervalSeconds: Infinity, // Disabled: forced flow cadence per live link
       forcedFlowIntensity: 1.0,        // Baseline visible flow intensity
@@ -142,7 +142,7 @@ export class SynergyCascadeVisualizer {
       forcedFlowSpeedMultiplier: 2.85,
       forcedBurstIntervalSeconds: Infinity, // Disabled: forced burst cadence per live link
       minBurstIntensity: 0.06,        // Ignore ultra-weak bursts
-      echoRippleCount: 3,
+      echoRippleCount: 2,             // Alpha: reduced from 3 to cut ripple geometry cost
       echoRippleSpacing: 0.46,
       echoRippleVerticalOffset: 0.07,
       echoRippleRadiusStep: 0.48,
@@ -162,7 +162,7 @@ export class SynergyCascadeVisualizer {
     // Cascade particles
     this.cascadeParticles = [];
     this.particlePool = [];
-    this.maxPoolSize = 240;
+    this.maxPoolSize = 120;            // Alpha: aligned with maxActiveParticles
     this.burstParticleSystem = null;
     this.burstPointFXBase = new LinkPointFXBase(this.scene, {
       renderLayer: 'LINK_PARTICLES',
