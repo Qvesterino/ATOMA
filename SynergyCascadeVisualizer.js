@@ -134,13 +134,13 @@ export class SynergyCascadeVisualizer {
       maxActiveCascades: 50,          // Max simultaneous cascades
       maxActiveParticles: 240,        // Hard cap for live particle meshes
       hopLifetime: 0.7,               // Seconds each hop stays visually active
-      forcedFlowIntervalSeconds: 3.0, // Forced flow cadence per live link
+      forcedFlowIntervalSeconds: Infinity, // Disabled: forced flow cadence per live link
       forcedFlowIntensity: 1.0,        // Baseline visible flow intensity
       forcedFlowCountMultiplier: 5.2,
       forcedFlowRadiusMultiplier: 4.6,
       forcedFlowLifetimeMultiplier: 2.35,
       forcedFlowSpeedMultiplier: 2.85,
-      forcedBurstIntervalSeconds: 5.0, // Forced burst cadence per live link
+      forcedBurstIntervalSeconds: Infinity, // Disabled: forced burst cadence per live link
       minBurstIntensity: 0.06,        // Ignore ultra-weak bursts
       echoRippleCount: 3,
       echoRippleSpacing: 0.46,

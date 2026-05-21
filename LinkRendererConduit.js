@@ -19,6 +19,7 @@ import { LinkCorruptionParticleSystem } from './LinkCorruptionParticleSystem.js'
 import { LinkResonanceFlowSystem_Session124 } from './LinkResonanceFlowSystem_Session124.js';
 import { TIER4_CorruptionFeedbackVisuals } from './TIER4_CorruptionFeedbackVisuals_v1.js';
 import { createLinkAuraMaterial, createLinkAuraGeometry } from './shaders/LinkAuraShader.js';
+import { createFilamentShaderMaterial } from './shaders/LinkFilamentShader.js';
 import { linkStateVertexShaderSimple, linkStateFragmentShaderSimple } from './LinkStateVisualLanguageIntegration.js';
 import { LinkTrailParticleSystem, LinkTrailEmitter, LinkStrandTipSparkVisual } from './LinkTrailParticleSystem.js';
 import { LinkHealingParticleSystem, LinkHealingEmitter } from './LinkHealingParticleSystem.js';
@@ -91,6 +92,7 @@ const STRAND_FILAMENT_STYLE = {
 const CONSERVATIVE_FILAMENT_GATING = Object.freeze({
     ENABLED: true,
     LOD_SKIP_LEVEL: 2,
+    LOD_10HZ_LEVEL: 1,
     HARMONY_SKIP_THRESHOLD: 0.94
 });
 const CONSERVATIVE_FRENET_CACHE = Object.freeze({
@@ -1585,7 +1587,11 @@ export class LinkRendererConduit {
         // Shared event material pool (impact + dock + dissolve)
         this._impactMaterialPool = new Map();
         this._impactPoolMaxSize = 20;
-        
+
+        // Strand material pool keyed by category pair + parity
+        this._strandMaterialPool = new Map();
+        this._strandMaterialPoolMaxSize = 32;
+
         // Geometry pool pre impact system
         this._geometryPool = new Map();
         this._initGeometryPool();
@@ -1706,18 +1712,16 @@ export class LinkRendererConduit {
             return state.strandFilaments;
         }
 
-        // Two line segments per filament (start->mid, mid->end) to fake curved bridges.
-        const positions = new Float32Array(sampleCount * 12);
-        const colors = new Float32Array(sampleCount * 12);
+        // GPU-driven: per-filament seed attributes + ShaderMaterial
         const rootT = new Float32Array(sampleCount);
         const phase = new Float32Array(sampleCount);
         const lengthScale = new Float32Array(sampleCount);
-        const strandSlot = new Uint8Array(sampleCount);
+        const strandSlot = new Float32Array(sampleCount); // float for shader
         const driftSign = new Float32Array(sampleCount);
-        const filamentVariant = new Uint8Array(sampleCount); // 0=flow hair, 1=surface bridge, 2=micro jump
+        const filamentVariant = new Float32Array(sampleCount); // 0=flow hair, 1=surface bridge, 2=micro jump
         const bridgeForward = new Float32Array(sampleCount);
         const bridgeTwist = new Float32Array(sampleCount);
-        const bridgeNeighborSign = new Int8Array(sampleCount);
+        const bridgeNeighborSign = new Float32Array(sampleCount);
 
         const seedBase = hashString32(link?.id || link?.uuid || `link-filaments-${sampleCount}`);
         let cursor = 0;
@@ -1740,29 +1744,53 @@ export class LinkRendererConduit {
                 bridgeForward[cursor] = 0.018 + seededNoise(seed * 1.81) * STRAND_FILAMENT_STYLE.BRIDGE_FORWARD;
                 bridgeTwist[cursor] = (0.22 + seededNoise(seed * 2.07) * STRAND_FILAMENT_STYLE.BRIDGE_TWIST) *
                     (seededNoise(seed * 2.51) > 0.5 ? 1.0 : -1.0);
-                bridgeNeighborSign[cursor] = seededNoise(seed * 2.83) > 0.5 ? 1 : -1;
+                bridgeNeighborSign[cursor] = seededNoise(seed * 2.83) > 0.5 ? 1.0 : -1.0;
                 cursor += 1;
             }
         }
 
-        const geometry = new THREE.BufferGeometry();
-        const positionAttr = new THREE.BufferAttribute(positions, 3);
-        const colorAttr = new THREE.BufferAttribute(colors, 3);
-        positionAttr.setUsage(THREE.DynamicDrawUsage);
-        colorAttr.setUsage(THREE.DynamicDrawUsage);
-        geometry.setAttribute('position', positionAttr);
-        geometry.setAttribute('color', colorAttr);
+        // Build geometry with 4 vertices per filament sample (2 line segments)
+        const vertexCount = sampleCount * 4;
+        const positions = new Float32Array(vertexCount * 3); // dummy positions, shader overwrites
+        const vertexIndex = new Float32Array(vertexCount); // 0=start, 1=midA, 2=midB, 3=end
+        for (let i = 0; i < sampleCount; i += 1) {
+            const base = i * 4;
+            vertexIndex[base] = 0;
+            vertexIndex[base + 1] = 1;
+            vertexIndex[base + 2] = 2;
+            vertexIndex[base + 3] = 3;
+        }
 
-        const material = new THREE.LineBasicMaterial({
-            vertexColors: true,
-            transparent: true,
-            opacity: STRAND_FILAMENT_STYLE.BASE_OPACITY,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            depthTest: true,
-            linewidth: 1.6
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage));
+        geometry.setAttribute('aRootT', new THREE.BufferAttribute(rootT, 1));
+        geometry.setAttribute('aPhase', new THREE.BufferAttribute(phase, 1));
+        geometry.setAttribute('aLengthScale', new THREE.BufferAttribute(lengthScale, 1));
+        geometry.setAttribute('aStrandSlot', new THREE.BufferAttribute(strandSlot, 1));
+        geometry.setAttribute('aDriftSign', new THREE.BufferAttribute(driftSign, 1));
+        geometry.setAttribute('aVariant', new THREE.BufferAttribute(filamentVariant, 1));
+        geometry.setAttribute('aBridgeForward', new THREE.BufferAttribute(bridgeForward, 1));
+        geometry.setAttribute('aBridgeTwist', new THREE.BufferAttribute(bridgeTwist, 1));
+        geometry.setAttribute('aBridgeNeighborSign', new THREE.BufferAttribute(bridgeNeighborSign, 1));
+        geometry.setAttribute('aVertexIndex', new THREE.BufferAttribute(vertexIndex, 1));
+
+        // Build index buffer for LineSegments: each filament sample = 2 lines (start-mid, mid-end)
+        const indices = new Uint16Array(sampleCount * 6);
+        for (let i = 0; i < sampleCount; i += 1) {
+            const base = i * 4;
+            const idx = i * 6;
+            indices[idx] = base;
+            indices[idx + 1] = base + 1;
+            indices[idx + 2] = base + 2;
+            indices[idx + 3] = base + 3;
+            indices[idx + 4] = base + 2;
+            indices[idx + 5] = base + 1;
+        }
+        geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+
+        const material = createFilamentShaderMaterial({
+            uOpacity: { value: STRAND_FILAMENT_STYLE.BASE_OPACITY }
         });
-        material.toneMapped = false;
         const filamentMesh = new THREE.LineSegments(geometry, material);
         filamentMesh.frustumCulled = false;
         filamentMesh.raycast = () => null;
@@ -1781,8 +1809,8 @@ export class LinkRendererConduit {
             geometry,
             material,
             sparkVisual,
-            positions,
-            colors,
+            sampleCount,
+            // Keep CPU-side arrays for spark spawn logic
             rootT,
             phase,
             lengthScale,
@@ -1792,7 +1820,6 @@ export class LinkRendererConduit {
             bridgeForward,
             bridgeTwist,
             bridgeNeighborSign,
-            sampleCount,
             vPoint: new THREE.Vector3(),
             vPoint2: new THREE.Vector3(),
             vStart: new THREE.Vector3(),
@@ -1821,6 +1848,9 @@ export class LinkRendererConduit {
         }
         if (ctx.heavyTick === false) {
             return { skip: true, reason: 'budget', gatingEnabled };
+        }
+        if (Number.isFinite(ctx.lod) && ctx.lod >= CONSERVATIVE_FILAMENT_GATING.LOD_10HZ_LEVEL && ctx.geometryTick !== true) {
+            return { skip: true, reason: 'distance-10hz', gatingEnabled };
         }
         if (Number.isFinite(ctx.lod) && ctx.lod >= CONSERVATIVE_FILAMENT_GATING.LOD_SKIP_LEVEL) {
             return { skip: true, reason: 'lod', gatingEnabled };
@@ -1914,13 +1944,60 @@ export class LinkRendererConduit {
         const stressBias = stressField.bias;
         const stressTension = stressField.tension;
         const pressureDensity = clamp01(stressBias * 0.7 + stressTension * 0.42);
-        material.opacity = THREE.MathUtils.clamp(
-            STRAND_FILAMENT_STYLE.BASE_OPACITY + load * 0.2 + corruption * 0.24 + synergy * 0.12 + pressureDensity * 0.18,
-            0.32,
-            0.98
-        );
+
+        // GPU-driven: update uniforms only; vertex shader computes position/color
+        const u = material.uniforms;
+        if (u) {
+            u.uTime.value = Number.isFinite(ctx.visualTime) ? ctx.visualTime : 0;
+            u.uSynergy.value = synergy;
+            u.uHarmony.value = harmony;
+            u.uCorruption.value = corruption;
+            u.uLoad.value = load;
+            u.uStability.value = stability;
+            u.uStressBias.value = stressBias;
+            u.uStressTension.value = stressTension;
+            u.uOpacity.value = THREE.MathUtils.clamp(
+                STRAND_FILAMENT_STYLE.BASE_OPACITY + load * 0.2 + corruption * 0.24 + synergy * 0.12 + pressureDensity * 0.18,
+                0.32,
+                0.98
+            );
+            u.uStressColor.value.copy(this._stressColorScratchA);
+
+            const strandCount = Math.max(1, state.strandCount || strands.length || 1);
+            const linkLength = Math.max(0.0001, ctx.linkDist || state.linkLength || state.waveLength || 1.0);
+            const twists = linkLength / Math.max(0.01, this.config.twistSpacing || 2.0);
+            const activeRadius = Math.max(0.0001, (ctx.activeRadius || this.config.baseRadius || 0.06) * (1 + pressureDensity * 0.09));
+            u.uStrandCount.value = strandCount;
+            u.uActiveRadius.value = activeRadius;
+            u.uTwists.value = twists;
+            u.uTwistPhase.value = Number.isFinite(ctx.twistPhase) ? ctx.twistPhase : 0;
+            u.uLinkLength.value = linkLength;
+
+            // Base color from strand 0 material or state fallback
+            const strandBaseColor = strands[0]?.material?.uniforms?.uBaseColor?.value;
+            if (strandBaseColor?.isColor) {
+                u.uBaseColor.value.copy(strandBaseColor);
+            } else if (state.baseColorObj?.isColor) {
+                u.uBaseColor.value.copy(state.baseColorObj);
+            } else {
+                u.uBaseColor.value.set(0xffffff);
+            }
+
+            // Quadratic Bezier control points from curve endpoints
+            const start = ctx.start || (strands[0]?.geometry?.userData?.__start);
+            const end = ctx.end || (strands[0]?.geometry?.userData?.__end);
+            if (start && end) {
+                u.uBezierP0.value.copy(start);
+                u.uBezierP2.value.copy(end);
+                u.uBezierP1.value.copy(start).lerp(end, 0.5); // mid control point
+            }
+        }
+
         filamentState.sparkVisual?.update?.(Number.isFinite(ctx.visualTime) ? ctx.visualTime : 0);
 
+        // ---- Spark spawn evaluation (CPU-side, rare events) ----
+        // We still need to evaluate curve positions for spark spawn points.
+        // To keep cost bounded, only evaluate a subset of filaments each frame.
         if (!ctx.mainCurve || !ctx.frames) return;
 
         const mainCurve = ctx.mainCurve;
@@ -1935,14 +2012,19 @@ export class LinkRendererConduit {
         const noiseBase = Number.isFinite(ctx.noiseBase) ? ctx.noiseBase : 0.0025;
 
         const {
-            positions, colors, rootT, phase, lengthScale, strandSlot, driftSign,
+            rootT, phase, lengthScale, strandSlot, driftSign,
             filamentVariant, bridgeForward, bridgeTwist, bridgeNeighborSign, sampleCount,
             vPoint, vPoint2, vStart, vMid, vEnd, vTangent, vTangent2, vNormal, vBinormal, vRadial,
             vNormal2, vBinormal2, vRadial2, vSide, cBase, cMid, cTip
         } = filamentState;
 
+        // Budget: evaluate at most 24 filaments per frame for spark spawning
+        const sparkBudget = 24;
+        const stride = Math.max(1, Math.floor(sampleCount / sparkBudget));
+        const offset = Math.floor((visualTime * 17.3) % stride);
+
         const edgeFadeSpan = 0.05;
-        for (let idx = 0; idx < sampleCount; idx += 1) {
+        for (let idx = offset; idx < sampleCount; idx += stride) {
             const strandIndex = Math.min(strandCount - 1, strandSlot[idx] || 0);
             const advect = visualTime * (STRAND_FILAMENT_STYLE.TRAVEL_SPEED + synergy * 0.08 + pressureDensity * 0.045) * driftSign[idx];
             const tRaw = rootT[idx] + advect;
@@ -1994,9 +2076,6 @@ export class LinkRendererConduit {
 
             const pulse = 0.5 + 0.5 * Math.sin(
                 visualTime * STRAND_FILAMENT_STYLE.SWAY_SPEED + phase[idx] + t * 12.0
-            );
-            const flowWave = Math.sin(
-                visualTime * STRAND_FILAMENT_STYLE.FLOW_WAVE_SPEED + phase[idx] * 1.4 + t * 20.0
             );
             const detachPulse = Math.pow(
                 Math.max(0.0, Math.sin(visualTime * STRAND_FILAMENT_STYLE.DETACH_SPEED + phase[idx] * 1.7 + t * 9.0)),
@@ -2066,7 +2145,6 @@ export class LinkRendererConduit {
                     vSide.normalize();
                 }
 
-                // Endpoint is clamped to the target strand surface for visible strand-to-strand contact.
                 vEnd.copy(vPoint2).addScaledVector(vRadial2, radius2 * STRAND_FILAMENT_STYLE.BRIDGE_CLING);
 
                 if (isMicroJump) {
@@ -2085,13 +2163,11 @@ export class LinkRendererConduit {
                         vEnd.lerp(vStart, 1.0 - jumpGate * 20.0);
                         vMid.lerpVectors(vStart, vEnd, 0.5);
                     }
-                    vMid.addScaledVector(vSide, filamentLength * flowWave * 0.04);
                 } else {
                     vMid.lerpVectors(vStart, vEnd, 0.5)
                         .addScaledVector(vRadial, filamentLength * (STRAND_FILAMENT_STYLE.BRIDGE_CURVE * (0.6 + 0.4 * pulse)))
                         .addScaledVector(vSide, filamentLength * sway * 0.55)
-                        .addScaledVector(vTangent2, filamentLength * (0.08 + load * 0.1 + pressureDensity * 0.08))
-                        .addScaledVector(vSide, filamentLength * flowWave * (STRAND_FILAMENT_STYLE.FLOW_WAVE_AMOUNT * 0.65));
+                        .addScaledVector(vTangent2, filamentLength * (0.08 + load * 0.1 + pressureDensity * 0.08));
                 }
             } else {
                 const forwardLean = filamentLength * (STRAND_FILAMENT_STYLE.FLOW_LEAN + load * 0.35 + synergy * 0.2 + pressureDensity * 0.22);
@@ -2101,28 +2177,12 @@ export class LinkRendererConduit {
                     .addScaledVector(vTangent, forwardLean)
                     .addScaledVector(vRadial, radialLean)
                     .addScaledVector(vSide, filamentLength * sway * 0.44)
-                    .addScaledVector(vTangent, detach * 0.2 * driftSign[idx])
-                    .addScaledVector(vSide, filamentLength * flowWave * STRAND_FILAMENT_STYLE.FLOW_WAVE_AMOUNT);
+                    .addScaledVector(vTangent, detach * 0.2 * driftSign[idx]);
 
                 vMid.lerpVectors(vStart, vEnd, 0.52)
                     .addScaledVector(vSide, filamentLength * sway * 0.26)
-                    .addScaledVector(vRadial, filamentLength * 0.12)
-                    .addScaledVector(vSide, filamentLength * flowWave * (STRAND_FILAMENT_STYLE.FLOW_WAVE_AMOUNT * 0.55));
+                    .addScaledVector(vRadial, filamentLength * 0.12);
             }
-
-            const p = idx * 12;
-            positions[p] = vStart.x;
-            positions[p + 1] = vStart.y;
-            positions[p + 2] = vStart.z;
-            positions[p + 3] = vMid.x;
-            positions[p + 4] = vMid.y;
-            positions[p + 5] = vMid.z;
-            positions[p + 6] = vMid.x;
-            positions[p + 7] = vMid.y;
-            positions[p + 8] = vMid.z;
-            positions[p + 9] = vEnd.x;
-            positions[p + 10] = vEnd.y;
-            positions[p + 11] = vEnd.z;
 
             const strandBaseColor = strands[strandIndex]?.material?.uniforms?.uBaseColor?.value;
             if (strandBaseColor?.isColor) {
@@ -2133,30 +2193,6 @@ export class LinkRendererConduit {
                 cBase.set(0xffffff);
             }
             cBase.lerp(this._stressColorScratchA, pressureDensity * 0.22);
-
-            // Polish: boosted gains for more vivid, energetic filaments
-            const startGain = (isMicroJump ? (0.42 + jumpVisibility * 0.42) : (isBridge ? 0.68 : 0.78)) + load * 0.40 + pulse * 0.22 + pressureDensity * 0.18;
-            const midGain = (isMicroJump ? (0.50 + jumpVisibility * 0.40) : (isBridge ? 0.78 : 0.88)) + harmony * 0.28 + pulse * 0.18 + pressureDensity * 0.24;
-            const tipGain = (isMicroJump ? (0.70 + jumpVisibility * 0.48) : (isBridge ? 0.98 : 1.15)) + harmony * 0.30 + detach * 1.05 + pressureDensity * 0.34;
-            cTip.copy(cBase).lerp(
-                COLOR_WHITE,
-                THREE.MathUtils.clamp((isMicroJump ? (0.36 + jumpVisibility * 0.52) : (isBridge ? 0.56 : 0.78)) + detach * 0.68 + corruption * 0.28 + pressureDensity * 0.18, 0.0, 1.0)
-            );
-            cTip.lerp(this._stressColorScratchA, pressureDensity * 0.18);
-            cMid.copy(cBase).lerp(cTip, isMicroJump ? (0.40 + jumpVisibility * 0.38) : (isBridge ? 0.70 : 0.58));
-
-            colors[p] = cBase.r * startGain;
-            colors[p + 1] = cBase.g * startGain;
-            colors[p + 2] = cBase.b * startGain;
-            colors[p + 3] = cMid.r * midGain;
-            colors[p + 4] = cMid.g * midGain;
-            colors[p + 5] = cMid.b * midGain;
-            colors[p + 6] = cMid.r * midGain;
-            colors[p + 7] = cMid.g * midGain;
-            colors[p + 8] = cMid.b * midGain;
-            colors[p + 9] = cTip.r * tipGain;
-            colors[p + 10] = cTip.g * tipGain;
-            colors[p + 11] = cTip.b * tipGain;
 
             // Detached sparks from filament tips (rare, burst-like).
             const sparkPulse = Math.sin(visualTime * 7.4 + phase[idx] * 2.7 + idx * 0.37);
@@ -2212,9 +2248,6 @@ export class LinkRendererConduit {
                 );
             }
         }
-
-        geometry.attributes.position.needsUpdate = true;
-        geometry.attributes.color.needsUpdate = true;
     }
 
     setTravelingWaveFX(travelingWaveFX) {
@@ -3220,43 +3253,9 @@ export class LinkRendererConduit {
                 const i = createdStrands;
                 const categoryColor = (i % 2 === 0) ? state.colorA : state.colorB;
                 const accentColor = (i % 2 === 0) ? state.colorB : state.colorA;
-                const material = new THREE.ShaderMaterial({
-                    vertexShader: linkStateVertexShaderSimple,
-                    fragmentShader: linkStateFragmentShaderSimple,
-                    transparent: true,
-                    depthWrite: false,
-                    depthTest: true,
-                    side: THREE.DoubleSide,
-                    uniforms: {
-                        uNetworkStress: { value: 0.0 },
-                        uLocalLoad: { value: 0.0 },
-                        uCorruption: { value: 0.0 },
-                        uTime: { value: 0.0 },
-                        uSegmentCount: { value: 44.0 },
-                        uBaseColor: { value: categoryColor.clone() },
-                        uAccentColor: { value: accentColor.clone() },
-                        uStrandIndex: { value: i },
-                        uStrandCount: { value: strandCount },
-                        u_rippleIntensity: { value: 0.0 },
-                        u_ripplesActive: { value: 0.0 },
-                        u_rippleSaturation: { value: 0.5 },
-                        u_ripplePhase: { value: 0.0 },
-                        u_rippleEnergy: { value: 0.0 },
-                        u_rippleLength: { value: 1.0 },
-                        u_rippleVisibility: { value: 0.0 },
-                        u_rippleBandCount: { value: 2.0 },
-                        u_rippleSignature: { value: 0.0 },
-                        u_stressFieldBias: { value: 0.0 },
-                        u_stressFieldTension: { value: 0.0 },
-                        u_stressFieldColor: { value: new THREE.Color(0x7be6ff) }
-                    }
-                });
-                ensureUserData(material);
-                material.userData.__owner = 'LinkRenderer';
-                material.userData.__domain = 'link';
-                material.userData.isLinkCore = true;
-                material.userData.travelRelevant = true;
-                material.userData.__flagsFrozen = material.userData.__flagsFrozen || false;
+                const sourceCat = link?.source?.userData?.category || 'input';
+                const targetCat = link?.target?.userData?.category || 'input';
+                const material = this._checkoutStrandMaterial(sourceCat, targetCat, i % 2, strandCount, categoryColor, accentColor, i);
                 const directionVec =
                     link?.userData?.waveDirection ||
                     state?.waveDirection ||
@@ -4230,8 +4229,18 @@ export class LinkRendererConduit {
         });
         if (runStrandMotion) {
             let strandUniformWritesThisFrame = 0;
+            const maxVisibleStrands = lod >= 1 ? 2 : state.strandCount;
             for (let i = 0; i < state.strands.length; i += 1) {
                 const mesh = state.strands[i];
+                const depthMesh = state.strandDepthPasses?.[i] || null;
+                if (i >= maxVisibleStrands) {
+                    if (mesh.visible !== false) mesh.visible = false;
+                    if (depthMesh && depthMesh.visible !== false) depthMesh.visible = false;
+                    continue;
+                } else {
+                    if (mesh.visible !== true) mesh.visible = true;
+                    if (depthMesh && depthMesh.visible !== true) depthMesh.visible = true;
+                }
                 if (isCoreNodeMesh(mesh)) {
                     // Phase LRC-SAFE-CORE
                     // Do NOT modify core node material
@@ -4643,7 +4652,7 @@ export class LinkRendererConduit {
             hasBeads: !!state.beads,
             hasBeadModule: !!this.modules.beads
         });
-        if (heavyTick && runBeadEffects && state.beads && this.modules.beads) {
+        if (heavyTick && runBeadEffects && state.beads && this.modules.beads && lodAllowsSecondaryVfx) {
             // Re-assert render state to bypass global depth clamps
             if (state.beads.forceRenderState) {
                 state.beads.forceRenderState();
@@ -4679,7 +4688,7 @@ export class LinkRendererConduit {
 
         if (heavyTick && runEnergyRingEffects && state.rings) state.rings.update(visualTime);
 
-        if (heavyTick && state.sparks && this.modules.sparks) {
+        if (heavyTick && state.sparks && this.modules.sparks && lodAllowsSecondaryVfx) {
             const baseCol = (state.strands[0]?.material?.color) || state.baseColor || 0xffffff;
             const currentColor = baseCol.isColor ? baseCol : colorScratch.a.set(baseCol);
             this._sparksUpdateCalls = (this._sparksUpdateCalls || 0) + 1;
@@ -5372,6 +5381,87 @@ export class LinkRendererConduit {
             return colorLike >>> 0;
         }
         return fallbackHex >>> 0;
+    }
+
+    /**
+     * Checkout a pooled strand ShaderMaterial keyed by category pair + parity.
+     * Falls back to creation on pool miss.
+     */
+    _checkoutStrandMaterial(sourceCat, targetCat, parity, strandCount, categoryColor, accentColor, strandIndex) {
+        const poolKey = `${sourceCat}|${targetCat}|${parity}|${strandCount}`;
+        const stack = this._strandMaterialPool.get(poolKey);
+        if (stack && stack.length > 0) {
+            const mat = stack.pop();
+            // Reset per-instance uniforms
+            if (mat.uniforms) {
+                mat.uniforms.uBaseColor.value.copy(categoryColor);
+                mat.uniforms.uAccentColor.value.copy(accentColor);
+                mat.uniforms.uStrandIndex.value = strandIndex;
+                mat.uniforms.uStrandCount.value = strandCount;
+            }
+            return mat;
+        }
+
+        const material = new THREE.ShaderMaterial({
+            vertexShader: linkStateVertexShaderSimple,
+            fragmentShader: linkStateFragmentShaderSimple,
+            transparent: true,
+            depthWrite: false,
+            depthTest: true,
+            side: THREE.DoubleSide,
+            uniforms: {
+                uNetworkStress: { value: 0.0 },
+                uLocalLoad: { value: 0.0 },
+                uCorruption: { value: 0.0 },
+                uTime: { value: 0.0 },
+                uSegmentCount: { value: 44.0 },
+                uBaseColor: { value: categoryColor.clone() },
+                uAccentColor: { value: accentColor.clone() },
+                uStrandIndex: { value: strandIndex },
+                uStrandCount: { value: strandCount },
+                u_rippleIntensity: { value: 0.0 },
+                u_ripplesActive: { value: 0.0 },
+                u_rippleSaturation: { value: 0.5 },
+                u_ripplePhase: { value: 0.0 },
+                u_rippleEnergy: { value: 0.0 },
+                u_rippleLength: { value: 1.0 },
+                u_rippleVisibility: { value: 0.0 },
+                u_rippleBandCount: { value: 2.0 },
+                u_rippleSignature: { value: 0.0 },
+                u_stressFieldBias: { value: 0.0 },
+                u_stressFieldTension: { value: 0.0 },
+                u_stressFieldColor: { value: new THREE.Color(0x7be6ff) }
+            }
+        });
+        ensureUserData(material);
+        material.userData.__owner = 'LinkRenderer';
+        material.userData.__domain = 'link';
+        material.userData.isLinkCore = true;
+        material.userData.travelRelevant = true;
+        material.userData.__flagsFrozen = material.userData.__flagsFrozen || false;
+        material.userData.__strandPoolKey = poolKey;
+        return material;
+    }
+
+    /**
+     * Return a strand ShaderMaterial to the pool for reuse.
+     */
+    _returnStrandMaterial(mat) {
+        if (!mat) return;
+        const poolKey = mat.userData?.__strandPoolKey;
+        if (!poolKey) {
+            mat.dispose?.();
+            return;
+        }
+        if (!this._strandMaterialPool.has(poolKey)) {
+            this._strandMaterialPool.set(poolKey, []);
+        }
+        const stack = this._strandMaterialPool.get(poolKey);
+        if (stack.length < this._strandMaterialPoolMaxSize) {
+            stack.push(mat);
+        } else {
+            mat.dispose?.();
+        }
     }
 
     _getDockEventMaterial(variant, colorLike, opacity = 0.12) {
@@ -6215,7 +6305,7 @@ const makeWaveSlice = () => {
             this._disposeStrandFilaments(state);
             state.strands.forEach(m => {
                 if(m.geometry) m.geometry.dispose();
-                if(m.material) m.material.dispose();
+                if(m.material) this._returnStrandMaterial(m.material);
             });
 
             if (state.skinMesh) {

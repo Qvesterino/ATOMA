@@ -658,13 +658,16 @@ export class VisualNetworkTimeElasticity_v1 {
 
   /**
    * Apply score config.
-   * @param {Object} config - { sustainDuration, rewindSpeed, forwardSpeed?, synergyThreshold? }
+   * @param {Object} config - { sustainDuration, rewindSpeed, forwardSpeed?, synergyThreshold?, rewindMinNodeCount?, rewindMinLinkCount?, rewindMinAvgLinkQuality? }
    */
   applyWorldConfig(config = {}) {
     if (config.sustainDuration != null) this._sustainDuration = config.sustainDuration;
     if (config.rewindSpeed != null) this._rewindSpeed = config.rewindSpeed;
     if (config.forwardSpeed != null) this._forwardSpeed = config.forwardSpeed;
     if (config.synergyThreshold != null) this._synergyThreshold = config.synergyThreshold;
+    if (config.rewindMinNodeCount != null) this._rewindMinNodeCount = config.rewindMinNodeCount;
+    if (config.rewindMinLinkCount != null) this._rewindMinLinkCount = config.rewindMinLinkCount;
+    if (config.rewindMinAvgLinkQuality != null) this._rewindMinAvgLinkQuality = config.rewindMinAvgLinkQuality;
 
     // Reset run state for new world without incrementing games played.
     this.reset({ countGamePlayed: false });
@@ -673,7 +676,10 @@ export class VisualNetworkTimeElasticity_v1 {
       sustainDuration: this._sustainDuration,
       rewindSpeed: this._rewindSpeed,
       forwardSpeed: this._forwardSpeed,
-      synergyThreshold: this._synergyThreshold
+      synergyThreshold: this._synergyThreshold,
+      rewindMinNodeCount: this._rewindMinNodeCount,
+      rewindMinLinkCount: this._rewindMinLinkCount,
+      rewindMinAvgLinkQuality: this._rewindMinAvgLinkQuality
     });
   }
 

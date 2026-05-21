@@ -745,17 +745,30 @@ test('Developer mode changes rebroadcast the shared UI visibility event', () => 
   assert(layerManagerSource.includes('return requiresDevMode(hudKey) ? _developerMode : true;'));
 });
 
-test('Unified release score config is mirrored in main and menu definitions', () => {
+test('Per-world score configs are present in main and menu definitions', () => {
   const mainSource = fs.readFileSync(new URL('../main.js', import.meta.url), 'utf8');
   const menuSource = fs.readFileSync(new URL('../MainMenu.js', import.meta.url), 'utf8');
 
-  const mainMatches = mainSource.match(/sustainDuration:\s*5,\s*rewindSpeed:\s*3\.5,\s*forwardSpeed:\s*5/g) ?? [];
-  const menuMatches = menuSource.match(/sustainDuration:\s*5,\s*rewindSpeed:\s*3\.5,\s*forwardSpeed:\s*5/g) ?? [];
+  // All 6 worlds must have a scoreConfig entry
+  const mainWorldEntries = mainSource.match(/\w+:\s*\{\s*sustainDuration:/g) ?? [];
+  const menuWorldEntries = menuSource.match(/scoreConfig:\s*\{\s*sustainDuration:/g) ?? [];
+  assert(mainWorldEntries.length >= 6, 'main.js WORLD_SCORE_CONFIG must define score config for all worlds');
+  assert(menuWorldEntries.length >= 6, 'MainMenu.js MENU_MAPS must define scoreConfig for all worlds');
 
-  assert(mainMatches.length >= 6, 'main.js should define unified release score config for all worlds');
-  assert(menuMatches.length >= 6, 'MainMenu.js should mirror the unified release score config for all worlds');
+  // Prevent old drift
   assert(!mainSource.includes('sustainDuration: 10'), 'old per-world score drift should be removed from main.js');
   assert(!menuSource.includes('sustainDuration: 10'), 'old per-world score drift should be removed from MainMenu.js');
+});
+
+test('Desert is easier than Quantum (per-world balance differentiation)', () => {
+  const mainSource = fs.readFileSync(new URL('../main.js', import.meta.url), 'utf8');
+  const menuSource = fs.readFileSync(new URL('../MainMenu.js', import.meta.url), 'utf8');
+
+  // Desert: lower synergy threshold, shorter sustain, faster rewind speed
+  assert(mainSource.includes("desert:   { sustainDuration: 4.5, rewindSpeed: 4.0,"), 'main.js desert should have easier config');
+  assert(mainSource.includes("quantum:  { sustainDuration: 5, rewindSpeed: 3.5,"), 'main.js quantum should have standard config');
+  assert(menuSource.includes("scoreConfig: { sustainDuration: 4.5, rewindSpeed: 4.0, forwardSpeed: 5, synergyThreshold: 0.50 }"), 'MainMenu.js desert should have easier scoreConfig');
+  assert(menuSource.includes("scoreConfig: { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5, synergyThreshold: 0.55 }"), 'MainMenu.js quantum should have standard scoreConfig');
 });
 
 test('Balance-first DNA offsets only lift storage, input, and control baselines', () => {

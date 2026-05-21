@@ -42,7 +42,7 @@ export class CascadeParticleSystem_Session120 {
     this.scene = scene;
     
     this.config = {
-      maxParticles: config.maxParticles ?? 1500,
+      maxParticles: config.maxParticles ?? 800,
       baseSize: config.baseSize ?? 4.8,
       visualSizeBoost: config.visualSizeBoost ?? 1.6,
       emissionRate: config.emissionRate ?? 4.8,
@@ -76,7 +76,7 @@ export class CascadeParticleSystem_Session120 {
       trailFadeRate: config.trailFadeRate ?? 12.0,
       trailLifetime: config.trailLifetime ?? 0.18,
       trailHistoryFrames: config.trailHistoryFrames ?? 2,
-      maxTrailParticles: config.maxTrailParticles ?? 1000,
+      maxTrailParticles: config.maxTrailParticles ?? 400,
       cascadeEmissionBoostEnabled: config.cascadeEmissionBoostEnabled ?? true,
       cascadeColorTintingEnabled: config.cascadeColorTintingEnabled ?? true,
       particleSemanticDensityEnabled: config.particleSemanticDensityEnabled ?? true,
@@ -273,8 +273,8 @@ export class CascadeParticleSystem_Session120 {
   init() {
     // 1. Generate Texture Atlas
     this.textureAtlas = this._generateTextureAtlas();
-    
-    // 2. Initialize Geometry
+
+    // 2. Initialize Geometry with GPU-simulation birth-state attributes
     this.geometry = this.pointFXBase.createGeometry({
       opacity: { itemSize: 1 },
       size: { itemSize: 1 },
@@ -282,21 +282,51 @@ export class CascadeParticleSystem_Session120 {
       angle: { itemSize: 1 }
     });
 
-    const positions = new Float32Array(this.config.maxParticles * 3);
-    const colors = new Float32Array(this.config.maxParticles * 3);
-    const opacities = new Float32Array(this.config.maxParticles);
-    const sizes = new Float32Array(this.config.maxParticles);
-    const shapeIndices = new Float32Array(this.config.maxParticles); // 0-3 for atlas index
-    const angles = new Float32Array(this.config.maxParticles); // Rotation
-    
+    const maxP = this.config.maxParticles;
+    const positions = new Float32Array(maxP * 3);
+    const colors = new Float32Array(maxP * 3);
+    const opacities = new Float32Array(maxP);
+    const sizes = new Float32Array(maxP);
+    const shapeIndices = new Float32Array(maxP);
+    const angles = new Float32Array(maxP);
+
+    // GPU-simulation birth-state attributes
+    const aBirthTime = new Float32Array(maxP);
+    const aMaxLifetime = new Float32Array(maxP);
+    const aSourcePosition = new Float32Array(maxP * 3);
+    const aTargetPosition = new Float32Array(maxP * 3);
+    const aPathOffset = new Float32Array(maxP * 3);
+    const aSpeed = new Float32Array(maxP);
+    const aPathDirection = new Float32Array(maxP);
+    const aBaseSize = new Float32Array(maxP);
+    const aSourceColor = new Float32Array(maxP * 3);
+    const aTargetColor = new Float32Array(maxP * 3);
+    const aOpacityScale = new Float32Array(maxP);
+    const aConflictType = new Float32Array(maxP);
+    const aFlowType = new Float32Array(maxP);
+
     this.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage));
     this.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3).setUsage(THREE.DynamicDrawUsage));
     this.geometry.setAttribute('opacity', new THREE.BufferAttribute(opacities, 1).setUsage(THREE.DynamicDrawUsage));
     this.geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1).setUsage(THREE.DynamicDrawUsage));
     this.geometry.setAttribute('shapeIndex', new THREE.BufferAttribute(shapeIndices, 1).setUsage(THREE.DynamicDrawUsage));
     this.geometry.setAttribute('angle', new THREE.BufferAttribute(angles, 1).setUsage(THREE.DynamicDrawUsage));
-    
-    // 3. Initialize Shader Material
+
+    this.geometry.setAttribute('aBirthTime', new THREE.BufferAttribute(aBirthTime, 1).setUsage(THREE.DynamicDrawUsage));
+    this.geometry.setAttribute('aMaxLifetime', new THREE.BufferAttribute(aMaxLifetime, 1).setUsage(THREE.DynamicDrawUsage));
+    this.geometry.setAttribute('aSourcePosition', new THREE.BufferAttribute(aSourcePosition, 3).setUsage(THREE.DynamicDrawUsage));
+    this.geometry.setAttribute('aTargetPosition', new THREE.BufferAttribute(aTargetPosition, 3).setUsage(THREE.DynamicDrawUsage));
+    this.geometry.setAttribute('aPathOffset', new THREE.BufferAttribute(aPathOffset, 3).setUsage(THREE.DynamicDrawUsage));
+    this.geometry.setAttribute('aSpeed', new THREE.BufferAttribute(aSpeed, 1).setUsage(THREE.DynamicDrawUsage));
+    this.geometry.setAttribute('aPathDirection', new THREE.BufferAttribute(aPathDirection, 1).setUsage(THREE.DynamicDrawUsage));
+    this.geometry.setAttribute('aBaseSize', new THREE.BufferAttribute(aBaseSize, 1).setUsage(THREE.DynamicDrawUsage));
+    this.geometry.setAttribute('aSourceColor', new THREE.BufferAttribute(aSourceColor, 3).setUsage(THREE.DynamicDrawUsage));
+    this.geometry.setAttribute('aTargetColor', new THREE.BufferAttribute(aTargetColor, 3).setUsage(THREE.DynamicDrawUsage));
+    this.geometry.setAttribute('aOpacityScale', new THREE.BufferAttribute(aOpacityScale, 1).setUsage(THREE.DynamicDrawUsage));
+    this.geometry.setAttribute('aConflictType', new THREE.BufferAttribute(aConflictType, 1).setUsage(THREE.DynamicDrawUsage));
+    this.geometry.setAttribute('aFlowType', new THREE.BufferAttribute(aFlowType, 1).setUsage(THREE.DynamicDrawUsage));
+
+    // 3. Initialize Shader Material with GPU-driven particle simulation
     this.material = new THREE.ShaderMaterial({
       uniforms: {
         uAtlas: { value: this.textureAtlas },
@@ -305,82 +335,123 @@ export class CascadeParticleSystem_Session120 {
         uDistanceFalloffRate: { value: this.config.distanceSize.falloffRate },
         uDistanceFalloffExponent: { value: this.config.distanceSize.falloffExponent },
         uMinPointSize: { value: this.config.distanceSize.minPointSize },
-        uMaxPointSize: { value: this.config.distanceSize.maxPointSize }
+        uMaxPointSize: { value: this.config.distanceSize.maxPointSize },
+        uTime: { value: 0.0 }
       },
-      vertexShader: `
-        attribute float size;
-        attribute vec3 color;
-        attribute float opacity;
-        attribute float shapeIndex;
-        attribute float angle;
+      vertexShader: /* glsl */ `
+        attribute float aBirthTime;
+        attribute float aMaxLifetime;
+        attribute vec3 aSourcePosition;
+        attribute vec3 aTargetPosition;
+        attribute vec3 aPathOffset;
+        attribute float aSpeed;
+        attribute float aPathDirection;
+        attribute float aBaseSize;
+        attribute vec3 aSourceColor;
+        attribute vec3 aTargetColor;
+        attribute float aOpacityScale;
+        attribute float aConflictType;
+        attribute float aFlowType;
+        attribute float aShapeIndex;
+
+        uniform float uTime;
         uniform float uDistanceSizeBase;
         uniform float uDistanceFalloffRate;
         uniform float uDistanceFalloffExponent;
         uniform float uMinPointSize;
         uniform float uMaxPointSize;
-        
+
         varying vec3 vColor;
         varying float vOpacity;
         varying float vShapeIndex;
         varying float vAngle;
-        
+
+        float hash(float n) { return fract(sin(n) * 43758.5453123); }
+
         void main() {
+          float age = uTime - aBirthTime;
+          float lifeRatio = clamp(age / max(aMaxLifetime, 0.001), 0.0, 1.0);
+
+          // Path progress
+          float pathProgress = aSpeed * age * aPathDirection;
+
+          // Oscillatory wiggle
+          if (aFlowType > 1.5) {
+            pathProgress += sin(uTime * 0.01 + aBirthTime) * 0.0015;
+          }
+          pathProgress = clamp(pathProgress, 0.0, 1.0);
+
+          // Position along link + offset
+          vec3 computedPos = mix(aSourcePosition, aTargetPosition, pathProgress) + aPathOffset;
+
+          // Stability noise (approximated with hash)
+          if (aConflictType > 2.5 && aConflictType < 3.5) {
+            float n = hash(computedPos.x + computedPos.y * 31.0 + uTime + aBirthTime);
+            computedPos += vec3(n - 0.5, n - 0.5, n - 0.5) * 0.1;
+          }
+
+          // Fade curve (smooth arc)
+          float fade = sin(lifeRatio * 3.14159265);
+
+          // Size
+          float size = aBaseSize * fade;
+
+          // Opacity
+          float opacity = fade * aOpacityScale;
+
+          // Color along path + pulse
+          vec3 color = mix(aSourceColor, aTargetColor, pathProgress);
+          float colorPulse = 0.88 + (1.0 - lifeRatio) * 0.12;
+          color *= colorPulse;
+
+          // Angle: spin for chaos types
+          float angle = 0.0;
+          if (aConflictType > 2.5 || (aConflictType > 1.5 && aConflictType < 2.5)) {
+            angle = uTime * 5.0 + aBirthTime;
+          }
+
           vColor = color;
           vOpacity = opacity;
-          vShapeIndex = shapeIndex;
+          vShapeIndex = aShapeIndex;
           vAngle = angle;
-          
-          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-          // Spark/Healing-style distance attenuation: reliable screen-space shrink with depth.
+
+          vec4 mvPosition = modelViewMatrix * vec4(computedPos, 1.0);
           float perspectiveFactor = uDistanceSizeBase / max(1.0, -mvPosition.z);
           gl_PointSize = clamp(size * perspectiveFactor, uMinPointSize, uMaxPointSize);
           gl_Position = projectionMatrix * mvPosition;
         }
       `,
-      fragmentShader: `
+      fragmentShader: /* glsl */ `
         uniform sampler2D uAtlas;
         uniform float uGridSize;
-        
+
         varying vec3 vColor;
         varying float vOpacity;
         varying float vShapeIndex;
         varying float vAngle;
-        
+
         void main() {
-          // Rotate UVs based on angle
           float c = cos(vAngle);
           float s = sin(vAngle);
           vec2 rotUV = vec2(
             c * (gl_PointCoord.x - 0.5) - s * (gl_PointCoord.y - 0.5) + 0.5,
             s * (gl_PointCoord.x - 0.5) + c * (gl_PointCoord.y - 0.5) + 0.5
           );
-          
-          // Map to atlas grid
+
           float col = mod(vShapeIndex, uGridSize);
           float row = floor(vShapeIndex / uGridSize);
-          
-          // Invert row because UV y=0 is bottom
           row = (uGridSize - 1.0) - row;
-          
+
           vec2 atlasUV = (rotUV + vec2(col, row)) / uGridSize;
-          
-          // Sample the texture atlas for shape
           float shapeAlpha = texture2D(uAtlas, atlasUV).r;
-          
-          // Radial glow fallback for visibility
+
           float radial = 1.0 - smoothstep(0.0, 0.5, length(gl_PointCoord - 0.5));
           float glowMask = smoothstep(0.02, 1.0, radial);
-          
-          // Combine shape from atlas with radial glow
           float combinedAlpha = max(shapeAlpha, glowMask * 0.6);
-          
-          // Use vertex color (vColor) instead of hardcoded red
-          // Boost saturation for cascade conflict visibility
-          vec3 baseColor = vColor.rgb;
-          vec3 finalColor = baseColor * 1.15 + vec3(0.08, 0.02, 0.02); // Warm tint for cascade feel
-          
+
+          vec3 finalColor = vColor * 1.15 + vec3(0.08, 0.02, 0.02);
           gl_FragColor = vec4(finalColor, combinedAlpha * 0.78 * vOpacity);
-          
+
           if (gl_FragColor.a < 0.01) discard;
         }
       `,
@@ -2004,7 +2075,7 @@ export class CascadeParticleSystem_Session120 {
       this._logger.logIf(this.config.debugMode, '_emit: missing positions', { srcPos, dstPos, linkId: link?.id });
       return;
     }
-    
+
     // Validate positions are finite numbers
     if (!Number.isFinite(srcPos.x) || !Number.isFinite(srcPos.y) || !Number.isFinite(srcPos.z) ||
         !Number.isFinite(dstPos.x) || !Number.isFinite(dstPos.y) || !Number.isFinite(dstPos.z)) {
@@ -2014,21 +2085,24 @@ export class CascadeParticleSystem_Session120 {
       });
       return;
     }
-    
+
     this._logger.logIf(this.config.debugMode, '_emit: spawning', count, 'particles | src:',
       srcPos.x.toFixed(2), srcPos.y.toFixed(2), srcPos.z.toFixed(2),
       '| dst:', dstPos.x.toFixed(2), dstPos.y.toFixed(2), dstPos.z.toFixed(2));
-    
+
     // Semantic density & clustering
     const clusterCohesion = link?.userData?.particleClusterCohesion ?? 0;
     const clusterRadius = link?.userData?.particleClusterRadius ?? 0.2;
-    const urgencyOscillation = link?.userData?.particleUrgencyOscillation ?? 0;
     const sourceCategory = link?.source?.userData?.category || link?.sourceNode?.userData?.category || 'input';
     const targetCategory = link?.target?.userData?.category || link?.targetNode?.userData?.category || sourceCategory;
     const sourceColor = this._resolveCategoryColor(sourceCategory, this._neutralParticleColor, this._tmpSourceCategoryColor);
     const targetColor = this._resolveCategoryColor(targetCategory, this._neutralParticleColor, this._tmpTargetCategoryColor);
     const opacityScale = Math.max(0.15, Math.min(1, Number(lodState?.opacityScale ?? lodState?.lodOpacity ?? 1) || 1));
-    
+
+    // Numeric encodings for GPU shader
+    const conflictTypeNum = this._encodeConflictType(conflictType);
+    const flowTypeNum = this._encodeFlowType(flowType);
+
     for (let i = 0; i < cappedCount; i++) {
       const p = this._allocateParticle();
       if (!p) return i; // Pool full
@@ -2037,9 +2111,8 @@ export class CascadeParticleSystem_Session120 {
       p.lifetime = 0;
       p.maxLifetime = 1.8 + Math.random() * 1.2;
       p.spawnTime = currentCascadeTime;
-      
+
       p.linkRef = link;
-      // CRITICAL: Copy values, not references! srcPos/dstPos are reused temp vectors
       if (srcPos) p.sourcePosition.set(srcPos.x, srcPos.y, srcPos.z);
       if (dstPos) p.targetPosition.set(dstPos.x, dstPos.y, dstPos.z);
       p.shapeIndex = shapeIndex;
@@ -2048,22 +2121,20 @@ export class CascadeParticleSystem_Session120 {
       p.sourceColor.copy(sourceColor);
       p.targetColor.copy(targetColor);
       p.opacityScale = opacityScale;
-      
+
       // Position along link: respects clustering
-      // High cohesion = spawn particles closer together (cluster formation)
+      let pathProgress;
       if (clusterCohesion > 0.5) {
-        // Tight cluster: spawn within narrow band
         const clusterCenter = Math.random();
-        const clusterSpread = 0.05 * (1 - clusterCohesion); // Tighter at high cohesion
-        p.pathProgress = clusterCenter + (Math.random() - 0.5) * clusterSpread;
+        const clusterSpread = 0.05 * (1 - clusterCohesion);
+        pathProgress = clusterCenter + (Math.random() - 0.5) * clusterSpread;
       } else {
-        // Loose distribution: spread across link
-        p.pathProgress = Math.random();
+        pathProgress = Math.random();
       }
-      
-      p.pathProgress = Math.max(0, Math.min(1, p.pathProgress)); // Clamp
+      pathProgress = Math.max(0, Math.min(1, pathProgress));
+      p.pathProgress = pathProgress;
       p.pathDirection = (flowType === 'backflow') ? -1 : 1;
-      
+
       // Lateral offset respects cluster radius
       const offsetAmt = clusterRadius;
       p.pathOffset.set(
@@ -2071,7 +2142,7 @@ export class CascadeParticleSystem_Session120 {
         (Math.random() - 0.5) * offsetAmt,
         (Math.random() - 0.5) * offsetAmt
       );
-      
+
       const renderSlot = p.activeListIndex;
       if (renderSlot < 0) {
         this._releaseParticle(
@@ -2086,129 +2157,108 @@ export class CascadeParticleSystem_Session120 {
         );
         continue;
       }
-      
-      // Initial update to set position
-      this._updateSingleParticle(p, 0, currentCascadeTime);
-      if (!p.active) {
-        const positions = this.geometry.attributes.position.array;
-        const colors = this.geometry.attributes.color.array;
-        const opacities = this.geometry.attributes.opacity.array;
-        const sizes = this.geometry.attributes.size.array;
-        const angles = this.geometry.attributes.angle.array;
-        const shapes = this.geometry.attributes.shapeIndex.array;
-        this._releaseParticle(p, renderSlot, positions, colors, opacities, sizes, angles, shapes);
-        continue;
-      }
 
-      // Shape
-      const shapes = this.geometry.attributes.shapeIndex.array;
-      const positions = this.geometry.attributes.position.array;
-      const colors = this.geometry.attributes.color.array;
-      const opacities = this.geometry.attributes.opacity.array;
-      const sizes = this.geometry.attributes.size.array;
-      const angles = this.geometry.attributes.angle.array;
-      const spawnProgress = Math.max(0, Math.min(1, p.pathProgress));
-      this._tmpParticleColor.copy(p.sourceColor).lerp(p.targetColor, spawnProgress);
-      shapes[renderSlot] = shapeIndex;
-      positions[renderSlot * 3] = p.position.x;
-      positions[renderSlot * 3 + 1] = p.position.y;
-      positions[renderSlot * 3 + 2] = p.position.z;
-      colors[renderSlot * 3] = this._tmpParticleColor.r;
-      colors[renderSlot * 3 + 1] = this._tmpParticleColor.g;
-      colors[renderSlot * 3 + 2] = this._tmpParticleColor.b;
-      opacities[renderSlot] = p.opacityScale;
-      sizes[renderSlot] = this.config.baseSize * this.config.visualSizeBoost;
-      angles[renderSlot] = 0;
+      // Write GPU birth-state attributes (shader computes position/color/size/opacity/angle)
+      const geo = this.geometry.attributes;
+      geo.aBirthTime.array[renderSlot] = currentCascadeTime;
+      geo.aMaxLifetime.array[renderSlot] = p.maxLifetime;
+      geo.aSourcePosition.array[renderSlot * 3] = srcPos.x;
+      geo.aSourcePosition.array[renderSlot * 3 + 1] = srcPos.y;
+      geo.aSourcePosition.array[renderSlot * 3 + 2] = srcPos.z;
+      geo.aTargetPosition.array[renderSlot * 3] = dstPos.x;
+      geo.aTargetPosition.array[renderSlot * 3 + 1] = dstPos.y;
+      geo.aTargetPosition.array[renderSlot * 3 + 2] = dstPos.z;
+      geo.aPathOffset.array[renderSlot * 3] = p.pathOffset.x;
+      geo.aPathOffset.array[renderSlot * 3 + 1] = p.pathOffset.y;
+      geo.aPathOffset.array[renderSlot * 3 + 2] = p.pathOffset.z;
+      geo.aSpeed.array[renderSlot] = 0.03; // base speed (link length fraction per sec)
+      geo.aPathDirection.array[renderSlot] = p.pathDirection;
+      geo.aBaseSize.array[renderSlot] = this.config.baseSize * this.config.visualSizeBoost;
+      geo.aSourceColor.array[renderSlot * 3] = sourceColor.r;
+      geo.aSourceColor.array[renderSlot * 3 + 1] = sourceColor.g;
+      geo.aSourceColor.array[renderSlot * 3 + 2] = sourceColor.b;
+      geo.aTargetColor.array[renderSlot * 3] = targetColor.r;
+      geo.aTargetColor.array[renderSlot * 3 + 1] = targetColor.g;
+      geo.aTargetColor.array[renderSlot * 3 + 2] = targetColor.b;
+      geo.aOpacityScale.array[renderSlot] = opacityScale;
+      geo.aConflictType.array[renderSlot] = conflictTypeNum;
+      geo.aFlowType.array[renderSlot] = flowTypeNum;
+      geo.aShapeIndex.array[renderSlot] = shapeIndex;
+
+      // Legacy attributes: write dummy values (shader ignores them)
+      geo.position.array[renderSlot * 3] = 0;
+      geo.position.array[renderSlot * 3 + 1] = 0;
+      geo.position.array[renderSlot * 3 + 2] = 0;
+      geo.color.array[renderSlot * 3] = 1;
+      geo.color.array[renderSlot * 3 + 1] = 1;
+      geo.color.array[renderSlot * 3 + 2] = 1;
+      geo.opacity.array[renderSlot] = 1;
+      geo.size.array[renderSlot] = 1;
+      geo.angle.array[renderSlot] = 0;
+      geo.shapeIndex.array[renderSlot] = shapeIndex;
     }
 
     return cappedCount;
   }
+
+  _encodeConflictType(type) {
+    switch (type) {
+      case 'destructive': return 0;
+      case 'specialization_drift': return 1;
+      case 'corruption': return 2;
+      case 'oscillatory_balance': return 3;
+      case 'fatigue_yield': return 0;
+      case 'resolved_harmony': return 0;
+      case 'neutral': return 0;
+      default: return 0;
+    }
+  }
+
+  _encodeFlowType(type) {
+    switch (type) {
+      case 'forward': return 0;
+      case 'backflow': return 1;
+      case 'oscillatory': return 2;
+      default: return 0;
+    }
+  }
   
   /**
-   * Update all active particles
+   * Update all active particles — GPU-driven: only spawn/despawn bookkeeping.
+   * The vertex shader computes position, color, size, opacity, and angle.
    */
   _updateParticles(deltaTime, currentCascadeTime, camera = null) {
-    const positions = this.geometry.attributes.position.array;
-    const colors = this.geometry.attributes.color.array;
-    const opacities = this.geometry.attributes.opacity.array;
-    const sizes = this.geometry.attributes.size.array;
-    const angles = this.geometry.attributes.angle.array;
-    const shapes = this.geometry.attributes.shapeIndex.array;
-    
-    let diedFromAge = 0;
-    let diedFromUpdate = 0;
     const activeParticles = this._activeParticleIndices;
-    
+    let diedFromAge = 0;
+
     for (let activeIndex = 0; activeIndex < activeParticles.length;) {
       const poolIndex = activeParticles[activeIndex];
       const p = this.pool[poolIndex];
       if (!p || !p.active) {
-        this._removeActiveParticleAt(
-          activeIndex,
-          positions,
-          colors,
-          opacities,
-          sizes,
-          angles,
-          shapes
-        );
+        this._removeActiveParticleAt(activeIndex);
         continue;
       }
-      
+
       const age = currentCascadeTime - p.spawnTime;
       p.lifetime = age;
       if (age >= p.maxLifetime) {
-        this._releaseParticle(p, activeIndex, positions, colors, opacities, sizes, angles, shapes);
+        this._releaseParticle(p, activeIndex);
         diedFromAge++;
         continue;
       }
-      
-      this._updateSingleParticle(p, deltaTime, currentCascadeTime);
-      
-      if (!p.active) {
-        this._releaseParticle(p, activeIndex, positions, colors, opacities, sizes, angles, shapes);
-        diedFromUpdate++;
-        continue;
-      }
-      
-      // Update Attributes
-      const renderSlot = p.activeListIndex >= 0 ? p.activeListIndex : activeIndex;
-      positions[renderSlot * 3] = p.position.x;
-      positions[renderSlot * 3 + 1] = p.position.y;
-      positions[renderSlot * 3 + 2] = p.position.z;
 
-      const lodState = this._getCascadeLinkLod(p.linkRef, camera ?? this._currentCamera);
-      p.opacityScale = Math.max(0.15, Math.min(1, Number(lodState?.opacityScale ?? p.opacityScale ?? 1) || 1));
-      opacities[renderSlot] = p.opacityScale;
-      
-      // Fade out size
-      const lifeRatio = age / p.maxLifetime;
-      const fade = Math.sin(lifeRatio * Math.PI) * (0.88 + p.opacityScale * 0.12); // Smooth arc
-      sizes[renderSlot] = this.config.baseSize * this.config.visualSizeBoost * fade;
-
-      // Category-aware gradient color along the link path.
-      const pathT = Math.max(0, Math.min(1, p.pathProgress));
-      this._tmpParticleColor.copy(p.sourceColor).lerp(p.targetColor, pathT);
-      const colorPulse = 0.88 + (1.0 - lifeRatio) * 0.12;
-      colors[renderSlot * 3] = this._tmpParticleColor.r * colorPulse;
-      colors[renderSlot * 3 + 1] = this._tmpParticleColor.g * colorPulse;
-      colors[renderSlot * 3 + 2] = this._tmpParticleColor.b * colorPulse;
-      
-      // Rotate based on conflict type
-      if (p.conflictType === 'stability' || p.conflictType === 'corruption') {
-        angles[renderSlot] += deltaTime * 5.0; // Spin fast for chaos
-      } else {
-        // Align with path (approximation)
-        angles[renderSlot] = 0;
-      }
-      
       activeIndex++;
     }
-    
+
     this.activeCount = activeParticles.length;
-    
-    this._logger.logIf(this.config.debugMode && (diedFromAge > 0 || diedFromUpdate > 0), 
-      'Particle deaths - age:', diedFromAge, 'update:', diedFromUpdate, 'surviving:', this.activeCount);
+
+    // Update shader time uniform for GPU simulation
+    if (this.material?.uniforms?.uTime) {
+      this.material.uniforms.uTime.value = currentCascadeTime;
+    }
+
+    this._logger.logIf(this.config.debugMode && diedFromAge > 0,
+      'Particle deaths - age:', diedFromAge, 'surviving:', this.activeCount);
   }
   
   /**
@@ -2516,13 +2566,6 @@ export class CascadeParticleSystem_Session120 {
       return;
     }
 
-    const positionAttribute = this.geometry.attributes.position;
-    const colorAttribute = this.geometry.attributes.color;
-    const opacityAttribute = this.geometry.attributes.opacity;
-    const sizeAttribute = this.geometry.attributes.size;
-    const angleAttribute = this.geometry.attributes.angle;
-    const shapeIndexAttribute = this.geometry.attributes.shapeIndex;
-
     const markAttributeDirty = (attribute, count) => {
       if (!attribute) return;
 
@@ -2540,12 +2583,30 @@ export class CascadeParticleSystem_Session120 {
       attribute.needsUpdate = true;
     };
 
-    markAttributeDirty(positionAttribute, activeCount * positionAttribute.itemSize);
-    markAttributeDirty(colorAttribute, activeCount * colorAttribute.itemSize);
-    markAttributeDirty(opacityAttribute, activeCount);
-    markAttributeDirty(sizeAttribute, activeCount);
-    markAttributeDirty(angleAttribute, activeCount);
-    markAttributeDirty(shapeIndexAttribute, activeCount);
+    // Mark all GPU-simulation birth-state attributes dirty
+    const geo = this.geometry.attributes;
+    markAttributeDirty(geo.aBirthTime, activeCount);
+    markAttributeDirty(geo.aMaxLifetime, activeCount);
+    markAttributeDirty(geo.aSourcePosition, activeCount * 3);
+    markAttributeDirty(geo.aTargetPosition, activeCount * 3);
+    markAttributeDirty(geo.aPathOffset, activeCount * 3);
+    markAttributeDirty(geo.aSpeed, activeCount);
+    markAttributeDirty(geo.aPathDirection, activeCount);
+    markAttributeDirty(geo.aBaseSize, activeCount);
+    markAttributeDirty(geo.aSourceColor, activeCount * 3);
+    markAttributeDirty(geo.aTargetColor, activeCount * 3);
+    markAttributeDirty(geo.aOpacityScale, activeCount);
+    markAttributeDirty(geo.aConflictType, activeCount);
+    markAttributeDirty(geo.aFlowType, activeCount);
+    markAttributeDirty(geo.aShapeIndex, activeCount);
+
+    // Legacy attributes (kept for compatibility, shader ignores them)
+    markAttributeDirty(geo.position, activeCount * 3);
+    markAttributeDirty(geo.color, activeCount * 3);
+    markAttributeDirty(geo.opacity, activeCount);
+    markAttributeDirty(geo.size, activeCount);
+    markAttributeDirty(geo.angle, activeCount);
+    markAttributeDirty(geo.shapeIndex, activeCount);
 
     // Draw only compacted active slots.
     this.geometry.setDrawRange(0, activeCount);
@@ -2560,23 +2621,48 @@ export class CascadeParticleSystem_Session120 {
     const swappedPoolIndex = activeParticles[lastIndex];
 
     if (activeIndex !== lastIndex) {
-      if (positions && colors && opacities && sizes && angles && shapes) {
-        const fromSlot = lastIndex;
-        const toSlot = activeIndex;
+      const fromSlot = lastIndex;
+      const toSlot = activeIndex;
 
+      // Legacy positional attributes (optional, for backward compatibility)
+      if (positions) {
         positions[toSlot * 3] = positions[fromSlot * 3];
         positions[toSlot * 3 + 1] = positions[fromSlot * 3 + 1];
         positions[toSlot * 3 + 2] = positions[fromSlot * 3 + 2];
-
+      }
+      if (colors) {
         colors[toSlot * 3] = colors[fromSlot * 3];
         colors[toSlot * 3 + 1] = colors[fromSlot * 3 + 1];
         colors[toSlot * 3 + 2] = colors[fromSlot * 3 + 2];
-
-        opacities[toSlot] = opacities[fromSlot];
-        sizes[toSlot] = sizes[fromSlot];
-        angles[toSlot] = angles[fromSlot];
-        shapes[toSlot] = shapes[fromSlot];
       }
+      if (opacities) opacities[toSlot] = opacities[fromSlot];
+      if (sizes) sizes[toSlot] = sizes[fromSlot];
+      if (angles) angles[toSlot] = angles[fromSlot];
+      if (shapes) shapes[toSlot] = shapes[fromSlot];
+
+      // GPU birth-state attributes: swap all so shader data stays aligned with active list
+      const geo = this.geometry.attributes;
+      const swapAttr = (attr) => {
+        if (!attr) return;
+        const tmp = attr.array[fromSlot * attr.itemSize];
+        for (let c = 0; c < attr.itemSize; c++) {
+          attr.array[toSlot * attr.itemSize + c] = attr.array[fromSlot * attr.itemSize + c];
+        }
+      };
+      swapAttr(geo.aBirthTime);
+      swapAttr(geo.aMaxLifetime);
+      swapAttr(geo.aSourcePosition);
+      swapAttr(geo.aTargetPosition);
+      swapAttr(geo.aPathOffset);
+      swapAttr(geo.aSpeed);
+      swapAttr(geo.aPathDirection);
+      swapAttr(geo.aBaseSize);
+      swapAttr(geo.aSourceColor);
+      swapAttr(geo.aTargetColor);
+      swapAttr(geo.aOpacityScale);
+      swapAttr(geo.aConflictType);
+      swapAttr(geo.aFlowType);
+      swapAttr(geo.aShapeIndex);
 
       activeParticles[activeIndex] = swappedPoolIndex;
       const swappedParticle = this.pool[swappedPoolIndex];
@@ -2589,7 +2675,7 @@ export class CascadeParticleSystem_Session120 {
     return removedPoolIndex;
   }
 
-  _releaseParticle(p, activeIndex, positions, colors, opacities, sizes = null, angles = null, shapes = null) {
+  _releaseParticle(p, activeIndex, positions = null, colors = null, opacities = null, sizes = null, angles = null, shapes = null) {
     if (!p || !p.active) return;
 
     const poolIndex = p.index;

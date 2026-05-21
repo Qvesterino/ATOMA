@@ -11205,9 +11205,9 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
     // ── Unified release score config (mirrors MENU_MAPS scoreConfig) ──
     static WORLD_SCORE_CONFIG = Object.freeze({
         fractal:  { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5, synergyThreshold: 0.55 },
-        desert:   { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5, synergyThreshold: 0.55 },
+        desert:   { sustainDuration: 4.5, rewindSpeed: 4.0, forwardSpeed: 5, synergyThreshold: 0.50 },  // easier: faster rewind, lower threshold, shorter sustain
         desert2:  { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5, synergyThreshold: 0.55 },
-        quantum:  { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5, synergyThreshold: 0.55 },
+        quantum:  { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5, synergyThreshold: 0.55 },  // standard difficulty
         memory:   { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5, synergyThreshold: 0.55 },
         sigma:    { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5, synergyThreshold: 0.55 },
     });
