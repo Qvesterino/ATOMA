@@ -1048,6 +1048,51 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     return mode === 'chamber' ? 80 : 120;
   }
 
+  _getWorldSpawnCycleOrder(world = null) {
+    const normalizedWorld = String(
+      world ||
+      ((typeof window !== 'undefined' ? window.game?.currentMode : null) || this.currentMode || '')
+    ).toLowerCase().trim();
+
+    const defaultOrder = [
+      'input', 'process', 'storage', 'analytics', 'integration', 'control',
+      'quantum', 'sigma', 'mythic', 'prime', 'error', 'emotional'
+    ];
+
+    if (normalizedWorld === 'quantum') {
+      return [
+        'quantum', 'process', 'integration', 'analytics', 'emotional', 'sigma',
+        'input', 'mythic', 'storage', 'control', 'prime', 'error'
+      ];
+    }
+
+    if (normalizedWorld === 'desert') {
+      return [
+        'storage', 'control', 'prime', 'input', 'sigma', 'mythic',
+        'integration', 'analytics', 'process', 'emotional', 'quantum', 'error'
+      ];
+    }
+
+    return defaultOrder;
+  }
+
+  _syncSpawnCycleOrderToWorld(world = null) {
+    const state = this.spawnCycleState;
+    if (!state) return;
+
+    const nextOrder = this._getWorldSpawnCycleOrder(world);
+    const nextSignature = nextOrder.join('|');
+    if (state.worldOrderSignature === nextSignature) return;
+
+    const currentCategory = Array.isArray(state.order) ? state.order[state.cursor] : null;
+    state.order = nextOrder;
+    state.worldOrderSignature = nextSignature;
+    state.cursor = Math.max(0, nextOrder.indexOf(currentCategory));
+    state.lastAdvancedAt = Date.now();
+    state.skippedSinceSuccess = 0;
+    this._pendingCyclicCandidate = null;
+  }
+
   _shuffleValuesForRun(key, values) {
     const list = Array.isArray(values) ? values.filter((value) => value != null) : [];
     if (list.length <= 1) return list.slice();
@@ -1589,6 +1634,8 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     if (this.spawnState.phase !== 'INIT') {
       return; // hard skip duplicates
     }
+    this.currentMode = environment;
+    this._syncSpawnCycleOrderToWorld(environment);
     const MAX_INIT_NODES = 15;
     const desiredCount = Math.min(count || MAX_INIT_NODES, MAX_INIT_NODES);
     const positions = this.getNodePositions(environment, desiredCount);
@@ -4164,6 +4211,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
    * Ensures scheduler/event spawns always provide an explicit canonical category
    */
   getRuntimeSpawnCategoryIntent() {
+    this._syncSpawnCycleOrderToWorld();
     const category = this.getNextCyclicSpawnCategory();
     if (category) {
       if (!this._spawnIntentLogged) {

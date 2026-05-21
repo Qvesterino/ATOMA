@@ -148,9 +148,15 @@ export const NODE_VISUAL_REGISTRY = {
 };
 
 const CATEGORY_BALANCE_OFFSETS = Object.freeze({
-  storage: Object.freeze({ synergy: 0.09, harmony: 0.04, stability: 0.02, loadPressure: -0.01 }),
+  process: Object.freeze({ synergy: 0.02, harmony: -0.01, stability: -0.01, corruption: 0.02, loadPressure: 0.03 }),
+  integration: Object.freeze({ synergy: 0.025, harmony: 0.005, stability: -0.015, corruption: 0.015, loadPressure: 0.03 }),
+  analytics: Object.freeze({ synergy: 0.02, harmony: -0.005, stability: -0.015, corruption: 0.02, loadPressure: 0.025 }),
+  emotional: Object.freeze({ synergy: 0.018, harmony: 0.005, stability: -0.01, corruption: 0.018, loadPressure: 0.02 }),
+  quantum: Object.freeze({ synergy: 0.03, harmony: -0.015, stability: -0.02, corruption: 0.03, loadPressure: 0.03 }),
+  storage: Object.freeze({ synergy: 0.05, harmony: 0.06, stability: 0.04, corruption: -0.01, loadPressure: -0.02 }),
   input: Object.freeze({ synergy: 0.03, harmony: 0.02, stability: 0.01 }),
-  control: Object.freeze({ synergy: 0.02, harmony: 0.01 }),
+  control: Object.freeze({ synergy: 0.01, harmony: 0.03, stability: 0.03, corruption: -0.005, loadPressure: -0.01 }),
+  prime: Object.freeze({ synergy: -0.005, harmony: 0.03, stability: 0.03, corruption: -0.005, loadPressure: -0.015 }),
 });
 
 function clamp01(value) {

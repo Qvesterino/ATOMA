@@ -41,6 +41,9 @@ export class SafeWorldFXPack {
     this.worldMacroState = 'DORMANT';
     this.worldAtmosphereBias = null;
     this.atmosphereProfile = null;
+    this.signatureMomentSkin = null;
+    this.victoryTransformationState = null;
+    this._victorySequenceTimers = [];
 
     this.palette = {
       base: 0x05131A,
@@ -878,6 +881,7 @@ export class SafeWorldFXPack {
     this.atmosphereState.pulseCadence = THREE.MathUtils.clamp(conductorWorldFX?.pulseCadence ?? 0.48, 0.15, 1);
     this.atmosphereState.riftWaveFrequency = THREE.MathUtils.clamp(conductorWorldFX?.riftWaveFrequency ?? 0.34, 0.12, 1);
     this.atmosphereState.screenOverlayRestraint = THREE.MathUtils.clamp(conductorWorldFX?.screenOverlayRestraint ?? 0.9, 0.25, 1);
+    this._applySignatureAtmosphereBoosts();
   }
 
   _setupMetricTriggers() {
@@ -886,6 +890,7 @@ export class SafeWorldFXPack {
     this._subscribeMetricTag('global.corruption.high', 'corruption.high');
     this._subscribeMetricTag('global.stability.low', 'stability.low');
     this._subscribeMetricTag('global.stability.high', 'stability.high');
+    this._subscribeSemanticEvent('signature.world.skin', (payload = {}) => this.applySignatureWorldSkin(payload));
   }
 
   setWorldContext(worldContext) {
@@ -896,6 +901,317 @@ export class SafeWorldFXPack {
     } : null;
     this.worldMacroState = String(this.worldContext?.worldMacroState || this.worldContext?.macroState || 'DORMANT').toUpperCase();
     this.worldAtmosphereBias = this._buildWorldAtmosphereBias(this.worldContext);
+  }
+
+  _subscribeSemanticEvent(eventName, handler) {
+    const bus = this.metricBus;
+    if (!bus || !eventName || typeof handler !== 'function') return;
+    const disposer = eventRegistrationRegistry.register(
+      'SafeWorldFXPack',
+      eventName,
+      handler,
+      bus
+    );
+    if (!this._regDisposers) this._regDisposers = [];
+    this._regDisposers.push(disposer);
+  }
+
+  _applySignatureAtmosphereBoosts() {
+    const signatureState = this.signatureMomentSkin;
+    if (signatureState?.active) {
+      const intensity = THREE.MathUtils.clamp(signatureState.envelope ?? signatureState.intensity ?? 0, 0, 1);
+      const atmosphere = signatureState.atmosphere || {};
+      this.atmosphereState.signalBias = THREE.MathUtils.clamp(
+        this.atmosphereState.signalBias + intensity * (atmosphere.signalBias ?? 0.12),
+        0,
+        1
+      );
+      this.atmosphereState.canopyEmphasis = THREE.MathUtils.clamp(
+        this.atmosphereState.canopyEmphasis + intensity * (atmosphere.canopyBoost ?? 0.08),
+        0.4,
+        1
+      );
+      this.atmosphereState.horizonEmphasis = THREE.MathUtils.clamp(
+        this.atmosphereState.horizonEmphasis + intensity * (atmosphere.horizonBoost ?? 0.08),
+        0.4,
+        1
+      );
+      this.atmosphereState.veilDrift = THREE.MathUtils.clamp(
+        this.atmosphereState.veilDrift + intensity * (atmosphere.driftBoost ?? 0.06),
+        0.08,
+        1
+      );
+      this.atmosphereState.riftWaveFrequency = THREE.MathUtils.clamp(
+        this.atmosphereState.riftWaveFrequency + intensity * 0.08,
+        0.12,
+        1
+      );
+      this.atmosphereState.screenOverlayRestraint = THREE.MathUtils.clamp(
+        this.atmosphereState.screenOverlayRestraint - intensity * 0.18,
+        0.25,
+        1
+      );
+    }
+
+    const victoryState = this.victoryTransformationState;
+    if (victoryState?.active) {
+      const intensity = THREE.MathUtils.clamp(victoryState.envelope ?? 0.6, 0, 1);
+      this.atmosphereState.signalBias = THREE.MathUtils.clamp(this.atmosphereState.signalBias + intensity * 0.24, 0, 1);
+      this.atmosphereState.calmLevel = THREE.MathUtils.clamp(Math.max(this.atmosphereState.calmLevel, 0.62 + intensity * 0.28), 0, 1);
+      this.atmosphereState.canopyEmphasis = THREE.MathUtils.clamp(this.atmosphereState.canopyEmphasis + intensity * 0.14, 0.4, 1);
+      this.atmosphereState.horizonEmphasis = THREE.MathUtils.clamp(this.atmosphereState.horizonEmphasis + intensity * 0.18, 0.4, 1);
+      this.atmosphereState.veilDensity = THREE.MathUtils.clamp(this.atmosphereState.veilDensity * (1 - intensity * 0.18), 0.08, 1);
+      this.atmosphereState.screenOverlayRestraint = THREE.MathUtils.clamp(this.atmosphereState.screenOverlayRestraint - intensity * 0.22, 0.25, 1);
+    }
+  }
+
+  applySignatureWorldSkin(payload = {}) {
+    if (!payload || payload.releaseCurated === false) return;
+
+    const intensity = THREE.MathUtils.clamp(payload.intensity ?? 0.8, 0, 1.25);
+    const family = String(payload.family || 'signature').toLowerCase();
+    const worldProfile = String(payload.releaseWorldProfile || this.worldContext?.worldId || this.worldContext?.mode || '').toLowerCase();
+
+    this.signatureMomentSkin = {
+      active: true,
+      id: payload.id || family,
+      family,
+      worldProfile,
+      atmosphere: payload.atmosphere || {},
+      dominantColor: payload.dominantColor || '#F7FBFF',
+      accentColor: payload.accentColor || '#6DEAFF',
+      glowColor: payload.glowColor || '#FFF8E8',
+      mode: payload.mode || payload.silhouetteRole || 'signature',
+      intensity,
+      duration: family === 'personality' ? 9.5 : family === 'consciousness' ? 8.4 : 7.2,
+      age: 0,
+      envelope: intensity,
+      pulseTriggered: false,
+      foldTriggered: false,
+      aftermathTriggered: false
+    };
+
+    const pulseStrength = Math.min(1.15, 0.62 + intensity * 0.38);
+    if (family === 'corruption') {
+      this.triggerSigmaGlitch(Math.min(1.2, 0.82 + intensity * 0.3));
+      this.triggerScreenOverlay('quantum_breach', Math.min(1.15, 0.84 + intensity * 0.22));
+      if (worldProfile === 'quantum') {
+        this.triggerDimensionalShift();
+      }
+    } else if (family === 'bond') {
+      this.triggerGlobalPulse(pulseStrength);
+      this.spawnRiftWave();
+      this.triggerScreenOverlay('rift_wave', Math.min(1.05, 0.72 + intensity * 0.24));
+    } else if (family === 'synergy') {
+      this.triggerGlobalPulse(Math.min(1.2, 0.8 + intensity * 0.32));
+      this.spawnRiftWave();
+      if (worldProfile === 'quantum') {
+        this.triggerScreenOverlay('dimensional_shift', 0.78 + intensity * 0.16);
+      } else {
+        this.triggerScreenOverlay('rift_wave', 0.86 + intensity * 0.12);
+      }
+    } else if (family === 'cascade' || family === 'stability') {
+      this.triggerGlobalPulse(pulseStrength);
+      this.spawnRiftWave();
+      this.triggerScreenOverlay('rift_wave', Math.min(1, 0.68 + intensity * 0.18));
+    } else if (family === 'consciousness' || family === 'personality') {
+      this.triggerGlobalPulse(Math.min(1.05, 0.62 + intensity * 0.26));
+      this.spawnQuantumRift();
+      this.triggerScreenOverlay(worldProfile === 'desert' ? 'rift_wave' : 'dimensional_shift', 0.74 + intensity * 0.16);
+    }
+
+    this._emitWorldFXEvent(
+      'global_pulse',
+      'Signature Setpiece',
+      `${payload.label || payload.worldMood || 'Curated world shift'} is reshaping the foreground.`,
+      family === 'corruption' ? 'corruption' : 'stabilization',
+      intensity,
+      'crest'
+    );
+  }
+
+  updateSignatureWorldSkin(deltaTime) {
+    const state = this.signatureMomentSkin;
+    if (!state?.active) return;
+
+    state.age += deltaTime;
+    const life = Math.max(0.001, state.duration || 7.2);
+    const progress = THREE.MathUtils.clamp(state.age / life, 0, 1);
+    state.envelope = Math.sin(progress * Math.PI) * state.intensity;
+
+    if (!state.pulseTriggered && progress >= 0.18) {
+      state.pulseTriggered = true;
+      this.triggerGlobalPulse(Math.min(1.12, 0.54 + state.intensity * 0.34));
+    }
+    if (!state.foldTriggered && progress >= 0.42 && (state.family === 'synergy' || state.family === 'personality')) {
+      state.foldTriggered = true;
+      if (state.worldProfile === 'quantum') {
+        this.triggerDimensionalShift();
+      } else {
+        this.spawnRiftWave();
+      }
+    }
+    if (!state.aftermathTriggered && progress >= 0.72) {
+      state.aftermathTriggered = true;
+      if (state.family === 'corruption') {
+        this.triggerSigmaGlitch(Math.min(1.1, 0.58 + state.intensity * 0.22));
+      } else {
+        this.triggerScreenOverlay('rift_wave', Math.min(0.96, 0.58 + state.intensity * 0.18));
+      }
+    }
+
+    if (progress >= 1) {
+      this.signatureMomentSkin = null;
+    }
+  }
+
+  playVictoryTransformationSequence(config = {}) {
+    this._clearVictorySequenceTimers();
+    const currentTime = (typeof performance !== 'undefined' && typeof performance.now === 'function')
+      ? performance.now()
+      : Date.now();
+    const worldId = String(config.worldId || this.worldContext?.worldId || this.worldContext?.mode || 'quantum').toLowerCase();
+    const profile = worldId === 'desert'
+      ? {
+          worldId: 'desert',
+          overlayKey: 'rift_wave',
+          cadence: 'mirage-tableau',
+          totalDurationMs: 4200
+        }
+      : {
+          worldId: 'quantum',
+          overlayKey: 'dimensional_shift',
+          cadence: 'probability-resolve',
+          totalDurationMs: 4200
+        };
+
+    this.victoryTransformationState = {
+      active: true,
+      profile,
+      stage: 'stabilization-lock',
+      age: 0,
+      stageElapsed: 0,
+      startedAt: currentTime,
+      stageStartedAt: currentTime,
+      envelope: 0,
+      stages: [
+        { key: 'stabilization-lock', duration: 1.05 },
+        { key: 'world-recomposition-crest', duration: 1.65 },
+        { key: 'held-tableau', duration: 1.5 }
+      ]
+    };
+
+    this._applyVictoryTransformationStage(this.victoryTransformationState, this.victoryTransformationState.stages[0]);
+    this._queueVictorySequenceTimer(() => {
+      if (!this.victoryTransformationState?.active) return;
+      const nextStage = this.victoryTransformationState.stages[1];
+      this.victoryTransformationState.stage = nextStage.key;
+      this.victoryTransformationState.stageStartedAt = (typeof performance !== 'undefined' && typeof performance.now === 'function')
+        ? performance.now()
+        : Date.now();
+      this.victoryTransformationState.stageElapsed = 0;
+      this._applyVictoryTransformationStage(this.victoryTransformationState, nextStage);
+    }, 1050);
+    this._queueVictorySequenceTimer(() => {
+      if (!this.victoryTransformationState?.active) return;
+      const nextStage = this.victoryTransformationState.stages[2];
+      this.victoryTransformationState.stage = nextStage.key;
+      this.victoryTransformationState.stageStartedAt = (typeof performance !== 'undefined' && typeof performance.now === 'function')
+        ? performance.now()
+        : Date.now();
+      this.victoryTransformationState.stageElapsed = 0;
+      this._applyVictoryTransformationStage(this.victoryTransformationState, nextStage);
+    }, 2700);
+    this._queueVictorySequenceTimer(() => {
+      this.stopVictoryTransformationSequence();
+    }, profile.totalDurationMs);
+    return {
+      worldId: profile.worldId,
+      cadence: profile.cadence,
+      totalDurationMs: profile.totalDurationMs
+    };
+  }
+
+  stopVictoryTransformationSequence() {
+    this._clearVictorySequenceTimers();
+    this.victoryTransformationState = null;
+  }
+
+  updateVictoryTransformation(deltaTime) {
+    const state = this.victoryTransformationState;
+    if (!state?.active) return;
+
+    const currentTime = (typeof performance !== 'undefined' && typeof performance.now === 'function')
+      ? performance.now()
+      : Date.now();
+    state.age = Math.max(0, (currentTime - (state.startedAt || currentTime)) / 1000);
+    state.stageElapsed = Math.max(0, (currentTime - (state.stageStartedAt || currentTime)) / 1000);
+    const currentStage = state.stages.find((stage) => stage.key === state.stage) || state.stages[0];
+    const currentDuration = Math.max(0.001, currentStage.duration || 1);
+    state.envelope = Math.sin(Math.min(1, state.stageElapsed / currentDuration) * Math.PI * 0.5);
+
+    if (state.stageElapsed < currentDuration) {
+      return;
+    }
+
+    const currentIndex = state.stages.findIndex((stage) => stage.key === state.stage);
+    const nextStage = state.stages[currentIndex + 1];
+    if (!nextStage) {
+      state.active = false;
+      return;
+    }
+
+    state.stage = nextStage.key;
+    state.stageStartedAt = currentTime;
+    state.stageElapsed = 0;
+    this._applyVictoryTransformationStage(state, nextStage);
+  }
+
+  _applyVictoryTransformationStage(state, stage) {
+    if (!state || !stage) return;
+    const isQuantum = state.profile?.worldId === 'quantum';
+
+    if (stage.key === 'stabilization-lock') {
+      this.triggerGlobalPulse(1.05);
+      this.triggerScreenOverlay(isQuantum ? 'dimensional_shift' : 'rift_wave', 0.94);
+      return;
+    }
+
+    if (stage.key === 'world-recomposition-crest') {
+      this.triggerGlobalPulse(1.2);
+      this.spawnRiftWave();
+      if (isQuantum) {
+        this.triggerDimensionalShift();
+        this.spawnQuantumRift();
+      } else {
+        this.spawnRiftWave();
+        this.triggerScreenOverlay('rift_wave', 1.08);
+      }
+      return;
+    }
+
+    if (stage.key === 'held-tableau') {
+      this.triggerScreenOverlay(isQuantum ? 'dimensional_shift' : 'rift_wave', 0.76);
+      if (isQuantum) {
+        this.triggerGlobalPulse(0.88);
+      }
+    }
+  }
+
+  _queueVictorySequenceTimer(fn, delayMs) {
+    if (typeof setTimeout !== 'function' || typeof fn !== 'function') return;
+    const handle = setTimeout(fn, Math.max(0, delayMs));
+    this._victorySequenceTimers.push(handle);
+  }
+
+  _clearVictorySequenceTimers() {
+    if (!Array.isArray(this._victorySequenceTimers)) {
+      this._victorySequenceTimers = [];
+      return;
+    }
+    while (this._victorySequenceTimers.length > 0) {
+      clearTimeout(this._victorySequenceTimers.pop());
+    }
   }
 
   setAtmosphereProfile(atmosphereProfile) {
@@ -1080,6 +1396,9 @@ export class SafeWorldFXPack {
     this.updateWorldMetrics(nodes, linkingSystem, evolutionManager, legendaryPack);
     this.sharedWorldUniforms.uWorldTime.value = this.worldState.time;
     this.sharedWorldUniforms.uSignalBias.value = this.atmosphereState.signalBias;
+
+    this.updateSignatureWorldSkin(deltaTime);
+    this.updateVictoryTransformation(deltaTime);
     
     // Update all world FX
     this.updateDimensionalShifts(deltaTime);
@@ -3487,6 +3806,7 @@ export class SafeWorldFXPack {
   }
 
   dispose() {
+    this._clearVictorySequenceTimers();
     // Registry cleanup (preferred)
     if (Array.isArray(this._regDisposers)) {
       for (const d of this._regDisposers) {

@@ -10,22 +10,106 @@
  *   - firstLink:  first successful link creation
  *   - rewindBlock:first time rewind is blocked with a reason
  */
+import { FIRST_RUN_GUIDANCE_COPY } from './FirstRunGuidanceDirector.js';
+
+function resolveWorldKey(context = {}) {
+  return String(context?.world || '').toLowerCase();
+}
+
+function resolveStartHint(context = {}) {
+  const world = resolveWorldKey(context);
+  if (world === 'quantum') {
+    return 'Stabilize the living network. On Quantum Island, strong bonds calm the shimmer between possibilities.';
+  }
+  if (world === 'desert') {
+    return 'Stabilize the living network. In Dream Desert, patient links turn distance into coherence.';
+  }
+  return 'Stabilize the living network. Place nodes, then forge strong links to hold it together.';
+}
+
+function resolveFirstLinkHint(context = {}) {
+  const world = resolveWorldKey(context);
+  if (world === 'quantum') {
+    return 'Good. The island answered your first bond. Quantum rewards bold momentum, but dirty bonds will punish greed.';
+  }
+  if (world === 'desert') {
+    return 'Good. Distance is starting to hold. Dream Desert rewards patient, cleaner bonds before you overexpand.';
+  }
+  return 'Good. Every stable link strengthens the network. Match categories for cleaner, stronger bonds.';
+}
+
+function resolveRewindBlockHint(context = {}) {
+  switch (context?.reason) {
+    case 'need-more-nodes':
+      return 'The lattice is too thin to hold a surge yet. Expand your anchor base before you try to stabilize it.';
+    case 'need-more-links':
+      return 'Your anchors exist, but the surge still lacks enough routes. Build more bonds before you push harder.';
+    case 'quality-too-low':
+      return 'You forced momentum through unstable bonds. Consolidate with cleaner links before the surge slips.';
+    case 'synergy-too-low':
+      return 'The network is safe but too quiet. Risk bolder categories or denser bonds to open the surge.';
+    default:
+      return 'The network is still unstable. Grow it, strengthen it, and prepare the surge.';
+  }
+}
+
+function resolveRewindStartHint(context = {}) {
+  const world = resolveWorldKey(context);
+  if (world === 'quantum') {
+    return 'Stabilization surge achieved. Hold Quantum Island steady while collapse pressure rewinds.';
+  }
+  if (world === 'desert') {
+    return 'Stabilization surge achieved. Keep the Dream Desert lattice coherent while pressure falls away.';
+  }
+  return 'Stabilization surge achieved. Hold the network together and prevent collapse.';
+}
 
 const HINTS = Object.freeze({
   start: {
-    text: 'Place nodes and link them to build synergy',
-    durationMs: 6000,
+    text: resolveStartHint,
+    durationMs: 6500,
     priority: 1
   },
   firstLink: {
-    text: 'Match categories for stronger links',
-    durationMs: 5000,
+    text: resolveFirstLinkHint,
+    durationMs: 5600,
     priority: 2
   },
   rewindBlock: {
-    text: 'Build quality network to rewind time',
-    durationMs: 5000,
+    text: resolveRewindBlockHint,
+    durationMs: 5600,
     priority: 3
+  },
+  rewindStart: {
+    text: resolveRewindStartHint,
+    durationMs: 5200,
+    priority: 4
+  },
+  guidedStart: {
+    text: FIRST_RUN_GUIDANCE_COPY.guidedStart,
+    durationMs: 7000,
+    priority: 5
+  },
+  guidedFirstBond: {
+    text: FIRST_RUN_GUIDANCE_COPY.guidedFirstBond,
+    durationMs: 5600,
+    priority: 6
+  },
+  guidedLocalLattice: {
+    text: FIRST_RUN_GUIDANCE_COPY.guidedLocalLattice,
+    durationMs: 5200,
+    priority: 7
+  },
+  guidedSurgeBlocked: {
+    text: FIRST_RUN_GUIDANCE_COPY.guidedSurgeBlocked,
+    durationMs: 5400,
+    priority: 8
+  },
+  guidedSurgeActive: {
+    text: FIRST_RUN_GUIDANCE_COPY.guidedSurgeActive,
+    durationMs: 6200,
+    priority: 9,
+    variant: 'major'
   }
 });
 
@@ -74,6 +158,14 @@ export class GameplayHintLayer {
           opacity: 1;
           transform: translateY(0);
         }
+        .atoma-hint-toast--major {
+          border-color: rgba(255, 166, 0, 0.42);
+          background: rgba(18, 12, 8, 0.88);
+          box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42), 0 0 24px rgba(255, 140, 0, 0.18);
+          color: rgba(255, 233, 204, 0.96);
+          font-size: 13px;
+          letter-spacing: 0.1em;
+        }
       `;
       document.head.appendChild(style);
     }
@@ -85,20 +177,27 @@ export class GameplayHintLayer {
 
   /**
    * Show a hint by key if it hasn't been shown yet.
-   * @param {string} key — 'start' | 'firstLink' | 'rewindBlock'
+   * @param {string} key — 'start' | 'firstLink' | 'rewindBlock' | 'rewindStart'
+   * @param {Object} [context]
    * @returns {boolean} true if shown, false if already shown or unknown
    */
-  show(key) {
-    if (this._shownKeys.has(key)) return false;
+  show(key, context = {}, options = {}) {
+    const fingerprint = typeof options?.fingerprint === 'string' && options.fingerprint.trim()
+      ? options.fingerprint.trim()
+      : key;
+    if (this._shownKeys.has(fingerprint)) return false;
     const config = HINTS[key];
     if (!config) return false;
 
-    this._shownKeys.add(key);
-    this._render(config.text, config.durationMs);
+    this._shownKeys.add(fingerprint);
+    const text = typeof config.text === 'function'
+      ? config.text(context)
+      : config.text;
+    this._render(text, config.durationMs, config.variant || options?.variant || 'default');
     return true;
   }
 
-  _render(text, durationMs) {
+  _render(text, durationMs, variant = 'default') {
     if (!this._container) return;
 
     // Clear any existing hint
@@ -110,6 +209,9 @@ export class GameplayHintLayer {
 
     const toast = document.createElement('div');
     toast.className = 'atoma-hint-toast';
+    if (variant === 'major') {
+      toast.classList.add('atoma-hint-toast--major');
+    }
     toast.textContent = text;
     this._container.appendChild(toast);
 

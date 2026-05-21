@@ -43,8 +43,8 @@ export class LinkQualityCalculator {
     // Configuration with sensible defaults
     this.config = {
       // Weighting for quality components
-      structuralWeight: config.structuralWeight ?? 0.30,    // 30%
-      harmonyWeight: config.harmonyWeight ?? 0.40,          // 40%
+      structuralWeight: config.structuralWeight ?? 0.22,    // 22%
+      harmonyWeight: config.harmonyWeight ?? 0.48,          // 48%
       loadWeight: config.loadWeight ?? 0.15,                // 15%
       corruptionWeight: config.corruptionWeight ?? 0.15,    // 15%
       
@@ -361,8 +361,15 @@ export class LinkQualityCalculator {
     const harmB = metricsB.harmony ?? 50;
     const nodePairHarmony = (harmA + harmB) / 2;
     
-    // Weighted average: 60% stability, 40% harmony
-    const score = (nodePairStability * 0.6) + (nodePairHarmony * 0.4);
+    const harmonyDelta = Math.abs(harmA - harmB);
+    const stabilityDelta = Math.abs(stabA - stabB);
+    const alignmentScore = Math.max(0, 100 - ((harmonyDelta * 0.55) + (stabilityDelta * 0.45)));
+
+    // Cleaner, better-matched bonds sustain rewinds more reliably.
+    const score =
+      (nodePairStability * 0.45) +
+      (nodePairHarmony * 0.30) +
+      (alignmentScore * 0.25);
     
     return Math.max(0, Math.min(100, score));
   }
@@ -385,12 +392,12 @@ export class LinkQualityCalculator {
     const loadA = metricsA.loadRatio ?? 0;
     const loadB = metricsB.loadRatio ?? 0;
     const averageLoad = (loadA + loadB) / 2;
-    
-    // Convert to quality: high load = low quality
-    // 0 load → 100 quality
-    // 0.5 load → 50 quality
-    // 1.0 load → 0 quality
-    const score = 100 * (1 - averageLoad);
+    const peakLoad = Math.max(loadA, loadB);
+    const penalty =
+      (averageLoad * 65) +
+      (peakLoad * 25) +
+      (Math.max(0, peakLoad - 0.55) * 40);
+    const score = 100 - penalty;
     
     return Math.max(0, Math.min(100, score));
   }
@@ -413,14 +420,13 @@ export class LinkQualityCalculator {
     const corrA = metricsA.corruption ?? 0;
     const corrB = metricsB.corruption ?? 0;
     
-    // Use maximum corruption (worst node determines link quality)
     const maxCorruption = Math.max(corrA, corrB);
-    
-    // Convert to quality: corruption is inversely related
-    // 0 corruption → 100 quality
-    // 50 corruption → 50 quality
-    // 100 corruption → 0 quality
-    const score = 100 - maxCorruption;
+    const averageCorruption = (corrA + corrB) / 2;
+    const penalty =
+      (maxCorruption * 0.72) +
+      (averageCorruption * 0.28) +
+      (Math.max(0, maxCorruption - 35) * 0.20);
+    const score = 100 - penalty;
     
     return Math.max(0, Math.min(100, score));
   }

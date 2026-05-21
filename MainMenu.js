@@ -16,6 +16,7 @@ const MENU_SNAPSHOT_VERSION = 1;
 const MENU_BUILD_LABEL = ATOMA_VERSION;
 const VISUAL_LEVELS = ['LOW', 'MEDIUM', 'HIGH'];
 const SOUND_LEVELS = [0, 20, 40, 60, 80, 100];
+const GUIDED_FLOW_VERSION = 1;
 const DEFAULT_SETTINGS = Object.freeze({
     soundLevel: 60,
     visuals: 'HIGH',
@@ -184,6 +185,29 @@ function sanitizeSelectedMapId(value) {
     return getMenuMapById(normalized).id;
 }
 
+function sanitizeOnboarding(value) {
+    const onboarding = value && typeof value === 'object' ? value : {};
+    return {
+        guidedFlowVersion: Number.isFinite(Number(onboarding.guidedFlowVersion))
+            ? Number(onboarding.guidedFlowVersion)
+            : GUIDED_FLOW_VERSION,
+        firstRunCompleted: onboarding.firstRunCompleted === true,
+    };
+}
+
+function isFirstRunGuidanceActive(profile) {
+    const onboarding = sanitizeOnboarding(profile?.onboarding);
+    return onboarding.firstRunCompleted !== true || onboarding.guidedFlowVersion !== GUIDED_FLOW_VERSION;
+}
+
+function getFirstRunWorldPromise(mapId) {
+    const selectedMap = getMenuMapById(mapId);
+    if (selectedMap?.id === 'desert') {
+        return 'Dream Desert rewards patience. Build the lattice, open the surge, then prevent collapse through cleaner structure.';
+    }
+    return 'Quantum Island is the recommended first run. Build the lattice, open the surge, then prevent collapse before dirty momentum tears the hold apart.';
+}
+
 export function isMapPubliclyAvailable(mapId) {
     return getMenuMapById(sanitizeSelectedMapId(mapId)).releaseState !== 'coming-soon';
 }
@@ -338,6 +362,7 @@ function sanitizeProfile(value) {
         version: MENU_PROFILE_VERSION,
         selectedMapId: sanitizeSelectedMapId(profile.selectedMapId),
         settings: sanitizeSettings(profile.settings),
+        onboarding: sanitizeOnboarding(profile.onboarding),
     };
 }
 
@@ -722,6 +747,52 @@ export function ensureMenuStyles() {
             text-transform: none;
             letter-spacing: 0.06em;
             line-height: 1.7;
+        }
+
+        .atoma-main-menu__first-run-callout {
+            padding: 12px 14px;
+            border: 1px solid rgba(108, 234, 255, 0.16);
+            border-radius: 16px;
+            background: linear-gradient(180deg, rgba(8, 20, 30, 0.58), rgba(6, 14, 22, 0.44));
+            box-shadow: inset 0 0 20px rgba(117, 246, 255, 0.03);
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+        }
+
+        .atoma-main-menu__first-run-title {
+            font-size: 10px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: rgba(119, 243, 255, 0.88);
+        }
+
+        .atoma-main-menu__first-run-body,
+        .atoma-main-menu__first-run-note {
+            font-size: 10px;
+            line-height: 1.65;
+            letter-spacing: 0.04em;
+            text-transform: none;
+            color: rgba(196, 241, 247, 0.78);
+            text-align: center;
+        }
+
+        .atoma-main-menu__first-run-steps {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .atoma-main-menu__first-run-step {
+            font-size: 8px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            padding: 4px 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(108, 234, 255, 0.14);
+            color: rgba(208, 247, 252, 0.82);
+            background: rgba(10, 28, 40, 0.22);
         }
 
         .atoma-main-menu__lore-panel {
@@ -1380,6 +1451,7 @@ export class MainMenu {
         };
         this.buildLabel = buildLabel;
         this.profile = saveMenuProfile({
+            ...profile,
             selectedMapId: resolvePublicSelectedMapId(snapshot?.selectedMapId || profile.selectedMapId, { devUnlock }),
             settings: profile.settings,
         });
@@ -1629,6 +1701,35 @@ export class MainMenu {
                 ? 'Continue is available from the last stored world snapshot.'
                 : 'Continue appears automatically after the first boot snapshot is written.';
             this._renderEntryList(this._screenEntries);
+
+            if (isFirstRunGuidanceActive(this.profile)) {
+                const callout = document.createElement('div');
+                callout.className = 'atoma-main-menu__first-run-callout';
+
+                const title = document.createElement('div');
+                title.className = 'atoma-main-menu__first-run-title';
+                title.textContent = 'First Run / Stabilizer Protocol';
+
+                const body = document.createElement('div');
+                body.className = 'atoma-main-menu__first-run-body';
+                body.textContent = 'You are stabilizing a living network.';
+
+                const steps = document.createElement('div');
+                steps.className = 'atoma-main-menu__first-run-steps';
+                ['Build the Lattice', 'Open the Surge', 'Prevent Collapse'].forEach((label) => {
+                    const step = document.createElement('span');
+                    step.className = 'atoma-main-menu__first-run-step';
+                    step.textContent = label;
+                    steps.appendChild(step);
+                });
+
+                const note = document.createElement('div');
+                note.className = 'atoma-main-menu__first-run-note';
+                note.textContent = getFirstRunWorldPromise(this.profile.selectedMapId);
+
+                callout.append(title, body, steps, note);
+                this.content.appendChild(callout);
+            }
             return;
         }
 

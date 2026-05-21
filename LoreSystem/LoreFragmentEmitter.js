@@ -97,6 +97,7 @@ export default class LoreFragmentEmitter {
             gamesWon: 0,
             allMetricsHighAt: null,                  // timestamp when all 5 metrics were high simultaneously
         };
+        this._presentationFilter = null;
 
         // Narrative stage (for Lore Echoes)
         // Stages: awakening → discovery → crisis → understanding → transcendence
@@ -269,6 +270,21 @@ export default class LoreFragmentEmitter {
 
         // Once gate
         if (fragment.once && this._shownOnce.has(fragment.id)) return;
+
+        if (this._presentationFilter) {
+            try {
+                const shouldPresent = this._presentationFilter({
+                    trigger,
+                    fragment,
+                    eventData,
+                    stage: this._stage,
+                    stats: this._stats
+                });
+                if (shouldPresent === false) return;
+            } catch {
+                return;
+            }
+        }
 
         // Emit
         this._emitFragment(fragment);
@@ -504,6 +520,10 @@ export default class LoreFragmentEmitter {
         this.enabled = false;
     }
 
+    setPresentationFilter(filter = null) {
+        this._presentationFilter = typeof filter === 'function' ? filter : null;
+    }
+
     /**
      * Force-show a specific fragment by ID.
      * Useful for testing and debug API.
@@ -607,5 +627,6 @@ export default class LoreFragmentEmitter {
         this._idIndex.clear();
         this._shownOnce.clear();
         this._lastTriggerShow.clear();
+        this._presentationFilter = null;
     }
 }

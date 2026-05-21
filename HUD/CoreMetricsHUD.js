@@ -54,7 +54,12 @@ export class CoreMetricsHUD {
       cycleTime: null,
       epochNumber: null,
       aeonNumber: null,
-      networkTime: null
+      networkTime: null,
+      buildStateLabel: null,
+      buildStateGuidance: null,
+      onboardingObjectiveSection: null,
+      onboardingObjectiveTitle: null,
+      onboardingObjectiveDetail: null
     };
     
     // Glow animation state
@@ -109,6 +114,8 @@ export class CoreMetricsHUD {
     this._lastTemporalDisplay = null;
     this._lastNewEventFlags = null;
     this._lastDeltaTime = 0.016;
+    this._currentBuildState = null;
+    this._currentOnboardingObjective = null;
     
     // Network Time direction indicator
     this.timeElasticityIndicator = null;
@@ -284,6 +291,52 @@ export class CoreMetricsHUD {
           margin-top: 2px;
           width: 100%;
         }
+        #core-metrics-hud .build-state-section {
+          margin-top: 8px;
+          padding-top: 6px;
+          border-top: 1px solid rgba(0, 200, 220, 0.08);
+        }
+        #core-metrics-hud .build-state-label {
+          font-size: 7px;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+          font-weight: 700;
+          color: rgba(200, 225, 245, 0.88);
+        }
+        #core-metrics-hud .build-state-guidance {
+          margin-top: 3px;
+          font-size: 6px;
+          letter-spacing: 0.11em;
+          text-transform: uppercase;
+          color: rgba(200, 225, 245, 0.52);
+          line-height: 1.5;
+        }
+        #core-metrics-hud .onboarding-objective {
+          margin-top: 8px;
+          padding: 6px 8px 7px;
+          border: 1px solid rgba(108, 234, 255, 0.12);
+          border-radius: 8px;
+          background: rgba(10, 22, 30, 0.34);
+          display: none;
+        }
+        #core-metrics-hud .onboarding-objective.visible {
+          display: block;
+        }
+        #core-metrics-hud .onboarding-objective-title {
+          font-size: 6px;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: rgba(119, 243, 255, 0.82);
+          font-weight: 700;
+        }
+        #core-metrics-hud .onboarding-objective-detail {
+          margin-top: 4px;
+          font-size: 6px;
+          letter-spacing: 0.10em;
+          text-transform: uppercase;
+          color: rgba(209, 240, 245, 0.68);
+          line-height: 1.5;
+        }
         #core-metrics-hud .temporal-rewinding {
           color: #ff8c00 !important;
           text-shadow: 0 0 10px rgba(255, 140, 0, 0.5);
@@ -438,7 +491,7 @@ export class CoreMetricsHUD {
     // Header (also serves as drag handle for HUDDragManager)
     const header = document.createElement('div');
     header.className = 'hud-header';
-    header.textContent = 'ATOMA NETWORK';
+    header.textContent = 'ATOMA / STABILIZER';
     this.hudContainer.appendChild(header);
 
     // ── Metric rows ──────────────────────────────────────────────────
@@ -478,12 +531,47 @@ export class CoreMetricsHUD {
 
     const ntGoal = document.createElement('div');
     ntGoal.className = 'network-time-goal';
-    ntGoal.textContent = 'Build network → rewind time';
+    ntGoal.textContent = 'Build stable links to open a stabilization surge';
     ntSection.appendChild(ntGoal);
+
+    const buildStateSection = document.createElement('div');
+    buildStateSection.className = 'build-state-section';
+
+    const buildStateLabel = document.createElement('div');
+    buildStateLabel.className = 'build-state-label';
+    buildStateLabel.textContent = 'FRAGILE EXPANSION';
+
+    const buildStateGuidance = document.createElement('div');
+    buildStateGuidance.className = 'build-state-guidance';
+    buildStateGuidance.textContent = 'Grow the lattice, then consolidate before pressure outruns bond quality.';
+
+    buildStateSection.appendChild(buildStateLabel);
+    buildStateSection.appendChild(buildStateGuidance);
+    ntSection.appendChild(buildStateSection);
+
+    const onboardingObjectiveSection = document.createElement('div');
+    onboardingObjectiveSection.className = 'onboarding-objective';
+
+    const onboardingObjectiveTitle = document.createElement('div');
+    onboardingObjectiveTitle.className = 'onboarding-objective-title';
+
+    const onboardingObjectiveDetail = document.createElement('div');
+    onboardingObjectiveDetail.className = 'onboarding-objective-detail';
+
+    onboardingObjectiveSection.appendChild(onboardingObjectiveTitle);
+    onboardingObjectiveSection.appendChild(onboardingObjectiveDetail);
+    ntSection.appendChild(onboardingObjectiveSection);
 
     this.hudContainer.appendChild(ntSection);
     this.hudElements.networkTime = ntValue;
     this.hudElements.networkTimeArrow = ntArrow;
+    this.hudElements.networkTimeLabel = ntLabel;
+    this.hudElements.networkTimeGoal = ntGoal;
+    this.hudElements.buildStateLabel = buildStateLabel;
+    this.hudElements.buildStateGuidance = buildStateGuidance;
+    this.hudElements.onboardingObjectiveSection = onboardingObjectiveSection;
+    this.hudElements.onboardingObjectiveTitle = onboardingObjectiveTitle;
+    this.hudElements.onboardingObjectiveDetail = onboardingObjectiveDetail;
 
     // ── Sustain Progress Bar ──────────────────────────────────────────
     const sustainSection = document.createElement('div');
@@ -500,7 +588,7 @@ export class CoreMetricsHUD {
 
     const sustainLabel = document.createElement('div');
     sustainLabel.className = 'sustain-progress-label';
-    sustainLabel.textContent = 'Rewind Charge';
+    sustainLabel.textContent = 'Build the Network';
     sustainSection.appendChild(sustainLabel);
 
     const sustainLockReason = document.createElement('div');
@@ -514,6 +602,7 @@ export class CoreMetricsHUD {
     this.hudContainer.appendChild(sustainSection);
     this.hudElements.sustainProgress = sustainFill;
     this.hudElements.sustainSection = sustainSection;
+    this.hudElements.sustainLabel = sustainLabel;
     this.hudElements.sustainLockReason = sustainLockReason;
     this.hudElements.sustainHint = sustainHint;
 
@@ -523,7 +612,7 @@ export class CoreMetricsHUD {
 
     const sparklineLabel = document.createElement('div');
     sparklineLabel.className = 'nt-sparkline-label';
-    sparklineLabel.textContent = 'NT HISTORY · 60s';
+    sparklineLabel.textContent = 'STABILIZATION TRACE · 60s';
 
     const sparklineCanvas = document.createElement('canvas');
     sparklineCanvas.className = 'nt-sparkline-canvas';
@@ -870,6 +959,187 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
   formatFloat(value) {
     return this.clamp01(value).toFixed(2);
   }
+
+  _classifyBuildState(scoreState = null) {
+    const synergy = this.clamp01(scoreState?.avgSynergy ?? this.displayedMetrics.synergy);
+    const harmony = this.clamp01(this.displayedMetrics.harmony);
+    const stability = this.clamp01(this.displayedMetrics.stability);
+    const corruption = this.clamp01(this.displayedMetrics.corruption);
+    const loadPressure = this.clamp01(this.displayedMetrics.loadPressure);
+    const avgLinkQuality = this.clamp01(scoreState?.avgLinkQuality ?? 0);
+    const activeLinkCount = Number(scoreState?.activeLinkCount ?? 0);
+    const connectedNodeCount = Number(scoreState?.connectedNodeCount ?? 0);
+    const direction = scoreState?.direction ?? this._lastDirection ?? SCORE_DIRECTION.FORWARD;
+
+    if (direction === SCORE_DIRECTION.WON) {
+      return {
+        key: 'STABILIZED_LATTICE',
+        label: 'STABILIZED LATTICE',
+        guidance: 'The living network is holding cleanly. Preserve coherence and prevent relapse.',
+        tone: '#7ef4bc'
+      };
+    }
+
+    if (
+      (corruption >= 0.50 || loadPressure >= 0.58) &&
+      (avgLinkQuality < 0.58 || stability < 0.52 || synergy < 0.56)
+    ) {
+      return {
+        key: 'COLLAPSE_DRIFT',
+        label: 'COLLAPSE DRIFT',
+        guidance: 'Pressure is outrunning structure. Stop greedy expansion and rebuild with cleaner anchors.',
+        tone: '#ff7ab8'
+      };
+    }
+
+    if (
+      activeLinkCount >= 3 &&
+      avgLinkQuality >= 0.64 &&
+      harmony >= 0.56 &&
+      stability >= 0.58 &&
+      corruption <= 0.28 &&
+      loadPressure <= 0.36
+    ) {
+      return {
+        key: 'STABILIZED_LATTICE',
+        label: 'STABILIZED LATTICE',
+        guidance: 'This lattice is clean and resilient. Add momentum carefully and hold the surge when it opens.',
+        tone: '#7ef4bc'
+      };
+    }
+
+    if (
+      synergy >= 0.58 &&
+      (corruption >= 0.34 || loadPressure >= 0.44) &&
+      (avgLinkQuality < 0.68 || stability < 0.58)
+    ) {
+      return {
+        key: 'VOLATILE_SURGE',
+        label: 'VOLATILE SURGE',
+        guidance: 'Fast synergy is building, but the network is dirty. Pivot into cleaner bonds before the hold fails.',
+        tone: '#ffb36b'
+      };
+    }
+
+    if (
+      (connectedNodeCount >= 3 || activeLinkCount >= 2) &&
+      (avgLinkQuality < 0.62 || harmony < 0.52 || stability < 0.54)
+    ) {
+      return {
+        key: 'FRAGILE_EXPANSION',
+        label: 'FRAGILE EXPANSION',
+        guidance: 'The network is spreading faster than it can cohere. Consolidate around stronger bonds before pushing wider.',
+        tone: '#8bd6ff'
+      };
+    }
+
+    return {
+      key: 'STABILIZED_LATTICE',
+      label: 'STABILIZED LATTICE',
+      guidance: 'Your network posture is clean. Add pressure carefully and convert momentum into a stable hold.',
+      tone: '#7ef4bc'
+    };
+  }
+
+  _getStabilizerLockReasonText(lockReason, buildState = null) {
+    const stateKey = buildState?.key || 'DEFAULT';
+    const copy = {
+      'need-more-nodes': {
+        VOLATILE_SURGE: 'Your surge outran its anchor count',
+        STABILIZED_LATTICE: 'The lattice is clean, but still too small',
+        FRAGILE_EXPANSION: 'The lattice is still too thin to hold',
+        COLLAPSE_DRIFT: 'Pressure is stripping away your anchors',
+        DEFAULT: 'The network needs more anchors'
+      },
+      'need-more-links': {
+        VOLATILE_SURGE: 'Momentum is rising, but it lacks enough routes',
+        STABILIZED_LATTICE: 'The lattice is steady, but still needs more bonds',
+        FRAGILE_EXPANSION: 'Expansion is outrunning the bond network',
+        COLLAPSE_DRIFT: 'The surge has no safe routes through the pressure',
+        DEFAULT: 'The network needs more bonds'
+      },
+      'quality-too-low': {
+        VOLATILE_SURGE: 'Volatile bonds are poisoning the hold',
+        STABILIZED_LATTICE: 'The lattice is calm, but its bonds are not clean enough',
+        FRAGILE_EXPANSION: 'Expansion outran bond quality',
+        COLLAPSE_DRIFT: 'Corruption is eating through bond quality',
+        DEFAULT: 'The current bonds are too weak'
+      },
+      'synergy-too-low': {
+        VOLATILE_SURGE: 'The surge is dirty, but still not coherent enough',
+        STABILIZED_LATTICE: 'The lattice is safe, but too quiet to surge',
+        FRAGILE_EXPANSION: 'The network is spreading without gaining coherence',
+        COLLAPSE_DRIFT: 'Pressure is drowning out coherence',
+        DEFAULT: 'The field is not coherent enough'
+      }
+    };
+    return copy[lockReason]?.[stateKey] || copy[lockReason]?.DEFAULT || '';
+  }
+
+  _getStabilizerHintText(lockReason, buildState = null) {
+    const stateKey = buildState?.key || 'DEFAULT';
+    const copy = {
+      'need-more-nodes': {
+        VOLATILE_SURGE: 'Keep the momentum, but add stabilizing anchors before corruption turns the surge against you.',
+        STABILIZED_LATTICE: 'Expand with one or two safe anchors before you try to hold the whole field.',
+        FRAGILE_EXPANSION: 'Add anchors first, then reinforce the strongest side of the lattice.',
+        COLLAPSE_DRIFT: 'Recover your anchor base with cleaner storage, control, or prime nodes.',
+        DEFAULT: 'Activate more nodes so the surge can hold.'
+      },
+      'need-more-links': {
+        VOLATILE_SURGE: 'Route the surge through more bonds before you push harder.',
+        STABILIZED_LATTICE: 'Connect your clean anchors into a tighter lattice and the surge will have a path.',
+        FRAGILE_EXPANSION: 'Consolidate around your strongest anchors, then expand again.',
+        COLLAPSE_DRIFT: 'Rebuild safe routes before pressure cuts the network apart.',
+        DEFAULT: 'Create more links to give stabilization a path.'
+      },
+      'quality-too-low': {
+        VOLATILE_SURGE: 'Pivot into cleaner control, storage, or prime bonds before the surge slips.',
+        STABILIZED_LATTICE: 'Cleaner compatibility converts safe structure into reliable rewind uptime.',
+        FRAGILE_EXPANSION: 'Stop adding weak bonds. Improve the lattice you already have.',
+        COLLAPSE_DRIFT: 'Bleed pressure out of the network with cleaner pairings and fewer dirty links.',
+        DEFAULT: 'Stronger category matches create cleaner, stabilizing bonds.'
+      },
+      'synergy-too-low': {
+        VOLATILE_SURGE: 'One more bold connection could spark the surge, but do not leave the network dirty for long.',
+        STABILIZED_LATTICE: 'The lattice is ready. Add a riskier bond to wake the field without breaking it.',
+        FRAGILE_EXPANSION: 'Either commit to bolder bonds or pause and tighten the lattice first.',
+        COLLAPSE_DRIFT: 'Clear pressure first. A drowned network cannot build coherence.',
+        DEFAULT: 'Raise synergy to open a stabilization surge.'
+      }
+    };
+    return copy[lockReason]?.[stateKey] || copy[lockReason]?.DEFAULT || '';
+  }
+
+  _getStabilizerPhaseLabel(direction, sustainRatio) {
+    if (direction === SCORE_DIRECTION.WON) return 'Stabilization Achieved';
+    if (direction === SCORE_DIRECTION.REWIND) return 'Prevent Collapse';
+    if (sustainRatio > 0.001) return 'Hold Stabilization';
+    return 'Build the Network';
+  }
+
+  _getNetworkTimeGoalCopy(direction, sustainRatio, lockReason) {
+    if (direction === SCORE_DIRECTION.WON) {
+      return 'Collapse prevented. The living network is stable.';
+    }
+    if (direction === SCORE_DIRECTION.REWIND) {
+      return 'Stabilization surge active. Hold the network together.';
+    }
+    switch (lockReason) {
+      case 'need-more-nodes':
+        return 'Expand the network so the surge has enough anchors.';
+      case 'need-more-links':
+        return 'Build more bonds to carry a stabilization surge.';
+      case 'quality-too-low':
+        return 'Stronger bonds reduce collapse pressure.';
+      case 'synergy-too-low':
+        return 'Coherence opens the stabilization window.';
+      default:
+        return sustainRatio > 0.001
+          ? 'Hold coherence long enough to reverse collapse pressure.'
+          : 'Build stable links to open a stabilization surge.';
+    }
+  }
   
   /**
    * Set the score system reference.
@@ -879,6 +1149,41 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
    */
   setScoreSystem(scoreSystem) {
     this._scoreSystem = scoreSystem;
+  }
+
+  getCurrentBuildState(scoreState = null) {
+    if (scoreState) {
+      return this._classifyBuildState(scoreState);
+    }
+    return this._currentBuildState || this._classifyBuildState(null);
+  }
+
+  setOnboardingObjective(objective = null) {
+    this._currentOnboardingObjective = objective && typeof objective === 'object'
+      ? {
+          title: String(objective.title || '').trim(),
+          detail: String(objective.detail || '').trim()
+        }
+      : null;
+    this._applyOnboardingObjective();
+  }
+
+  clearOnboardingObjective() {
+    this._currentOnboardingObjective = null;
+    this._applyOnboardingObjective();
+  }
+
+  _applyOnboardingObjective() {
+    const section = this.hudElements.onboardingObjectiveSection;
+    const title = this.hudElements.onboardingObjectiveTitle;
+    const detail = this.hudElements.onboardingObjectiveDetail;
+    if (!section || !title || !detail) return;
+
+    const objective = this._currentOnboardingObjective;
+    const visible = Boolean(objective?.title || objective?.detail);
+    title.textContent = objective?.title || '';
+    detail.textContent = objective?.detail || '';
+    section.classList.toggle('visible', visible);
   }
 
   /**
@@ -898,7 +1203,24 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
     const scoreState = this._scoreSystem.getScoreState?.() || null;
     const direction = scoreState?.direction || this._scoreSystem.getDirection();
     const displayValue = this._scoreSystem.getNetworkTimeFormatted();
+    const sustainRatio = scoreState
+      ? Number(scoreState.sustainRatio ?? 0)
+      : this._scoreSystem.getSustainProgressRatio();
+    const lockReason = scoreState?.rewindBlockReason ?? null;
+    const buildState = this._classifyBuildState(scoreState);
+    this._currentBuildState = buildState;
     this.hudElements.networkTime.textContent = displayValue;
+    if (this.hudElements.networkTimeGoal) {
+      this.hudElements.networkTimeGoal.textContent = this._getNetworkTimeGoalCopy(direction, sustainRatio, lockReason);
+    }
+    if (this.hudElements.buildStateLabel) {
+      this.hudElements.buildStateLabel.textContent = buildState.label;
+      this.hudElements.buildStateLabel.style.color = buildState.tone;
+    }
+    if (this.hudElements.buildStateGuidance) {
+      this.hudElements.buildStateGuidance.textContent = buildState.guidance;
+    }
+    this._applyOnboardingObjective();
 
     // Remove all state classes
     this.hudElements.networkTime.classList.remove('frozen', 'rewinding', 'won');
@@ -933,7 +1255,7 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
       if (!this.timeElasticityIndicator) {
         const badge = document.createElement('span');
         badge.className = 'time-elasticity-badge';
-        badge.textContent = 'ELASTIC';
+        badge.textContent = 'SURGE';
         this.hudElements.networkTime.parentElement.appendChild(badge);
         this.timeElasticityIndicator = badge;
       }
@@ -948,7 +1270,7 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
       if (!this.timeElasticityIndicator) {
         const badge = document.createElement('span');
         badge.className = 'time-elasticity-badge';
-        badge.textContent = 'WON';
+        badge.textContent = 'STABILIZED';
         badge.style.color = '#00ff88';
         this.hudElements.networkTime.parentElement.appendChild(badge);
         this.timeElasticityIndicator = badge;
@@ -963,27 +1285,17 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
 
     // ── Sustain progress bar ──────────────────────────────────────────
     if (this.hudElements.sustainProgress && this.hudElements.sustainSection) {
-      const sustainRatio = scoreState
-        ? Number(scoreState.sustainRatio ?? 0)
-        : this._scoreSystem.getSustainProgressRatio();
       const isSustaining = sustainRatio > 0.001;
       const isComplete = sustainRatio >= 1.0;
-      const lockReason = scoreState?.rewindBlockReason ?? null;
-      const lockReasonText = {
-        'need-more-nodes': 'Need 4+ nodes',
-        'need-more-links': 'Need 3+ links',
-        'quality-too-low': 'Link quality low',
-        'synergy-too-low': 'Synergy too low'
-      }[lockReason] || '';
-      const hintText = {
-        'need-more-nodes': 'Place more nodes to grow the network',
-        'need-more-links': 'Create links between nodes',
-        'quality-too-low': 'Link compatible categories for better quality',
-        'synergy-too-low': 'Raise synergy by linking matching nodes'
-      }[lockReason] || '';
+      const lockReasonText = this._getStabilizerLockReasonText(lockReason, buildState);
+      const hintText = this._getStabilizerHintText(lockReason, buildState);
       const shouldShowLockReason = direction !== SCORE_DIRECTION.REWIND
         && direction !== SCORE_DIRECTION.WON
         && !!lockReasonText;
+
+      if (this.hudElements.sustainLabel) {
+        this.hudElements.sustainLabel.textContent = this._getStabilizerPhaseLabel(direction, sustainRatio);
+      }
 
       // Show/hide sustain section
       this.hudElements.sustainSection.classList.toggle(
@@ -1252,5 +1564,7 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
     }
     this.hudContainer = null;
     this.hudElements = {};
+    this._currentBuildState = null;
+    this._currentOnboardingObjective = null;
   }
 }

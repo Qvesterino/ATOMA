@@ -421,6 +421,62 @@ ode --check after the change.
 - Verified with git diff against the commit: WaveParticleEmitter_v1.js now matches the baseline exactly.
 - Verification: node --check WaveParticleEmitter_v1.js passed.
 
+## 2026-05-21 — First 10 Minutes Pass v1
+- Added `HUD/FirstRunGuidanceDirector.js` as a UI-only onboarding state machine for the first run.
+- `MainMenu.js` now persists `profile.onboarding` and shows a compact first-run stabilizer callout on the main screen.
+- `HUD/CoreMetricsHUD.js` now exposes a compact onboarding objective strip and a build-state getter for guidance wiring.
+- `HUD/GameplayHintLayer.js` now supports guided first-run hint keys plus a stronger `major` surge payoff variant.
+- `LoreSystem/LoreFragmentEmitter.js` now supports a presentation filter so visible lore can be curated during early onboarding while stats/chronicle tracking keep recording.
+- `main.js` now wires the first-run director into:
+  - world-load opener
+  - first-link aha moment
+  - blocked surge guidance
+  - first rewind payoff
+  - onboarding completion persistence
+- Runtime smoke:
+  - reset local onboarding + continue snapshot
+  - verified menu callout and Quantum guided opener live on `http://127.0.0.1:5173/`
+  - verified real first-link transition into local lattice progress
+  - verified blocked-surge and surge-active UI states through live director smoke
+  - verified onboarding completion persists in `localStorage`
+- Artifacts:
+  - `output/web-game/onboarding-pass/menu-first-run.png`
+  - `output/web-game/onboarding-pass/boot-guidance.png`
+  - `output/web-game/onboarding-pass/first-bond.png`
+  - `output/web-game/onboarding-pass/local-lattice-blocked.png`
+  - `output/web-game/onboarding-pass/surge-active.png`
+  - `output/web-game/onboarding-pass/surge-latch-check.png`
+- TODO for next agent:
+  - do one longer manual Quantum run and one Dream Desert run to validate that `Aha 2` and first `REWIND` happen naturally, not only through UI-facing smoke assistance
+  - if Quantum first rewind still misses the 5-minute target in human play, follow up with gameplay tuning rather than another onboarding rewrite
+
+## 2026-05-21 — Signature Setpieces Pass v1
+- Curated release-world signature roster is now active for `quantum` and `desert` through `SignatureMomentDirector`.
+- Release-world allowlist now keeps the foreground focused on:
+  - `Legendary Bond Manifestation / Covenant Lattice`
+  - `Cascade Reconstruction Beacon`
+  - `Synergy Apex / Network Resonance Surge`
+  - `Consciousness Bloom / Thought Aurora`
+  - `World Personality Shift / Temperament Bloom`
+  - `Heroic Stabilization Before Collapse`
+  - `Grand Corruption Breach / Veil Fracture`
+- `Memory Recovery`, `Harmony Convergence`, and `Mythic Signal` remain in code but are excluded from default release rotation for `quantum` / `desert`.
+- `_SafeWorldFXPack` now consumes `signature.world.skin` and turns curated moment payloads into real world-shell responses and authored atmosphere shifts.
+- `main.js` now runs a delayed victory presentation:
+  - bespoke victory world transform first
+  - full overlay after the authored crest window
+- Important runtime blocker fixed during this pass:
+  - `SignatureMomentDirector` had been silently dead in live gameplay because `createWorld()` disposed it and never re-setup it after world rebuild
+  - there was also a latent init crash from missing `HEROIC_STABILIZATION_STAGE_DURATIONS`
+- Verification:
+  - `node --check SignatureMomentDirector.js`
+  - `node --check _SafeWorldFXPack.js`
+  - `node --check main.js`
+  - live smoke on `http://127.0.0.1:5173/` with artifacts in `output/web-game/signature-setpieces-pass/`
+- TODO for next agent:
+  - do one manual visual review pass in Quantum and Dream Desert to tune cadence and ensure no signature family is still overfiring under real play
+  - if any setpiece still reads too similarly, next work should be world-specific art tuning, not new moment families
+
 ## 2026-04-17
 - QuantumIsland cleanup: disabled the map-owned reference plane for `QuantumIsland` and stopped creating the local mist plane so the square ground-sheet artifacts disappear from this world.
 - Performance fix: `_SafeEvolutionManager` no longer does a full `scene.traverse()` for every registered node on every frame; it now rebuilds a per-frame node lookup from the provided `nodes` array and only falls back to traversal on cache misses.

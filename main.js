@@ -567,7 +567,9 @@ function markReleaseContainmentRuntime(game, systemKey, patch = {}) {
 // import { NodePersonality2_0 } from './NodePersonality2_0.js';
 import { CoreMetricsOverlay } from './HUD/CoreMetricsOverlay.js';
 import { GameplayHintLayer } from './HUD/GameplayHintLayer.js';
+import { FirstRunGuidanceDirector, GUIDED_FLOW_VERSION } from './HUD/FirstRunGuidanceDirector.js';
 import { createEmptyCoreMetricsViewModel, updateCoreMetricsViewModel } from './HUD/CoreMetricsViewModel.js';
+import { loadMenuProfile, saveMenuProfile } from './MainMenu.js';
 import { SystemStateOverlay } from './SystemStateOverlay.js';
 import { ZoneAudioReactivity } from './ZoneAudioReactivity.js';
 // DISABLED: Legacy metric reactive system (replaced by Phase 5-7 architecture)
@@ -4208,6 +4210,9 @@ class AtomaGame {
         this.gameplayHintLayer = new GameplayHintLayer();
         this._hintFirstLinkShown = false;
         this._hintRewindBlockShown = false;
+        this._hintRewindStartShown = false;
+        this.firstRunGuidanceDirector = null;
+        this._setupFirstRunGuidanceDirector();
         
         // ========================================================================
         // PHASE MMD-1: MATERIAL MUTATION DETECTOR
@@ -8240,6 +8245,7 @@ window.__ATOMA_SCENE__ = this.scene;
         // ALPHA CLARITY: reset per-world hint flags so hints can re-show
         this._hintFirstLinkShown = false;
         this._hintRewindBlockShown = false;
+        this._hintRewindStartShown = false;
         if (this.gameplayHintLayer) {
             this.gameplayHintLayer.reset();
         }
@@ -8677,6 +8683,7 @@ window.__ATOMA_SCENE__ = this.scene;
         this.createAINodes(reasonForCreate);
         this.ensureCascadeEventBridge();
         this._rebindWorldLifecycleSystems();
+        this.setupSignatureMomentDirector();
 
         // GlyphLayer4 runs in hover-only mode: no global fusion creation.
         this.setupSemanticGlyphAI();
@@ -8726,7 +8733,11 @@ window.__ATOMA_SCENE__ = this.scene;
 
         // ALPHA CLARITY: show start hint on first world load
         if (this.gameplayHintLayer) {
-            this.gameplayHintLayer.show('start');
+            if (this.firstRunGuidanceDirector?.isActive?.()) {
+                this.firstRunGuidanceDirector.handleWorldLoad({ world: this.currentMode });
+            } else {
+                this.gameplayHintLayer.show('start', { world: this.currentMode });
+            }
         }
         } finally {
             this._worldTransitionInProgress = false;
@@ -9411,7 +9422,17 @@ window.__ATOMA_SCENE__ = this.scene;
                 // ALPHA CLARITY: first-link hint
                 if (this.gameplayHintLayer && !this._hintFirstLinkShown) {
                     this._hintFirstLinkShown = true;
-                    this.gameplayHintLayer.show('firstLink');
+                    if (this.firstRunGuidanceDirector?.isActive?.()) {
+                        this.firstRunGuidanceDirector.handleFirstBond({
+                            world: this.currentMode,
+                            scoreState: this.visualNetworkTimeElasticity?.getScoreState?.() || null,
+                            buildState: this.coreMetricsOverlay?.hud?.getCurrentBuildState?.(
+                                this.visualNetworkTimeElasticity?.getScoreState?.() || null
+                            ) || null
+                        });
+                    } else {
+                        this.gameplayHintLayer.show('firstLink', { world: this.currentMode });
+                    }
                 }
 
                 const fanoutLink = () => {
@@ -9995,8 +10016,8 @@ window.__ATOMA_SCENE__ = this.scene;
             this.nodeDynamics,
             {
                 // Quality component weighting (sums to 1.0)
-                structuralWeight: 0.30,          // Link geometry & validity
-                harmonyWeight: 0.40,             // Node stability & harmony
+                structuralWeight: 0.22,          // Link geometry & validity
+                harmonyWeight: 0.48,             // Node stability, harmony, and compatibility
                 loadWeight: 0.15,                // Load pressure ratio
                 corruptionWeight: 0.15,          // Corruption influence
                 
@@ -11642,9 +11663,24 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
             // ALPHA CLARITY: show rewind-block hint once when blocked
             const scoreState = this.visualNetworkTimeElasticity.getScoreState?.() || null;
             const dir = this.visualNetworkTimeElasticity.getDirection();
-            if (this.gameplayHintLayer && !this._hintRewindBlockShown && dir === 'FORWARD' && scoreState?.rewindBlockReason) {
+            const buildState = this.coreMetricsOverlay?.hud?.getCurrentBuildState?.(scoreState) || null;
+            this.firstRunGuidanceDirector?.update?.({
+                world: this.currentMode,
+                scoreState,
+                buildState
+            });
+            if (
+                this.gameplayHintLayer
+                && !this._hintRewindBlockShown
+                && !this.firstRunGuidanceDirector?.isActive?.()
+                && dir === 'FORWARD'
+                && scoreState?.rewindBlockReason
+            ) {
                 this._hintRewindBlockShown = true;
-                this.gameplayHintLayer.show('rewindBlock');
+                this.gameplayHintLayer.show('rewindBlock', {
+                    world: this.currentMode,
+                    reason: scoreState.rewindBlockReason
+                });
             }
         }
 
@@ -13919,6 +13955,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
     setupCoreMetricsOverlay() {
         this.coreMetricsOverlay = new CoreMetricsOverlay(this.scene, this.renderer);
         this.coreMetricsOverlay.setMetricsRuntime?.(this.metricsRuntime_v1);
+        this._setupFirstRunGuidanceDirector();
 
         // Wire score system to HUD (score system may already be created)
         this._wireScoreSystemToHUD();
@@ -13929,6 +13966,39 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         console.log('✓ Core Metrics Overlay 1.0 initialized');
         console.log('  - Use toggleMetricsOverlay() to toggle HUD');
         console.log('  - Use debugMetricsOverlay() to see status');
+    }
+
+    _setupFirstRunGuidanceDirector() {
+        const profile = loadMenuProfile();
+        const onboarding = profile?.onboarding || {};
+        const shouldActivate = onboarding.firstRunCompleted !== true
+            || Number(onboarding.guidedFlowVersion) !== GUIDED_FLOW_VERSION;
+
+        if (!this.firstRunGuidanceDirector) {
+            this.firstRunGuidanceDirector = new FirstRunGuidanceDirector({
+                active: shouldActivate,
+                hintLayer: this.gameplayHintLayer,
+                hud: this.coreMetricsOverlay?.hud || null,
+                loreFragmentEmitter: this.loreFragmentEmitter || null,
+                onComplete: ({ guidedFlowVersion, firstRunCompleted }) => {
+                    const nextProfile = loadMenuProfile();
+                    nextProfile.onboarding = {
+                        guidedFlowVersion: Number.isFinite(Number(guidedFlowVersion))
+                            ? Number(guidedFlowVersion)
+                            : GUIDED_FLOW_VERSION,
+                        firstRunCompleted: firstRunCompleted === true
+                    };
+                    saveMenuProfile(nextProfile);
+                }
+            });
+            return;
+        }
+
+        this.firstRunGuidanceDirector.bind({
+            hintLayer: this.gameplayHintLayer,
+            hud: this.coreMetricsOverlay?.hud || null,
+            loreFragmentEmitter: this.loreFragmentEmitter || null
+        });
     }
 
     runCoreMetricsOverlayTick(deltaTime) {
@@ -14874,6 +14944,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
             {}, // default config
             getMetrics
         );
+        this._setupFirstRunGuidanceDirector();
 
         // Wire thought storm → dream lore bridge (Proposal 5)
         this._wireThoughtStormLoreBridge();
@@ -16600,7 +16671,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         
         // Wire score:won event — freeze simulation, play victory audio, show overlay
         this.visualNetworkTimeElasticity.on('score:won', (payload) => {
-            console.log('%c🏆 NETWORK TIME REACHED ZERO — GAME WON!', 'color: #00ff88; font-size: 18px; font-weight: bold;');
+            console.log('%c🛡️ STABILIZATION ACHIEVED — COLLAPSE PREVENTED', 'color: #00ff88; font-size: 18px; font-weight: bold;');
             console.log('  Game Time:', payload.gameTime.toFixed(1), 'seconds');
             console.log('  Final Synergy:', (payload.avgSynergy * 100).toFixed(1) + '%');
             if (this.audioSystem?.playScoreVictory) this.audioSystem.playScoreVictory();
@@ -16609,9 +16680,23 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
 
         // Wire score:rewinding event — ascending audio cue + slow temporal system
         this.visualNetworkTimeElasticity.on('score:rewinding', (payload) => {
-            console.log('%c⏪ NETWORK TIME REWINDING', 'color: #ff8c00; font-weight: bold;',
+            console.log('%c⏪ STABILIZATION SURGE ACTIVE', 'color: #ff8c00; font-weight: bold;',
                 'Time:', payload.networkTime, 'Synergy:', (payload.avgSynergy * 100).toFixed(1) + '%');
             if (this.audioSystem?.playScoreRewindStart) this.audioSystem.playScoreRewindStart();
+            if (this.gameplayHintLayer && !this._hintRewindStartShown) {
+                this._hintRewindStartShown = true;
+                if (this.firstRunGuidanceDirector?.isActive?.()) {
+                    this.firstRunGuidanceDirector.handleRewindStart({
+                        world: this.currentMode,
+                        scoreState: this.visualNetworkTimeElasticity?.getScoreState?.() || null,
+                        buildState: this.coreMetricsOverlay?.hud?.getCurrentBuildState?.(
+                            this.visualNetworkTimeElasticity?.getScoreState?.() || null
+                        ) || null
+                    });
+                } else {
+                    this.gameplayHintLayer.show('rewindStart', { world: this.currentMode });
+                }
+            }
             // Slow temporal system during rewind (cycle clock ticks slower)
             if (this.coreMetricsOverlay?.temporalSystem?.setTimeScale) {
                 this.coreMetricsOverlay.temporalSystem.setTimeScale(0.3, true);
@@ -16649,8 +16734,8 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         validateVisualNetworkTimeElasticity();
         console.log('✓ Network Time Score System v2.0 initialized');
         console.log('  - Forward: 5 units/sec (pressure)');
-        console.log('  - Rewind: 3.5 units/sec (when canonical global.synergy.high is sustained for 5 seconds)');
-        console.log('  - Win: Network Time reaches 0');
+        console.log('  - Rewind: 3.5 units/sec (stabilization surge after canonical global.synergy.high is sustained for 5 seconds)');
+        console.log('  - Win: collapse prevented when Network Time reaches 0');
     }
 
     /**
@@ -16671,6 +16756,14 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
      * Handle game won — calculate score, submit to leaderboard, show victory overlay.
      */
     _handleGameWon(payload) {
+        this.firstRunGuidanceDirector?.handleWin?.({
+            world: this.currentMode,
+            scoreState: this.visualNetworkTimeElasticity?.getScoreState?.() || null,
+            buildState: this.coreMetricsOverlay?.hud?.getCurrentBuildState?.(
+                this.visualNetworkTimeElasticity?.getScoreState?.() || null
+            ) || null
+        });
+
         // Pause the simulation — game is won
         if (this.frameScheduler) {
             console.log('[NetworkTimeScore] Simulation paused — victory state active');
@@ -16715,8 +16808,48 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
             }, { priority: this.semanticBus.priority?.CRITICAL });
         }
 
-        // Show victory overlay with score
-        this._showVictoryOverlay(payload, leaderboardResult);
+        this._beginVictoryPresentation(payload, leaderboardResult);
+    }
+
+    _getActiveWorldFXPack() {
+        return this.environmentDomain?.instances?.worldFXPack || this.worldFXPack || null;
+    }
+
+    _clearVictoryPresentationTimers() {
+        if (!Array.isArray(this._victoryPresentationTimers)) {
+            this._victoryPresentationTimers = [];
+            return;
+        }
+        while (this._victoryPresentationTimers.length > 0) {
+            const handle = this._victoryPresentationTimers.pop();
+            clearTimeout(handle);
+        }
+    }
+
+    _beginVictoryPresentation(payload, leaderboardResult = null) {
+        this._clearVictoryPresentationTimers();
+        this._victoryPresentationToken = (this._victoryPresentationToken || 0) + 1;
+        const token = this._victoryPresentationToken;
+        this._victoryPresentationActive = true;
+
+        try {
+            this.signatureMomentDirector?.disable?.('victory-sequence');
+        } catch (_) {
+            /* keep going */
+        }
+
+        const worldFXPack = this._getActiveWorldFXPack();
+        const sequence = worldFXPack?.playVictoryTransformationSequence?.({
+            worldId: this.currentMode || 'quantum',
+            payload
+        }) || null;
+        const overlayDelayMs = Math.max(2600, sequence?.totalDurationMs || 4200);
+
+        const showOverlayTimer = setTimeout(() => {
+            if (this._victoryPresentationToken !== token) return;
+            this._showVictoryOverlay(payload, leaderboardResult);
+        }, overlayDelayMs);
+        this._victoryPresentationTimers.push(showOverlayTimer);
     }
 
     /**
@@ -16886,8 +17019,8 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
             </style>
             <div class="victory-card">
                 <div class="victory-icon">🏆</div>
-                <div class="victory-title">Network Collapsed</div>
-                <div class="victory-subtitle">Network Time reached zero</div>
+                <div class="victory-title">Stabilization Achieved</div>
+                <div class="victory-subtitle">The living network held against collapse</div>
                 <div class="victory-score">${scoreStr}</div>
                 <div class="victory-rank">Rank ${rankStr}</div>
                 ${newBestBadge}
@@ -16901,11 +17034,11 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                         <div class="victory-stat-value">${maxSynergy}</div>
                     </div>
                     <div class="victory-stat">
-                        <div class="victory-stat-label">⚡ Total Rewind Time</div>
+                        <div class="victory-stat-label">⚡ Total Surge Time</div>
                         <div class="victory-stat-value">${totalRewindTime}</div>
                     </div>
                     <div class="victory-stat">
-                        <div class="victory-stat-label">📊 Best Network Time</div>
+                        <div class="victory-stat-label">📊 Lowest Collapse Pressure</div>
                         <div class="victory-stat-value">${bestNT}</div>
                     </div>
                     <div class="victory-stat">
@@ -16921,7 +17054,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                         <div class="victory-stat-value">${gamesWon} / ${gamesPlayed}</div>
                     </div>
                     <div class="victory-stat">
-                        <div class="victory-stat-label">🌍 World / Score Rule</div>
+                        <div class="victory-stat-label">🌍 World / Stabilization Rule</div>
                         <div class="victory-stat-value">${worldName} <span style="font-size:10px;color:rgba(200,225,245,0.4)">${scoreRule}</span></div>
                     </div>
                 </div>
@@ -16957,6 +17090,10 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
      * Reset game state for a new playthrough.
      */
     _resetGame() {
+        this._clearVictoryPresentationTimers();
+        this._victoryPresentationActive = false;
+        this._victoryPresentationToken = (this._victoryPresentationToken || 0) + 1;
+
         // Remove victory overlay
         const overlay = document.getElementById('atoma-victory-overlay');
         if (overlay) overlay.remove();
@@ -16969,6 +17106,18 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         // Reset score system
         if (this.visualNetworkTimeElasticity) {
             this.visualNetworkTimeElasticity.reset();
+        }
+
+        try {
+            this._getActiveWorldFXPack()?.stopVictoryTransformationSequence?.();
+        } catch (_) {
+            /* ignore */
+        }
+
+        try {
+            this.signatureMomentDirector?.enable?.();
+        } catch (_) {
+            /* ignore */
         }
 
         // Restore temporal system to normal speed
@@ -17974,6 +18123,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                     metricReactiveEvents: this.metricReactiveEvents || this.environmentDomain?.instances?.metricReactiveEvents || null,
                     linkCorruptionTransmission: this.linkCorruptionTransmission || this.corruptionTransmission || this.aiNodes?.linkCorruption || null,
                     worldPersonalityController: this.worldPersonalityController || null,
+                    worldFXPack: this.environmentDomain?.instances?.worldFXPack || this.worldFXPack || null,
                     worldMoodState: canonicalWorldContext.worldMoodState || this.worldPersonalityController?.getMoodState?.() || null,
                     worldEvents: this.worldEvents || null,
                     networkChronicle: this.networkChronicle || null,
@@ -20093,6 +20243,3 @@ export function startAtomaGame(options = {}) {
 if (window.__ATOMA_SKIP_AUTO_BOOT !== true) {
     startAtomaGame();
 }
-
-
-

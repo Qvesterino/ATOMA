@@ -34,7 +34,7 @@ const WORLD_LORE_FRAGMENTS = Object.freeze([
 
     {
         id: 'quantum.entry.1',
-        text: 'Every state here is a question that has not finished answering itself.',
+        text: 'Quantum Island is alive with unfinished answers. Stabilize the shimmer before it tears itself apart.',
         tone: 'quantum',
         tag: 'QUANTUM / ENTRY',
         trigger: 'world.loaded',
@@ -44,7 +44,7 @@ const WORLD_LORE_FRAGMENTS = Object.freeze([
     },
     {
         id: 'quantum.entry.2',
-        text: 'The island does not decide. It holds the shimmer between yes and no.',
+        text: 'The island holds the line between yes and no. Your bonds decide whether that tension becomes coherence.',
         tone: 'quantum',
         tag: 'QUANTUM / ENTRY',
         trigger: 'world.loaded',
@@ -74,7 +74,7 @@ const WORLD_LORE_FRAGMENTS = Object.freeze([
     },
     {
         id: 'desert.entry.1',
-        text: 'Distance teaches meaning to wait. Patience is not optional here.',
+        text: 'Dream Desert answers slowly, but it is still alive. Stabilize the distant lattice before it falls silent.',
         tone: 'lore',
         tag: 'DESERT / ENTRY',
         trigger: 'world.loaded',
@@ -84,7 +84,7 @@ const WORLD_LORE_FRAGMENTS = Object.freeze([
     },
     {
         id: 'desert.entry.2',
-        text: 'The desert does not forget. It simply takes a long time to answer.',
+        text: 'The desert remembers every bond. Patience is how you keep its nervous system intact.',
         tone: 'lore',
         tag: 'DESERT / ENTRY',
         trigger: 'world.loaded',
@@ -299,7 +299,7 @@ const WORLD_LORE_FRAGMENTS = Object.freeze([
 
     {
         id: 'quantum.link.1',
-        text: 'Two possibilities just agreed to observe each other.',
+        text: 'Two possibilities just accepted the same stabilizing bond. The island calms around the contact.',
         tone: 'link',
         tag: 'QUANTUM / BOND',
         trigger: 'link.created',
@@ -317,7 +317,7 @@ const WORLD_LORE_FRAGMENTS = Object.freeze([
     },
     {
         id: 'desert.link.1',
-        text: 'Even in the distance, relation finds a way to matter.',
+        text: 'Distance just became structure. Every patient bond helps the desert hold together.',
         tone: 'link',
         tag: 'DESERT / BOND',
         trigger: 'link.created',
@@ -780,7 +780,7 @@ const WORLD_LORE_FRAGMENTS = Object.freeze([
 
     {
         id: 'generic.gamewon.1',
-        text: 'The network has found its rhythm. Pressure became meaning, and meaning became peace.',
+        text: 'The network survived itself. Pressure became meaning, and meaning became peace.',
         tone: 'lore',
         tag: 'LORE / VICTORY',
         trigger: 'game:won',
@@ -790,7 +790,7 @@ const WORLD_LORE_FRAGMENTS = Object.freeze([
     },
     {
         id: 'quantum.gamewon.1',
-        text: 'Every possibility collapsed into one answer: the network chose to endure.',
+        text: 'The shimmer held. Quantum Island chose coherence over collapse.',
         tone: 'quantum',
         tag: 'QUANTUM / VICTORY',
         trigger: 'game:won',
@@ -810,7 +810,7 @@ const WORLD_LORE_FRAGMENTS = Object.freeze([
     },
     {
         id: 'desert.gamewon.1',
-        text: 'Patience was not wasted. The distance was always part of the answer.',
+        text: 'Patience held the lattice together. Dream Desert survived because the bonds endured.',
         tone: 'lore',
         tag: 'DESERT / VICTORY',
         trigger: 'game:won',

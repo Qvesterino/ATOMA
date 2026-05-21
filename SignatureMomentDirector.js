@@ -9,6 +9,56 @@ const LEGENDARY_BOND_MOMENT_ID = 'legendary.bond.manifestation.covenant-lattice'
 const MYTHIC_SIGNAL_MOMENT_ID = 'mythic.signal.dimensional-gateway';
 const WORLD_PERSONALITY_SHIFT_MOMENT_ID = 'personality.world-temperament-shift';
 const GRAND_CORRUPTION_BREACH_MOMENT_ID = 'corruption.grand-breach.veil-fracture';
+const HEROIC_STABILIZATION_MOMENT_ID = 'heroic.stabilization.before-collapse';
+
+const RELEASE_SIGNATURE_WORLD_IDS = Object.freeze(new Set(['quantum', 'desert']));
+const RELEASE_SIGNATURE_ALLOWLIST = Object.freeze(new Set([
+  LEGENDARY_BOND_MOMENT_ID,
+  CASCADE_RECONSTRUCTION_MOMENT_ID,
+  SYNERGY_APEX_MOMENT_ID,
+  CONSCIOUSNESS_BLOOM_MOMENT_ID,
+  WORLD_PERSONALITY_SHIFT_MOMENT_ID,
+  HEROIC_STABILIZATION_MOMENT_ID,
+  GRAND_CORRUPTION_BREACH_MOMENT_ID
+]));
+const RELEASE_WORLD_SKIN_PROFILES = Object.freeze({
+  quantum: Object.freeze({
+    key: 'quantum',
+    paletteTag: 'quantum-electric',
+    worldSignature: 'probability-veil',
+    dominantMix: '#C8FAFF',
+    accentMix: '#7AA8FF',
+    glowMix: '#FFF9DA',
+    intensityBoost: 0.08,
+    telegraphBias: 0.86,
+    crestBias: 1.08,
+    atmosphere: Object.freeze({
+      signalBias: 0.16,
+      canopyBoost: 0.14,
+      horizonBoost: 0.1,
+      driftBoost: 0.08,
+      foldBias: 0.18
+    })
+  }),
+  desert: Object.freeze({
+    key: 'desert',
+    paletteTag: 'desert-mirage',
+    worldSignature: 'mirage-bloom',
+    dominantMix: '#FFD99A',
+    accentMix: '#76E9D8',
+    glowMix: '#FFF3D0',
+    intensityBoost: 0.02,
+    telegraphBias: 1.08,
+    crestBias: 0.94,
+    atmosphere: Object.freeze({
+      signalBias: 0.1,
+      canopyBoost: 0.08,
+      horizonBoost: 0.18,
+      driftBoost: 0.14,
+      foldBias: 0.08
+    })
+  })
+});
 
 const DEFAULT_STAGE_DURATIONS = Object.freeze({
   telegraphMs: 650,
@@ -64,6 +114,12 @@ const GRAND_CORRUPTION_BREACH_STAGE_DURATIONS = Object.freeze({
   afterglowMs: 8600
 });
 
+const HEROIC_STABILIZATION_STAGE_DURATIONS = Object.freeze({
+  telegraphMs: 860,
+  crestMs: 1180,
+  afterglowMs: 7800
+});
+
 const DEFAULT_BLUEPRINT_CONFIG = Object.freeze({
   id: SYNERGY_APEX_MOMENT_ID,
   label: 'Synergy Apex / Network Resonance Surge',
@@ -98,6 +154,16 @@ function normalizeMetricValue(value) {
 
 function resolveNumeric(value) {
   return Number.isFinite(value) ? value : 0;
+}
+
+function normalizeWorldId(worldId) {
+  return String(worldId || '').trim().toLowerCase();
+}
+
+function resolveReleaseSignatureProfile(worldId) {
+  const normalized = normalizeWorldId(worldId);
+  if (!RELEASE_SIGNATURE_WORLD_IDS.has(normalized)) return null;
+  return RELEASE_WORLD_SKIN_PROFILES[normalized] || null;
 }
 
 function vectorLikeToPlain(value) {
@@ -3316,6 +3382,7 @@ export class SignatureMomentDirector {
     this.semanticBus = config.semanticBus || null;
     this.getContext = typeof config.getContext === 'function' ? config.getContext : () => ({});
     this.enabled = config.enabled !== false;
+    this._suppressedReason = null;
     this._initialized = false;
     this._subscriptions = [];
     this._sourceEventHandlers = new Map();
@@ -3376,10 +3443,12 @@ export class SignatureMomentDirector {
 
   enable() {
     this.enabled = true;
+    this._suppressedReason = null;
   }
 
   disable(reason = 'manual') {
     this.enabled = false;
+    this._suppressedReason = reason || 'manual';
     if (this._activeMoment) {
       const moment = this._serializeMoment(this._activeMoment);
       moment.outcome = reason;
@@ -3401,6 +3470,7 @@ export class SignatureMomentDirector {
   getState() {
     return {
       enabled: this.enabled,
+      suppressedReason: this._suppressedReason,
       initialized: this._initialized,
       activeMoment: this._serializeMoment(this._activeMoment),
       cooldownUntil: this._cooldownUntil,
@@ -3566,6 +3636,7 @@ export class SignatureMomentDirector {
 
     for (const blueprint of this._blueprints.values()) {
       if (!blueprint.sourceEvents?.includes(eventName)) continue;
+      if (!this._isBlueprintAllowedForContext(blueprint, context)) continue;
       if (this._activeMoment && this._activeMoment.blueprintId === blueprint.id) {
         return;
       }
@@ -3635,6 +3706,7 @@ export class SignatureMomentDirector {
     const force = options.force === true;
     const currentTime = nowMs();
     if (!force && !this.enabled) return null;
+    if (!force && !this._isBlueprintAllowedForContext(blueprint, context)) return null;
     if (!force && currentTime < this._cooldownUntil) return null;
     if (!force && this._activeMoment && this._activeMoment.blueprintId === blueprint.id) return null;
 
@@ -3664,9 +3736,20 @@ export class SignatureMomentDirector {
     const aftermath = typeof blueprint.buildAftermath === 'function'
       ? blueprint.buildAftermath.call(blueprint, context, anchor, score)
       : null;
-    const worldSkin = typeof blueprint.buildWorldSkin === 'function'
+    const rawWorldSkin = typeof blueprint.buildWorldSkin === 'function'
       ? blueprint.buildWorldSkin.call(blueprint, context, anchor, score)
       : null;
+    const worldSkin = this._decorateWorldSkin(rawWorldSkin, blueprint, context, score);
+
+    const adjustedDurations = worldSkin?.stageBias
+      ? {
+          telegraphMs: Math.max(220, Math.round(durations.telegraphMs * resolveNumeric(worldSkin.stageBias.telegraph || 1))),
+          crestMs: Math.max(420, Math.round(durations.crestMs * resolveNumeric(worldSkin.stageBias.crest || 1))),
+          afterglowMs: durations.afterglowMs,
+          totalMs: 0
+        }
+      : { ...durations };
+    adjustedDurations.totalMs = adjustedDurations.telegraphMs + adjustedDurations.crestMs + adjustedDurations.afterglowMs;
 
     const moment = {
       id: blueprint.id,
@@ -3683,12 +3766,12 @@ export class SignatureMomentDirector {
       anchorSource: anchor.source || 'unknown',
       stage: 'telegraph',
       stageIndex: 0,
-      stageDurations: durations,
+      stageDurations: adjustedDurations,
       startedAt: currentTime,
       stageEnteredAt: currentTime,
-      telegraphEndsAt: currentTime + durations.telegraphMs,
-      crestEndsAt: currentTime + durations.telegraphMs + durations.crestMs,
-      afterglowEndsAt: currentTime + durations.telegraphMs + durations.crestMs + durations.afterglowMs,
+      telegraphEndsAt: currentTime + adjustedDurations.telegraphMs,
+      crestEndsAt: currentTime + adjustedDurations.telegraphMs + adjustedDurations.crestMs,
+      afterglowEndsAt: currentTime + adjustedDurations.telegraphMs + adjustedDurations.crestMs + adjustedDurations.afterglowMs,
       cameraIntent,
       audioIntent,
       aftermath,
@@ -3700,6 +3783,11 @@ export class SignatureMomentDirector {
     };
 
     this._activeMoment = moment;
+    try {
+      context?.worldFXPack?.applySignatureWorldSkin?.(worldSkin);
+    } catch (error) {
+      console.warn('[SignatureMomentDirector] Direct world skin handoff failed:', error);
+    }
     this._emit('signature.moment.started', this._serializeMoment(moment), 'INTERACTIVE');
     this._emit('signature.camera.intent', cameraIntent, 'NORMAL');
     this._emit('signature.world.skin', worldSkin, 'LOW');
@@ -3799,9 +3887,9 @@ export class SignatureMomentDirector {
       if (moment?.family === 'corruption') {
         // Breach visuals are driven by the corruption modulation and audio crest.
       } else if (moment?.family === 'cascade' || moment?.family === 'memory') {
-        metricReactiveEvents?.triggerCoherenceWave?.();
+        this._safeMetricReactiveCall(metricReactiveEvents, 'triggerCoherenceWave');
       } else {
-        metricReactiveEvents?.triggerUnityPulse?.();
+        this._safeMetricReactiveCall(metricReactiveEvents, 'triggerUnityPulse');
       }
       this._playAudioCue(audioSystem, moment, 'telegraph');
       return;
@@ -3811,9 +3899,9 @@ export class SignatureMomentDirector {
       if (moment?.family === 'corruption') {
         // Breach visuals stay anchored on the corruption field.
       } else if (moment?.family === 'cascade' || moment?.family === 'memory') {
-        metricReactiveEvents?.triggerUnityPulse?.();
+        this._safeMetricReactiveCall(metricReactiveEvents, 'triggerUnityPulse');
       } else {
-        metricReactiveEvents?.triggerCoherenceWave?.();
+        this._safeMetricReactiveCall(metricReactiveEvents, 'triggerCoherenceWave');
       }
       this._playAudioCue(audioSystem, moment, 'crest');
       return;
@@ -3843,6 +3931,15 @@ export class SignatureMomentDirector {
       worldPersonalityController.setDramaturgyModulation(modulation);
     } catch (error) {
       console.warn('[SignatureMomentDirector] Modulation refresh failed:', error);
+    }
+  }
+
+  _safeMetricReactiveCall(metricReactiveEvents, methodName) {
+    if (!metricReactiveEvents || typeof metricReactiveEvents?.[methodName] !== 'function') return;
+    try {
+      metricReactiveEvents[methodName]();
+    } catch (error) {
+      console.warn(`[SignatureMomentDirector] ${methodName} failed:`, error);
     }
   }
 
@@ -3947,13 +4044,118 @@ export class SignatureMomentDirector {
       aftermath: typeof blueprint.buildAftermath === 'function'
         ? blueprint.buildAftermath.call(blueprint, context, anchor, score)
         : null,
-      worldSkin: typeof blueprint.buildWorldSkin === 'function'
-        ? blueprint.buildWorldSkin.call(blueprint, context, anchor, score)
-        : null,
+      worldSkin: this._decorateWorldSkin(
+        typeof blueprint.buildWorldSkin === 'function'
+          ? blueprint.buildWorldSkin.call(blueprint, context, anchor, score)
+          : null,
+        blueprint,
+        context,
+        score
+      ),
       stageDurations: durations,
       force: options.force === true,
       preview: options.preview === true
     };
+  }
+
+  _isBlueprintAllowedForContext(blueprint, context) {
+    if (!blueprint?.id) return false;
+    const worldId = normalizeWorldId(context?.worldId || context?.currentMode || context?.worldContext?.worldId);
+    if (!RELEASE_SIGNATURE_WORLD_IDS.has(worldId)) {
+      return true;
+    }
+    return RELEASE_SIGNATURE_ALLOWLIST.has(blueprint.id);
+  }
+
+  _decorateWorldSkin(worldSkin, blueprint, context, score) {
+    if (!worldSkin || !blueprint) return worldSkin;
+
+    const releaseProfile = resolveReleaseSignatureProfile(
+      context?.worldId || context?.currentMode || context?.worldContext?.worldId
+    );
+    const baseSkin = {
+      ...worldSkin,
+      releaseCurated: this._isBlueprintAllowedForContext(blueprint, context),
+      foregroundClass: 'hero',
+      silhouetteRole: this._resolveSilhouetteRole(blueprint.id, blueprint.family)
+    };
+
+    if (!releaseProfile) {
+      return baseSkin;
+    }
+
+    return {
+      ...baseSkin,
+      releaseWorldProfile: releaseProfile.key,
+      paletteTag: releaseProfile.paletteTag,
+      worldSignature: releaseProfile.worldSignature,
+      dominantColor: this._blendHexColors(baseSkin.dominantColor, releaseProfile.dominantMix, 0.3),
+      accentColor: this._blendHexColors(baseSkin.accentColor, releaseProfile.accentMix, 0.34),
+      glowColor: this._blendHexColors(baseSkin.glowColor, releaseProfile.glowMix, 0.24),
+      intensity: clamp01(resolveNumeric(baseSkin.intensity) + releaseProfile.intensityBoost + score * 0.02),
+      stageBias: {
+        telegraph: releaseProfile.telegraphBias,
+        crest: releaseProfile.crestBias
+      },
+      atmosphere: {
+        ...(baseSkin.atmosphere || {}),
+        ...releaseProfile.atmosphere
+      }
+    };
+  }
+
+  _resolveSilhouetteRole(blueprintId, family) {
+    switch (blueprintId) {
+      case LEGENDARY_BOND_MOMENT_ID:
+        return 'bond-corridor';
+      case CASCADE_RECONSTRUCTION_MOMENT_ID:
+        return 'repair-beacon';
+      case SYNERGY_APEX_MOMENT_ID:
+        return 'surge-canopy';
+      case CONSCIOUSNESS_BLOOM_MOMENT_ID:
+        return 'thought-aurora';
+      case WORLD_PERSONALITY_SHIFT_MOMENT_ID:
+        return 'temperament-remap';
+      case HEROIC_STABILIZATION_MOMENT_ID:
+        return 'pressure-seal';
+      case GRAND_CORRUPTION_BREACH_MOMENT_ID:
+        return 'veil-fracture';
+      default:
+        return `${family || 'signature'}-hero`;
+    }
+  }
+
+  _blendHexColors(primary, accent, amount = 0.3) {
+    const base = this._hexToRgb(primary);
+    const target = this._hexToRgb(accent);
+    const t = clamp01(amount);
+    const mix = {
+      r: Math.round(base.r + (target.r - base.r) * t),
+      g: Math.round(base.g + (target.g - base.g) * t),
+      b: Math.round(base.b + (target.b - base.b) * t)
+    };
+    return this._rgbToHex(mix);
+  }
+
+  _hexToRgb(value) {
+    const normalized = String(value || '#ffffff').replace('#', '').trim();
+    const hex = normalized.length === 3
+      ? normalized.split('').map((char) => char + char).join('')
+      : normalized.padEnd(6, 'f').slice(0, 6);
+    const int = Number.parseInt(hex, 16);
+    if (!Number.isFinite(int)) {
+      return { r: 255, g: 255, b: 255 };
+    }
+    return {
+      r: (int >> 16) & 255,
+      g: (int >> 8) & 255,
+      b: int & 255
+    };
+  }
+
+  _rgbToHex({ r = 255, g = 255, b = 255 } = {}) {
+    const toHex = (channel) => Math.max(0, Math.min(255, Math.round(channel))).toString(16).padStart(2, '0');
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
   }
 
   _buildContext(overrides = {}) {
