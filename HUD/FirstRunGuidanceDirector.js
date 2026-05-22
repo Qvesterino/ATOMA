@@ -60,6 +60,14 @@ function resolveSurgeBlockedHint(world, reason, buildStateLabel) {
       return key === 'desert'
         ? 'The desert is warning you: these bonds are too messy to hold the surge. Slow down and consolidate cleaner links.'
         : 'Quantum momentum is outrunning structure. Consolidate cleaner bonds before you push for the surge again.';
+    case 'tension-critical':
+      return key === 'desert'
+        ? 'A hotspot is burning through the Dream Desert lattice. Cool that corridor before you try to hold the surge.'
+        : 'Quantum has formed a live hotspot. Relieve the hottest corridor before the surge window can hold.';
+    case 'chokepoint-fragile':
+      return key === 'desert'
+        ? 'Too much of the hold is riding one fragile desert corridor. Reinforce it or route around it.'
+        : 'The lattice depends on one brittle chokepoint. Build a safer alternate lane before you push again.';
     case 'synergy-too-low':
       return key === 'desert'
         ? 'The lattice is calm but too quiet. Add a bolder connection to wake the surge without abandoning structure.'
@@ -115,6 +123,10 @@ function resolveSurgeObjective(world, reason, buildStateLabel) {
       return 'Connect the lattice more densely before you chase the surge.';
     case 'quality-too-low':
       return 'Consolidate cleaner bonds. Dirty holds cannot sustain the surge.';
+    case 'tension-critical':
+      return 'Relieve the hottest corridor before you reopen the surge.';
+    case 'chokepoint-fragile':
+      return 'Build a safer route around the weak chokepoint.';
     case 'synergy-too-low':
       return buildStateLabel === 'STABILIZED_LATTICE'
         ? 'Risk one bolder bond to wake the surge without losing coherence.'

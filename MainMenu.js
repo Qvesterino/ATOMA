@@ -18,6 +18,11 @@ const MENU_BUILD_LABEL = ATOMA_VERSION;
 const VISUAL_LEVELS = ['LOW', 'MEDIUM', 'HIGH'];
 const SOUND_LEVELS = [0, 20, 40, 60, 80, 100];
 const GUIDED_FLOW_VERSION = 1;
+export const SETTING_FEEDBACK_STATE = Object.freeze({
+    APPLIED: 'APPLIED',
+    PENDING: 'PENDING',
+    TRANSITIONING: 'TRANSITIONING',
+});
 const DEFAULT_SETTINGS = Object.freeze({
     soundLevel: 60,
     visuals: 'HIGH',
@@ -207,6 +212,42 @@ function getFirstRunWorldPromise(mapId) {
         return 'Dream Desert rewards patience. Build the lattice, open the surge, then prevent collapse through cleaner structure.';
     }
     return 'Quantum Island is the recommended first run. Build the lattice, open the surge, then prevent collapse before dirty momentum tears the hold apart.';
+}
+
+function resolveSettingFeedback(feedbackById, settingId) {
+    if (!feedbackById) return null;
+    if (feedbackById instanceof Map) {
+        return feedbackById.get(settingId) || null;
+    }
+    if (typeof feedbackById === 'object') {
+        return feedbackById[settingId] || null;
+    }
+    return null;
+}
+
+function getSettingFeedbackCopy(feedback) {
+    switch (feedback?.state) {
+        case SETTING_FEEDBACK_STATE.TRANSITIONING:
+            return {
+                label: 'TRANSITIONING',
+                detail: String(feedback?.detail || 'Applying the live runtime transition.'),
+                tone: 'transitioning',
+            };
+        case SETTING_FEEDBACK_STATE.PENDING:
+            return {
+                label: 'PENDING',
+                detail: String(feedback?.detail || 'Preference stored. It will apply when the runtime is ready.'),
+                tone: 'pending',
+            };
+        case SETTING_FEEDBACK_STATE.APPLIED:
+            return {
+                label: 'APPLIED',
+                detail: String(feedback?.detail || 'Live runtime confirmed the change.'),
+                tone: 'applied',
+            };
+        default:
+            return null;
+    }
 }
 
 export function isMapPubliclyAvailable(mapId) {
@@ -730,6 +771,43 @@ export function ensureMenuStyles() {
             text-transform: uppercase;
             flex: 0 0 auto;
             white-space: nowrap;
+        }
+
+        .atoma-main-menu__setting-feedback {
+            margin-left: 10px;
+            padding: 3px 8px 2px;
+            border-radius: 999px;
+            border: 1px solid rgba(108, 234, 255, 0.16);
+            background: rgba(12, 28, 36, 0.42);
+            font-size: 8px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: rgba(205, 245, 250, 0.72);
+            white-space: nowrap;
+        }
+
+        .atoma-main-menu__setting-feedback--applied {
+            color: rgba(126, 244, 188, 0.92);
+            border-color: rgba(126, 244, 188, 0.24);
+            background: rgba(8, 32, 24, 0.42);
+        }
+
+        .atoma-main-menu__setting-feedback--pending {
+            color: rgba(255, 210, 133, 0.94);
+            border-color: rgba(255, 193, 7, 0.22);
+            background: rgba(40, 24, 8, 0.38);
+        }
+
+        .atoma-main-menu__setting-feedback--transitioning {
+            color: rgba(141, 248, 255, 0.95);
+            border-color: rgba(108, 234, 255, 0.28);
+            background: rgba(8, 30, 36, 0.44);
+            animation: atoma-setting-feedback-pulse 1.25s ease-in-out infinite;
+        }
+
+        @keyframes atoma-setting-feedback-pulse {
+            0%, 100% { opacity: 0.76; }
+            50% { opacity: 1; }
         }
 
         .atoma-main-menu__meta {
@@ -1364,80 +1442,92 @@ export function ensureMenuStyles() {
     document.head.appendChild(style);
 }
 
-export function getSettingsRows(settings) {
+export function getSettingsRows(settings, feedbackById = null) {
     return [
         {
             type: 'setting',
             id: 'sound',
             label: 'SOUND',
             value: `[${'='.repeat(settings.soundLevel / 20)}${'-'.repeat(5 - (settings.soundLevel / 20))}] ${String(settings.soundLevel).padStart(3, ' ')}%`,
-            description: 'Cycles the stored boot audio level in 20% steps.',
+            description: 'Cycles the master menu-owned audio level in deliberate 20% steps.',
         },
         {
             type: 'toggle',
             id: 'audioMuted',
             label: 'MUTE AUDIO',
             value: `[ ${settings.audioMuted ? 'MUTED' : 'LIVE'} ]`,
-            description: 'Completely silences all ATOMA audio output.',
+            description: 'Silences all ATOMA audio output immediately.',
         },
         {
             type: 'setting',
             id: 'visuals',
             label: 'VISUALS',
             value: `[ ${settings.visuals} ]`,
-            description: 'LOW: base visuals only · MEDIUM: +Visual Superpack · HIGH: +Cinematic Upgrade',
+            description: 'Sets the global visual budget: LOW = base field, MEDIUM = richer layers, HIGH = full premium read.',
         },
         {
             type: 'setting',
             id: 'particles',
             label: 'PARTICLES',
             value: `[ ${settings.particles ? 'ON' : 'OFF'} ]`,
-            description: 'Enables or disables the menu atmosphere particle drift.',
+            description: 'Controls secondary atmospheric particles without touching core readability.',
         },
         {
             type: 'toggle',
             id: 'postProcessing',
             label: 'POSTPROCESSING',
             value: `[ ${settings.postProcessing ? 'ON' : 'OFF'} ]`,
-            description: 'Enable or disable the premium composite grading stack.',
+            description: 'Toggles the premium composite grading stack and broader final image polish.',
         },
         {
             type: 'toggle',
             id: 'luminosityBloom',
             label: 'LUMINOSITY BLOOM',
             value: `[ ${settings.luminosityBloom ? 'ON' : 'OFF'} ]`,
-            description: 'Enable or disable the separate selective luminosity bloom layer.',
+            description: 'Toggles the selective bloom layer used for high-energy line intensity and glow.',
         },
         {
             type: 'toggle',
             id: 'nodeRotations',
             label: 'NODE ROTATIONS',
             value: `[ ${settings.nodeRotations ? 'ON' : 'OFF'} ]`,
-            description: 'Enable or disable the slow self-axis rotation on active nodes.',
+            description: 'Controls slow self-axis rotation on active nodes for ambient motion.',
         },
         {
             type: 'toggle',
             id: 'semanticPictograms',
             label: 'SEMANTIC PICTOGRAMS',
             value: `[ ${settings.semanticPictograms ? 'ON' : 'OFF'} ]`,
-            description: 'Enable or disable the orbiting link semantic pictogram layer.',
+            description: 'Toggles the orbiting semantic symbol layer around live links.',
         },
         {
             type: 'toggle',
             id: 'environmentalHazards',
             label: 'ENVIRONMENTAL HAZARDS',
             value: `[ ${settings.environmentalHazards ? 'ON' : 'OFF'} ]`,
-            description: 'Enable or disable the hazard visuals and environmental danger overlays.',
+            description: 'Controls hazard visuals and environmental warning pressure across the active world.',
         },
         {
             type: 'toggle',
             id: 'cinematicNodeShaders',
             label: 'NODE SHADERS',
             value: `[ ${settings.cinematicNodeShaders ? 'ON' : 'OFF'} ]`,
-            description: 'Enable or disable the CinematicUpgrade node shell and edge glow layer.',
+            description: 'Toggles the premium node shell, edge glow, and cinematic material read.',
         },
         ...getUIVisibilitySettingsRows(),
-    ];
+    ].map((row) => {
+        const feedback = getSettingFeedbackCopy(resolveSettingFeedback(feedbackById, row.id));
+        if (!feedback) {
+            return row;
+        }
+        return {
+            ...row,
+            feedbackLabel: feedback.label,
+            feedbackTone: feedback.tone,
+            feedbackDetail: feedback.detail,
+            description: `${row.description} Status: ${feedback.detail}`,
+        };
+    });
 }
 
 export class MainMenu {
@@ -1481,6 +1571,8 @@ export class MainMenu {
         this._strandPool = [];
         this._latticeNodes = [];
         this._latticeEdges = [];
+        this._settingFeedback = new Map();
+        this._settingFeedbackTimers = new Map();
 
         this._handleKeyDown = (event) => this._onKeyDown(event);
         this._handleResize = () => this._onResize();
@@ -1535,6 +1627,9 @@ export class MainMenu {
         this._strandPool = [];
         this._latticeNodes = [];
         this._latticeEdges = [];
+        this._settingFeedbackTimers.forEach((handle) => clearTimeout(handle));
+        this._settingFeedbackTimers.clear();
+        this._settingFeedback.clear();
     }
 
     refresh() {
@@ -1563,6 +1658,31 @@ export class MainMenu {
 
         this._renderFooter();
         this._rebuildBackgroundModel();
+    }
+
+    _setSettingFeedback(settingId, state, detail = '', { persistMs = 0 } = {}) {
+        if (!settingId) return;
+        const existingTimer = this._settingFeedbackTimers.get(settingId);
+        if (existingTimer) {
+            clearTimeout(existingTimer);
+            this._settingFeedbackTimers.delete(settingId);
+        }
+
+        this._settingFeedback.set(settingId, {
+            state,
+            detail: String(detail || '').trim(),
+        });
+
+        if (persistMs > 0) {
+            const handle = setTimeout(() => {
+                this._settingFeedback.delete(settingId);
+                this._settingFeedbackTimers.delete(settingId);
+                if (this.state.screen === 'SETTINGS') {
+                    this.refresh();
+                }
+            }, persistMs);
+            this._settingFeedbackTimers.set(settingId, handle);
+        }
     }
 
     switchScreen(screen) {
@@ -1662,11 +1782,14 @@ export class MainMenu {
         }
 
         if (this.state.screen === 'SETTINGS') {
-            return getSettingsRows(this.profile.settings).map((row) => ({
+            return getSettingsRows(this.profile.settings, this._settingFeedback).map((row) => ({
                 id: row.id,
                 label: row.label,
                 value: row.value,
                 meta: row.description,
+                feedbackLabel: row.feedbackLabel || '',
+                feedbackTone: row.feedbackTone || '',
+                feedbackDetail: row.feedbackDetail || '',
                 type: row.type || 'setting',
                 selectable: row.selectable !== false,
                 action: row.action || null,
@@ -1751,11 +1874,13 @@ export class MainMenu {
 
         if (this.state.screen === 'SETTINGS') {
             const selectedSetting = this._getSelectedEntry();
-            this.subtitle.textContent = 'Simple menu-owned settings, including audio mute and HUD visibility controls.';
+            this.subtitle.textContent = 'Stable, menu-owned preferences with explicit runtime feedback.';
             this.screenTitle.textContent = 'SETTINGS';
             this.description.textContent = selectedSetting ? selectedSetting.meta : 'Audio mute and UI visibility controls persist across reloads.';
             this.hint.textContent = 'UP / DOWN TO SELECT  |  ENTER TO ACTIVATE  |  LEFT / RIGHT FOR BASE SETTINGS  |  ESC TO BACK';
-            this.status.textContent = 'Sound level and mute are stored for boot. Visuals and particles affect the menu atmosphere only.';
+            this.status.textContent = selectedSetting?.feedbackDetail
+                ? `Setting status / ${selectedSetting.feedbackDetail}`
+                : 'Sound level and mute are stored for boot. Visual changes show whether they are live, pending, or mid-transition.';
             this._renderEntryList(this._screenEntries);
             return;
         }
@@ -1816,6 +1941,13 @@ export class MainMenu {
                 value.className = 'atoma-main-menu__value';
                 value.textContent = entry.value;
                 button.appendChild(value);
+
+                if (entry.feedbackLabel) {
+                    const feedback = document.createElement('span');
+                    feedback.className = `atoma-main-menu__setting-feedback atoma-main-menu__setting-feedback--${entry.feedbackTone || 'applied'}`;
+                    feedback.textContent = entry.feedbackLabel;
+                    button.appendChild(feedback);
+                }
             }
 
             if (entry.type === 'map') {
@@ -2397,9 +2529,11 @@ export class MainMenu {
             const currentIndex = SOUND_LEVELS.indexOf(settings.soundLevel);
             const nextIndex = clamp(currentIndex + direction, 0, SOUND_LEVELS.length - 1);
             settings.soundLevel = SOUND_LEVELS[nextIndex];
+            this._setSettingFeedback(settingId, SETTING_FEEDBACK_STATE.APPLIED, 'Stored for menu boot and live audio startup.', { persistMs: 1600 });
         } else if (settingId === 'audioMuted') {
             settings.audioMuted = !settings.audioMuted;
             setMenuAudioMuted(settings.audioMuted);
+            this._setSettingFeedback(settingId, SETTING_FEEDBACK_STATE.APPLIED, settings.audioMuted ? 'All ATOMA audio is muted now.' : 'All ATOMA audio is live again.', { persistMs: 1800 });
         } else if (settingId === 'visuals') {
             const currentIndex = VISUAL_LEVELS.indexOf(settings.visuals);
             const nextIndex = (currentIndex + direction + VISUAL_LEVELS.length) % VISUAL_LEVELS.length;
@@ -2407,19 +2541,24 @@ export class MainMenu {
             if (typeof window !== 'undefined') {
                 if (window.game?.setVisualQuality) {
                     window.game.setVisualQuality(settings.visuals);
+                    this._setSettingFeedback(settingId, SETTING_FEEDBACK_STATE.APPLIED, `Live quality switched to ${settings.visuals}.`, { persistMs: 1600 });
                 } else {
                     window.__ATOMA_VISUAL_QUALITY_PENDING__ = settings.visuals;
+                    this._setSettingFeedback(settingId, SETTING_FEEDBACK_STATE.PENDING, `Queued ${settings.visuals} quality for the next active runtime.`);
                 }
             }
         } else if (settingId === 'particles') {
             settings.particles = !settings.particles;
+            this._setSettingFeedback(settingId, SETTING_FEEDBACK_STATE.APPLIED, settings.particles ? 'Ambient particles are active.' : 'Ambient particles are suppressed.', { persistMs: 1600 });
         } else if (settingId === 'postProcessing') {
             settings.postProcessing = !settings.postProcessing;
             if (typeof window !== 'undefined') {
                 if (window.game?.setPostProcessingEnabled) {
                     transitionPromise = window.game.setPostProcessingEnabled(settings.postProcessing);
+                    this._setSettingFeedback(settingId, SETTING_FEEDBACK_STATE.TRANSITIONING, 'Applying the composite grading stack.');
                 } else {
                     window.__ATOMA_POSTPROCESSING_PENDING__ = settings.postProcessing;
+                    this._setSettingFeedback(settingId, SETTING_FEEDBACK_STATE.PENDING, 'Post-processing preference stored for the next active runtime.');
                 }
             }
         } else if (settingId === 'luminosityBloom') {
@@ -2427,8 +2566,10 @@ export class MainMenu {
             if (typeof window !== 'undefined') {
                 if (window.game?.setLuminosityBloomEnabled) {
                     transitionPromise = window.game.setLuminosityBloomEnabled(settings.luminosityBloom);
+                    this._setSettingFeedback(settingId, SETTING_FEEDBACK_STATE.TRANSITIONING, 'Applying the luminosity bloom layer.');
                 } else {
                     window.__ATOMA_LUMINOSITY_BLOOM_PENDING__ = settings.luminosityBloom;
+                    this._setSettingFeedback(settingId, SETTING_FEEDBACK_STATE.PENDING, 'Bloom preference stored for the next active runtime.');
                 }
             }
         } else if (settingId === 'nodeRotations') {
@@ -2436,8 +2577,10 @@ export class MainMenu {
             if (typeof window !== 'undefined') {
                 if (window.game?.setNodeRotationsEnabled) {
                     window.game.setNodeRotationsEnabled(settings.nodeRotations);
+                    this._setSettingFeedback(settingId, SETTING_FEEDBACK_STATE.APPLIED, settings.nodeRotations ? 'Node motion is active.' : 'Node motion is restrained.', { persistMs: 1600 });
                 } else {
                     window.__ATOMA_NODE_ROTATIONS_PENDING__ = settings.nodeRotations;
+                    this._setSettingFeedback(settingId, SETTING_FEEDBACK_STATE.PENDING, 'Node motion preference stored for the next active runtime.');
                 }
             }
         } else if (settingId === 'semanticPictograms') {
@@ -2445,8 +2588,10 @@ export class MainMenu {
             if (typeof window !== 'undefined') {
                 if (window.game?.setSemanticPictogramsEnabled) {
                     window.game.setSemanticPictogramsEnabled(settings.semanticPictograms);
+                    this._setSettingFeedback(settingId, SETTING_FEEDBACK_STATE.APPLIED, settings.semanticPictograms ? 'Semantic pictograms are visible.' : 'Semantic pictograms are hidden.', { persistMs: 1600 });
                 } else {
                     window.__ATOMA_SEMANTIC_PICTOGRAMS_PENDING__ = settings.semanticPictograms;
+                    this._setSettingFeedback(settingId, SETTING_FEEDBACK_STATE.PENDING, 'Semantic pictogram preference stored for the next active runtime.');
                 }
             }
         } else if (settingId === 'environmentalHazards') {
@@ -2454,8 +2599,10 @@ export class MainMenu {
             if (typeof window !== 'undefined') {
                 if (window.game?.setEnvironmentalHazardsEnabled) {
                     window.game.setEnvironmentalHazardsEnabled(settings.environmentalHazards);
+                    this._setSettingFeedback(settingId, SETTING_FEEDBACK_STATE.APPLIED, settings.environmentalHazards ? 'Environmental hazard pressure is visible.' : 'Environmental hazard pressure is visually suppressed.', { persistMs: 1600 });
                 } else {
                     window.__ATOMA_ENVIRONMENTAL_HAZARDS_PENDING__ = settings.environmentalHazards;
+                    this._setSettingFeedback(settingId, SETTING_FEEDBACK_STATE.PENDING, 'Hazard preference stored for the next active runtime.');
                 }
             }
         } else if (settingId === 'cinematicNodeShaders') {
@@ -2463,8 +2610,10 @@ export class MainMenu {
             if (typeof window !== 'undefined') {
                 if (window.game?.setCinematicNodeShadersEnabled) {
                     window.game.setCinematicNodeShadersEnabled(settings.cinematicNodeShaders);
+                    this._setSettingFeedback(settingId, SETTING_FEEDBACK_STATE.APPLIED, settings.cinematicNodeShaders ? 'Premium node shading is active.' : 'Premium node shading is restrained.', { persistMs: 1600 });
                 } else {
                     window.__ATOMA_CINEMATIC_NODE_SHADERS_PENDING__ = settings.cinematicNodeShaders;
+                    this._setSettingFeedback(settingId, SETTING_FEEDBACK_STATE.PENDING, 'Node shader preference stored for the next active runtime.');
                 }
             }
         }
@@ -2473,10 +2622,13 @@ export class MainMenu {
         this.profile = saveMenuProfile(this.profile);
         if (transitionPromise && typeof transitionPromise.then === 'function') {
             this._transitionLocked = true;
+            this.refresh();
             try {
                 await transitionPromise;
+                this._setSettingFeedback(settingId, SETTING_FEEDBACK_STATE.APPLIED, 'Live runtime confirmed the transition.', { persistMs: 1800 });
             } catch (error) {
                 console.warn('[MainMenu] setting transition failed:', error);
+                this._setSettingFeedback(settingId, SETTING_FEEDBACK_STATE.PENDING, 'Runtime did not confirm the transition. Preference is still stored.');
             } finally {
                 this._transitionLocked = false;
                 this.refresh();

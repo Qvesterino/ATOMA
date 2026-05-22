@@ -46,6 +46,10 @@ function resolveRewindBlockHint(context = {}) {
       return 'Your anchors exist, but the surge still lacks enough routes. Build more bonds before you push harder.';
     case 'quality-too-low':
       return 'You forced momentum through unstable bonds. Consolidate with cleaner links before the surge slips.';
+    case 'tension-critical':
+      return 'A hotspot is flaring inside the lattice. Relieve that corridor before you try to hold the surge.';
+    case 'chokepoint-fragile':
+      return 'Too much pressure is riding one brittle route. Reinforce it or build an alternate lane.';
     case 'synergy-too-low':
       return 'The network is safe but too quiet. Risk bolder categories or denser bonds to open the surge.';
     default:
@@ -62,6 +66,42 @@ function resolveRewindStartHint(context = {}) {
     return 'Stabilization surge achieved. Keep the Dream Desert lattice coherent while pressure falls away.';
   }
   return 'Stabilization surge achieved. Hold the network together and prevent collapse.';
+}
+
+function resolveSoftFailurePressureHint(context = {}) {
+  switch (context?.reason) {
+    case 'quality-too-low':
+      return 'The hold is breaking. Clean up weaker bonds before you push the surge again.';
+    case 'need-more-links':
+      return 'Pressure is rising faster than the lattice can route it. Add cleaner bonds first.';
+    case 'need-more-nodes':
+      return 'The lattice is too thin. Add anchors before collapse pressure hardens.';
+    case 'tension-critical':
+      return 'Pressure is pooling into a live hotspot. Fix the corridor before the hold breaks again.';
+    case 'chokepoint-fragile':
+      return 'A brittle chokepoint is carrying too much. Route around it before pressure spikes.';
+    default:
+      return 'Pressure is rising. Stabilize bonds before you push further.';
+  }
+}
+
+function resolveSoftFailureDriftHint(context = {}) {
+  const world = resolveWorldKey(context);
+  if (world === 'desert') {
+    return 'The surge slipped and the dunes are drifting again. Slow down and rebuild a cleaner hold.';
+  }
+  if (world === 'quantum') {
+    return 'The hold broke and the island is slipping back into noise. Rebuild with cleaner bonds.';
+  }
+  return 'The hold broke. Rebuild the lattice before pressure outruns you again.';
+}
+
+function resolveSoftFailureNodeFailureHint(context = {}) {
+  const severed = Number(context?.severedLinks ?? 0);
+  if (severed >= 3) {
+    return 'A critical anchor failed and tore multiple bonds open. Stabilize the damaged side before expanding.';
+  }
+  return 'A critical anchor failed. Repair the local lattice before you push the network wider.';
 }
 
 const HINTS = Object.freeze({
@@ -85,30 +125,48 @@ const HINTS = Object.freeze({
     durationMs: 5200,
     priority: 4
   },
+  softFailurePressure: {
+    text: resolveSoftFailurePressureHint,
+    durationMs: 4200,
+    priority: 4,
+    variant: 'warning'
+  },
+  softFailureDrift: {
+    text: resolveSoftFailureDriftHint,
+    durationMs: 4600,
+    priority: 5,
+    variant: 'warning'
+  },
+  softFailureNodeFailure: {
+    text: resolveSoftFailureNodeFailureHint,
+    durationMs: 4800,
+    priority: 6,
+    variant: 'warning'
+  },
   guidedStart: {
     text: FIRST_RUN_GUIDANCE_COPY.guidedStart,
     durationMs: 7000,
-    priority: 5
+    priority: 7
   },
   guidedFirstBond: {
     text: FIRST_RUN_GUIDANCE_COPY.guidedFirstBond,
     durationMs: 5600,
-    priority: 6
+    priority: 8
   },
   guidedLocalLattice: {
     text: FIRST_RUN_GUIDANCE_COPY.guidedLocalLattice,
     durationMs: 5200,
-    priority: 7
+    priority: 9
   },
   guidedSurgeBlocked: {
     text: FIRST_RUN_GUIDANCE_COPY.guidedSurgeBlocked,
     durationMs: 5400,
-    priority: 8
+    priority: 10
   },
   guidedSurgeActive: {
     text: FIRST_RUN_GUIDANCE_COPY.guidedSurgeActive,
     durationMs: 6200,
-    priority: 9,
+    priority: 11,
     variant: 'major'
   }
 });
@@ -119,6 +177,7 @@ export class GameplayHintLayer {
     this._active = false;
     this._timer = null;
     this._shownKeys = new Set();
+    this._lastShownAt = new Map();
     this._createDOM();
   }
 
@@ -166,6 +225,12 @@ export class GameplayHintLayer {
           font-size: 13px;
           letter-spacing: 0.1em;
         }
+        .atoma-hint-toast--warning {
+          border-color: rgba(255, 122, 184, 0.34);
+          background: rgba(22, 10, 16, 0.90);
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.40), 0 0 18px rgba(255, 61, 142, 0.16);
+          color: rgba(255, 216, 230, 0.96);
+        }
       `;
       document.head.appendChild(style);
     }
@@ -185,11 +250,21 @@ export class GameplayHintLayer {
     const fingerprint = typeof options?.fingerprint === 'string' && options.fingerprint.trim()
       ? options.fingerprint.trim()
       : key;
-    if (this._shownKeys.has(fingerprint)) return false;
     const config = HINTS[key];
     if (!config) return false;
 
+    const allowRepeat = options?.allowRepeat === true;
+    const cooldownMs = Math.max(0, Number(options?.cooldownMs) || 0);
+    const now = typeof performance !== 'undefined' && typeof performance.now === 'function'
+      ? performance.now()
+      : Date.now();
+    const lastShownAt = this._lastShownAt.get(fingerprint) || 0;
+
+    if (!allowRepeat && this._shownKeys.has(fingerprint)) return false;
+    if (allowRepeat && cooldownMs > 0 && (now - lastShownAt) < cooldownMs) return false;
+
     this._shownKeys.add(fingerprint);
+    this._lastShownAt.set(fingerprint, now);
     const text = typeof config.text === 'function'
       ? config.text(context)
       : config.text;
@@ -211,6 +286,8 @@ export class GameplayHintLayer {
     toast.className = 'atoma-hint-toast';
     if (variant === 'major') {
       toast.classList.add('atoma-hint-toast--major');
+    } else if (variant === 'warning') {
+      toast.classList.add('atoma-hint-toast--warning');
     }
     toast.textContent = text;
     this._container.appendChild(toast);
@@ -230,6 +307,7 @@ export class GameplayHintLayer {
   /** Reset shown state (e.g. on new game / world switch). */
   reset() {
     this._shownKeys.clear();
+    this._lastShownAt.clear();
     if (this._container) this._container.innerHTML = '';
     if (this._timer) {
       clearTimeout(this._timer);

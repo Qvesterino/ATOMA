@@ -9,6 +9,7 @@ import {
 import { VisualNetworkTimeElasticity_v1, SCORE_DIRECTION } from '../VisualNetworkTimeElasticity_v1.js';
 import { AtomaLeaderboard } from '../AtomaLeaderboard.js';
 import { LinkCollapseSystem } from '../LinkCollapseSystem.js';
+import { NetworkTensionRuntime_v1 } from '../NetworkTensionRuntime_v1.js';
 import { getDefaultMetricThresholds } from '../src/metrics/MetricTierClassifier.js';
 import { CompetitionDominanceAdapter_v1 } from '../CompetitionDominanceAdapter_v1.js';
 import { applyDominancePulseModulation } from '../harmony/HarmonyStabilization.js';
@@ -121,8 +122,30 @@ function setEligibleScoreSnapshot(score, synergy, overrides = {}) {
     nodeCount: 4,
     linkCount: 3,
     avgLinkQuality: 0.7,
+    criticalHotspotActive: false,
+    fragileChokepointActive: false,
+    regionalTension: 0,
+    maxChokepointScore: 0,
+    tensionReleaseThreshold: 0.55,
+    chokepointReleaseThreshold: 0.68,
     ...overrides
   });
+}
+
+function createTensionLink(source, target, quality = 0.28) {
+  return {
+    id: `${source.userData.nodeId}-${target.userData.nodeId}`,
+    active: true,
+    source,
+    target,
+    userData: {
+      quality
+    }
+  };
+}
+
+function createTensionLinkingSystem(links) {
+  return { links };
 }
 
 test('Network Time rewinds after 5s of canonical global.synergy.high sustain', () => {
@@ -601,10 +624,56 @@ test('Score state exposes rewind gate diagnostics from the raw network snapshot'
   assertNear(state.avgLinkQuality, 0.52);
 });
 
+test('Score gate blocks rewind while a critical hotspot is active', () => {
+  const threshold = 0.55;
+  const score = new VisualNetworkTimeElasticity_v1();
+
+  score.setNetworkMetricsSnapshot({
+    networkSynergy: threshold + 0.08,
+    nodeCount: 5,
+    linkCount: 4,
+    avgLinkQuality: 0.74,
+    criticalHotspotActive: true,
+    regionalTension: 0.82,
+    tensionReleaseThreshold: 0.54
+  });
+
+  const state = score.getScoreState();
+  assert.strictEqual(state.rewindEligible, false);
+  assert.strictEqual(state.rewindBlockReason, 'tension-critical');
+});
+
+test('Critical tension can kick rewind back to forward after the grace window', () => {
+  const threshold = 0.55;
+  const score = new VisualNetworkTimeElasticity_v1({
+    sustainDuration: 0.5,
+    synergyQualityScale: 0
+  });
+
+  setEligibleScoreSnapshot(score, threshold + 0.05);
+  score.update(0.3, 0.3);
+  score.update(0.3, 0.6);
+  score.update(0.3, 0.9);
+  assert.strictEqual(score.getDirection(), SCORE_DIRECTION.REWIND);
+
+  setEligibleScoreSnapshot(score, threshold + 0.05, {
+    criticalHotspotActive: true,
+    regionalTension: 0.8,
+    tensionReleaseThreshold: 0.54
+  });
+  score.update(0.5, 1.4);
+  assert.strictEqual(score.getDirection(), SCORE_DIRECTION.REWIND);
+
+  score.update(1.8, 3.2);
+  assert.strictEqual(score.getDirection(), SCORE_DIRECTION.FORWARD);
+  assert.strictEqual(score.getScoreState().rewindBlockReason, 'tension-critical');
+});
+
 test('main wires the full raw network snapshot into the score authority', () => {
   const mainSource = fs.readFileSync(new URL('../main.js', import.meta.url), 'utf8');
 
-  assert(mainSource.includes('this.visualNetworkTimeElasticity.setNetworkMetricsSnapshot(rawNetworkMetrics || {});'));
+  assert(mainSource.includes('const tensionScoreGate = this.networkTensionRuntime_v1?.getScoreGateSnapshot?.() || null;'));
+  assert(mainSource.includes('this.visualNetworkTimeElasticity.setNetworkMetricsSnapshot(scoreMetricsSnapshot || {});'));
   assert(!mainSource.includes('this.visualNetworkTimeElasticity.setAverageSynergy(avgSynergy);'));
 });
 
@@ -612,10 +681,187 @@ test('HUD exposes minimal rewind lock feedback strings', () => {
   const hudSource = fs.readFileSync(new URL('../HUD/CoreMetricsHUD.js', import.meta.url), 'utf8');
 
   assert(hudSource.includes('sustain-lock-reason'));
-  assert(hudSource.includes('Need 4+ nodes'));
-  assert(hudSource.includes('Need 3+ links'));
-  assert(hudSource.includes('Link quality low'));
-  assert(hudSource.includes('Synergy too low'));
+  assert(hudSource.includes('The network needs more anchors'));
+  assert(hudSource.includes('The network needs more bonds'));
+  assert(hudSource.includes('The current bonds are too weak'));
+  assert(hudSource.includes('The field is not coherent enough'));
+  assert(hudSource.includes('Relieve the hotspot'));
+  assert(hudSource.includes('brittle route'));
+});
+
+test('NetworkTensionRuntime is deterministic for a fixed graph and never writes direct synergy impulses', () => {
+  const sourceA = createTestNode('ta', 'quantum', {
+    synergy: 0.5,
+    harmony: 0.46,
+    stability: 0.42,
+    corruption: 0.42,
+    loadPressure: 0.78
+  });
+  const targetA = createTestNode('tb', 'control', {
+    synergy: 0.48,
+    harmony: 0.44,
+    stability: 0.4,
+    corruption: 0.38,
+    loadPressure: 0.72
+  });
+  const sideA = createTestNode('tc', 'storage', {
+    synergy: 0.45,
+    harmony: 0.54,
+    stability: 0.6,
+    corruption: 0.18,
+    loadPressure: 0.26
+  });
+
+  const sourceB = createTestNode('ua', 'quantum', {
+    synergy: 0.5,
+    harmony: 0.46,
+    stability: 0.42,
+    corruption: 0.42,
+    loadPressure: 0.78
+  });
+  const targetB = createTestNode('ub', 'control', {
+    synergy: 0.48,
+    harmony: 0.44,
+    stability: 0.4,
+    corruption: 0.38,
+    loadPressure: 0.72
+  });
+  const sideB = createTestNode('uc', 'storage', {
+    synergy: 0.45,
+    harmony: 0.54,
+    stability: 0.6,
+    corruption: 0.18,
+    loadPressure: 0.26
+  });
+
+  const linksA = [
+    createTensionLink(sourceA, targetA, 0.22),
+    createTensionLink(targetA, sideA, 0.7)
+  ];
+  const linksB = [
+    createTensionLink(sourceB, targetB, 0.22),
+    createTensionLink(targetB, sideB, 0.7)
+  ];
+
+  const runtimeA = new NetworkTensionRuntime_v1({
+    linkSystem: createTensionLinkingSystem(linksA),
+    getWorldId: () => 'quantum'
+  });
+  const runtimeB = new NetworkTensionRuntime_v1({
+    linkSystem: createTensionLinkingSystem(linksB),
+    getWorldId: () => 'quantum'
+  });
+
+  runtimeA.update(0, 0);
+  runtimeB.update(0, 0);
+
+  assert.deepStrictEqual(linksA[0].userData.networkTension, linksB[0].userData.networkTension);
+
+  const tensionSource = fs.readFileSync(new URL('../NetworkTensionRuntime_v1.js', import.meta.url), 'utf8');
+  assert(!tensionSource.includes('synergy:'), 'NetworkTensionRuntime should not write direct synergy impulses');
+});
+
+test('NetworkTensionRuntime reinforce reduces corridor strain and enforces cooldown', () => {
+  const source = createTestNode('ra', 'quantum', {
+    synergy: 0.52,
+    harmony: 0.4,
+    stability: 0.36,
+    corruption: 0.44,
+    loadPressure: 0.8
+  });
+  const target = createTestNode('rb', 'control', {
+    synergy: 0.5,
+    harmony: 0.38,
+    stability: 0.34,
+    corruption: 0.42,
+    loadPressure: 0.76
+  });
+  const branch = createTestNode('rc', 'storage', {
+    synergy: 0.44,
+    harmony: 0.58,
+    stability: 0.62,
+    corruption: 0.12,
+    loadPressure: 0.22
+  });
+  const links = [
+    createTensionLink(source, target, 0.18),
+    createTensionLink(target, branch, 0.68)
+  ];
+
+  const runtime = new NetworkTensionRuntime_v1({
+    linkSystem: createTensionLinkingSystem(links),
+    getWorldId: () => 'desert'
+  });
+
+  runtime.update(0.1, 0);
+  const beforeStrain = links[0].userData.networkTension.strain;
+  const reinforce = runtime.tryReinforceCorridor(source, target);
+  assert.strictEqual(reinforce.applied, true);
+
+  runtime.update(0.1, 0.1);
+  const afterStrain = links[0].userData.networkTension.strain;
+  assert(afterStrain < beforeStrain, 'reinforce should reduce strain on the corridor');
+
+  const secondReinforce = runtime.tryReinforceCorridor(source, target);
+  assert.strictEqual(secondReinforce.applied, false);
+  assert.strictEqual(secondReinforce.reason, 'cooldown');
+});
+
+test('NetworkTensionRuntime reroute relief triggers only on a real hotspot-adjacent path', () => {
+  const a = createTestNode('xa', 'quantum', {
+    synergy: 0.52,
+    harmony: 0.4,
+    stability: 0.34,
+    corruption: 0.46,
+    loadPressure: 0.82
+  });
+  const b = createTestNode('xb', 'control', {
+    synergy: 0.5,
+    harmony: 0.38,
+    stability: 0.35,
+    corruption: 0.42,
+    loadPressure: 0.78
+  });
+  const c = createTestNode('xc', 'storage', {
+    synergy: 0.47,
+    harmony: 0.56,
+    stability: 0.6,
+    corruption: 0.16,
+    loadPressure: 0.22
+  });
+  const d = createTestNode('xd', 'prime', {
+    synergy: 0.48,
+    harmony: 0.58,
+    stability: 0.62,
+    corruption: 0.14,
+    loadPressure: 0.2
+  });
+  const e = createTestNode('xe', 'sigma', {
+    synergy: 0.43,
+    harmony: 0.55,
+    stability: 0.61,
+    corruption: 0.18,
+    loadPressure: 0.24
+  });
+
+  const hotspotLink = createTensionLink(a, b, 0.18);
+  const supportLink = createTensionLink(b, c, 0.7);
+  const links = [hotspotLink, supportLink];
+  const runtime = new NetworkTensionRuntime_v1({
+    linkSystem: createTensionLinkingSystem(links),
+    getWorldId: () => 'quantum'
+  });
+
+  runtime.update(0.1, 0);
+
+  const rerouteLink = createTensionLink(a, d, 0.66);
+  links.push(rerouteLink);
+  const reroute = runtime.noteLinkCreated(rerouteLink);
+  assert.strictEqual(reroute.relieved, true);
+
+  const unrelatedLink = createTensionLink(c, e, 0.64);
+  const noRelief = runtime.noteLinkCreated(unrelatedLink);
+  assert.strictEqual(noRelief.relieved, false);
 });
 
 test('Menu release metadata exposes only Quantum and Dream Desert publicly', () => {
@@ -1248,6 +1494,72 @@ test('LinkCollapseSystem recovers and resets progress when metrics return to nor
     assert.strictEqual(collapseRequests.length, 0);
     assert.strictEqual(collapseSystem.getCollapseState(link).eligibleSince, null);
     assert.strictEqual(collapseSystem.getCollapseProgress(link), 0);
+  } finally {
+    Date.now = originalDateNow;
+  }
+});
+
+test('LinkCollapseSystem accelerates collapse stress when network tension risk is high', () => {
+  const originalDateNow = Date.now;
+  let now = 5800;
+  Date.now = () => now;
+
+  try {
+    const sourceA = { userData: { nodeId: 'm' } };
+    const targetA = { userData: { nodeId: 'n' } };
+    const sourceB = { userData: { nodeId: 'o' } };
+    const targetB = { userData: { nodeId: 'p' } };
+    const plainLink = {
+      id: 'link-m-n',
+      active: true,
+      source: sourceA,
+      target: targetA,
+      userData: { metrics: { corruption: 0.9, stability: 0.6, loadPressure: 0.2 } }
+    };
+    const tensionLink = {
+      id: 'link-o-p',
+      active: true,
+      source: sourceB,
+      target: targetB,
+      userData: {
+        metrics: { corruption: 0.9, stability: 0.6, loadPressure: 0.2 },
+        networkTension: { overloadRisk: 1, chokepointScore: 1 }
+      }
+    };
+
+    const plainSystem = new LinkCollapseSystem({
+      links: [plainLink],
+      onLinkCreated() {},
+      onLinkUpdated() {},
+      onLinkRemoved() {},
+      enqueueCollapseRequest() {}
+    }, null, null, {
+      holdDurationMs: 1000,
+      enableVisualFeedback: false,
+      globalMetricsEnabled: false
+    });
+    const tensionSystem = new LinkCollapseSystem({
+      links: [tensionLink],
+      onLinkCreated() {},
+      onLinkUpdated() {},
+      onLinkRemoved() {},
+      enqueueCollapseRequest() {}
+    }, null, null, {
+      holdDurationMs: 1000,
+      enableVisualFeedback: false,
+      globalMetricsEnabled: false
+    });
+
+    plainSystem.onLinkMetricsUpdated(plainLink, { corruption: 0.9, stability: 0.6 }, { silent: true });
+    tensionSystem.onLinkMetricsUpdated(tensionLink, { corruption: 0.9, stability: 0.6 }, { silent: true });
+    now += 600;
+    plainSystem.onLinkMetricsUpdated(plainLink, { corruption: 0.9, stability: 0.6 }, { silent: true });
+    tensionSystem.onLinkMetricsUpdated(tensionLink, { corruption: 0.9, stability: 0.6 }, { silent: true });
+
+    assert(
+      tensionSystem.getCollapseProgress(tensionLink) > plainSystem.getCollapseProgress(plainLink),
+      'tension-biased links should accumulate collapse progress faster'
+    );
   } finally {
     Date.now = originalDateNow;
   }

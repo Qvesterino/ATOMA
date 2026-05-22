@@ -248,6 +248,7 @@ export class CoreMetricsHUD {
           display: flex;
           align-items: baseline;
           gap: 8px;
+          flex-wrap: wrap;
         }
         #core-metrics-hud .network-time-label {
           font-size: 8px;
@@ -325,6 +326,21 @@ export class CoreMetricsHUD {
         }
         #core-metrics-hud .onboarding-objective.visible {
           display: block;
+        }
+        #core-metrics-hud .run-identity-tag {
+          border-color: rgba(108, 234, 255, 0.08);
+          background: rgba(8, 18, 24, 0.24);
+        }
+        #core-metrics-hud .run-identity-tag.visible .onboarding-objective-title {
+          color: rgba(155, 223, 231, 0.66);
+        }
+        #core-metrics-hud .run-identity-tag.visible .onboarding-objective-detail {
+          color: rgba(185, 226, 232, 0.54);
+        }
+        #core-metrics-hud .onboarding-objective.visible:not(.run-identity-tag) {
+          border-color: rgba(119, 243, 255, 0.16);
+          background: rgba(10, 24, 34, 0.40);
+          box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
         }
         #core-metrics-hud .onboarding-objective-title {
           font-size: 6px;
@@ -1065,30 +1081,44 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
     const stateKey = buildState?.key || 'DEFAULT';
     const copy = {
       'need-more-nodes': {
-        VOLATILE_SURGE: 'Your surge outran its anchor count',
-        STABILIZED_LATTICE: 'The lattice is clean, but still too small',
-        FRAGILE_EXPANSION: 'The lattice is still too thin to hold',
-        COLLAPSE_DRIFT: 'Pressure is stripping away your anchors',
+        VOLATILE_SURGE: 'Surge outran its anchors',
+        STABILIZED_LATTICE: 'The lattice is still too small',
+        FRAGILE_EXPANSION: 'The lattice is too thin to hold',
+        COLLAPSE_DRIFT: 'Pressure is stripping your anchors',
         DEFAULT: 'The network needs more anchors'
       },
       'need-more-links': {
-        VOLATILE_SURGE: 'Momentum is rising, but it lacks enough routes',
-        STABILIZED_LATTICE: 'The lattice is steady, but still needs more bonds',
-        FRAGILE_EXPANSION: 'Expansion is outrunning the bond network',
-        COLLAPSE_DRIFT: 'The surge has no safe routes through the pressure',
+        VOLATILE_SURGE: 'Momentum lacks enough routes',
+        STABILIZED_LATTICE: 'The lattice still needs more bonds',
+        FRAGILE_EXPANSION: 'Expansion outran the bond network',
+        COLLAPSE_DRIFT: 'The surge has no safe routes',
         DEFAULT: 'The network needs more bonds'
       },
       'quality-too-low': {
-        VOLATILE_SURGE: 'Volatile bonds are poisoning the hold',
-        STABILIZED_LATTICE: 'The lattice is calm, but its bonds are not clean enough',
+        VOLATILE_SURGE: 'Dirty bonds are poisoning the hold',
+        STABILIZED_LATTICE: 'The bonds are not clean enough',
         FRAGILE_EXPANSION: 'Expansion outran bond quality',
-        COLLAPSE_DRIFT: 'Corruption is eating through bond quality',
+        COLLAPSE_DRIFT: 'Corruption is eating bond quality',
         DEFAULT: 'The current bonds are too weak'
       },
+      'tension-critical': {
+        VOLATILE_SURGE: 'The lattice is overheating into a hotspot',
+        STABILIZED_LATTICE: 'A regional hotspot is blocking the hold',
+        FRAGILE_EXPANSION: 'Expansion created an unstable hotspot corridor',
+        COLLAPSE_DRIFT: 'Pressure is burning through a local corridor',
+        DEFAULT: 'A hotspot is destabilizing the network'
+      },
+      'chokepoint-fragile': {
+        VOLATILE_SURGE: 'Too much surge is riding one fragile corridor',
+        STABILIZED_LATTICE: 'The hold depends on one weak chokepoint',
+        FRAGILE_EXPANSION: 'Your routes are bottlenecked through a brittle lane',
+        COLLAPSE_DRIFT: 'Pressure is collapsing into one fragile path',
+        DEFAULT: 'A chokepoint is too fragile to hold'
+      },
       'synergy-too-low': {
-        VOLATILE_SURGE: 'The surge is dirty, but still not coherent enough',
-        STABILIZED_LATTICE: 'The lattice is safe, but too quiet to surge',
-        FRAGILE_EXPANSION: 'The network is spreading without gaining coherence',
+        VOLATILE_SURGE: 'The surge is dirty and still too weak',
+        STABILIZED_LATTICE: 'The lattice is safe, but too quiet',
+        FRAGILE_EXPANSION: 'The network is spreading without coherence',
         COLLAPSE_DRIFT: 'Pressure is drowning out coherence',
         DEFAULT: 'The field is not coherent enough'
       }
@@ -1100,29 +1130,43 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
     const stateKey = buildState?.key || 'DEFAULT';
     const copy = {
       'need-more-nodes': {
-        VOLATILE_SURGE: 'Keep the momentum, but add stabilizing anchors before corruption turns the surge against you.',
-        STABILIZED_LATTICE: 'Expand with one or two safe anchors before you try to hold the whole field.',
-        FRAGILE_EXPANSION: 'Add anchors first, then reinforce the strongest side of the lattice.',
+        VOLATILE_SURGE: 'Keep momentum, but add cleaner anchors before corruption turns the surge against you.',
+        STABILIZED_LATTICE: 'Add one or two safe anchors before you try to hold the whole field.',
+        FRAGILE_EXPANSION: 'Add anchors first, then reinforce the strongest side.',
         COLLAPSE_DRIFT: 'Recover your anchor base with cleaner storage, control, or prime nodes.',
         DEFAULT: 'Activate more nodes so the surge can hold.'
       },
       'need-more-links': {
         VOLATILE_SURGE: 'Route the surge through more bonds before you push harder.',
-        STABILIZED_LATTICE: 'Connect your clean anchors into a tighter lattice and the surge will have a path.',
+        STABILIZED_LATTICE: 'Tighten the clean lattice and the surge will have a path.',
         FRAGILE_EXPANSION: 'Consolidate around your strongest anchors, then expand again.',
         COLLAPSE_DRIFT: 'Rebuild safe routes before pressure cuts the network apart.',
         DEFAULT: 'Create more links to give stabilization a path.'
       },
       'quality-too-low': {
         VOLATILE_SURGE: 'Pivot into cleaner control, storage, or prime bonds before the surge slips.',
-        STABILIZED_LATTICE: 'Cleaner compatibility converts safe structure into reliable rewind uptime.',
+        STABILIZED_LATTICE: 'Cleaner compatibility turns safe structure into reliable rewind uptime.',
         FRAGILE_EXPANSION: 'Stop adding weak bonds. Improve the lattice you already have.',
-        COLLAPSE_DRIFT: 'Bleed pressure out of the network with cleaner pairings and fewer dirty links.',
+        COLLAPSE_DRIFT: 'Bleed pressure out with cleaner pairings and fewer dirty links.',
         DEFAULT: 'Stronger category matches create cleaner, stabilizing bonds.'
+      },
+      'tension-critical': {
+        VOLATILE_SURGE: 'Bleed pressure out of the hottest corridor before Quantum turns the surge against you.',
+        STABILIZED_LATTICE: 'Reinforce or reroute the hotspot before you try to hold rewind again.',
+        FRAGILE_EXPANSION: 'Stop widening. Relieve the local hotspot with a cleaner alternate route.',
+        COLLAPSE_DRIFT: 'Pressure is pooling in one corridor. Stabilize that side before you push wider.',
+        DEFAULT: 'Relieve the hotspot before you chase stabilization.'
+      },
+      'chokepoint-fragile': {
+        VOLATILE_SURGE: 'One corridor is carrying too much. Build a safer alternate lane now.',
+        STABILIZED_LATTICE: 'Reinforce the weak corridor or route around it before the hold opens.',
+        FRAGILE_EXPANSION: 'Your lattice needs a second path through the pressure zone.',
+        COLLAPSE_DRIFT: 'Pressure is cutting into a brittle route. Detour around the chokepoint first.',
+        DEFAULT: 'Create a safer route around the chokepoint.'
       },
       'synergy-too-low': {
         VOLATILE_SURGE: 'One more bold connection could spark the surge, but do not leave the network dirty for long.',
-        STABILIZED_LATTICE: 'The lattice is ready. Add a riskier bond to wake the field without breaking it.',
+        STABILIZED_LATTICE: 'Add one riskier bond to wake the field without breaking it.',
         FRAGILE_EXPANSION: 'Either commit to bolder bonds or pause and tighten the lattice first.',
         COLLAPSE_DRIFT: 'Clear pressure first. A drowned network cannot build coherence.',
         DEFAULT: 'Raise synergy to open a stabilization surge.'
@@ -1152,6 +1196,10 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
         return 'Build more bonds to carry a stabilization surge.';
       case 'quality-too-low':
         return 'Stronger bonds reduce collapse pressure.';
+      case 'tension-critical':
+        return 'Relieve the hotspot before rewind can hold.';
+      case 'chokepoint-fragile':
+        return 'One brittle route is still carrying too much pressure.';
       case 'synergy-too-low':
         return 'Coherence opens the stabilization window.';
       default:

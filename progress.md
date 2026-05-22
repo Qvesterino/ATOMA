@@ -111,6 +111,50 @@ Original prompt: tak jako composite glyphy mali lietať po orbite nodov ako Glyp
   - manual feel pass for package differentiation (`surge_thread` vs `pivot_covenant` vs `lattice_keeper`)
   - optional visual polish on the run identity overlay if we want a more bespoke start panel later
 
+## 2026-05-22 — Network Tension Runtime v1
+- Added `NetworkTensionRuntime_v1.js` as a `10Hz` network-topology sim layer with:
+  - link-local `userData.networkTension` snapshots (`flow`, `strain`, `chokepointScore`, `overloadRisk`, `hotspotWeight`, reinforce/relief timestamps, reroute candidate flag)
+  - world-tuned `quantum` / `desert` profiles
+  - score-gate snapshot output for `REWIND`
+  - reinforce / reroute helper hooks
+  - semantic events for hotspot/chokepoint/high-tension readability
+- `main.js`
+  - now initializes `NetworkTensionRuntime_v1`
+  - scheduler-registers it on `simulation.networkTensionRuntime_v1`
+  - merges its score-gate snapshot into `VisualNetworkTimeElasticity`
+  - exposes `window.__ATOMA_TENSION__()`
+- `VisualNetworkTimeElasticity_v1.js`
+  - gained `tension-critical` and `chokepoint-fragile` rewind block reasons
+  - now honors critical hotspot / chokepoint gating
+  - supports a short tension grace window during `REWIND` before falling back to `FORWARD`
+- `NodeLinkingSystem.js`
+  - clicking an already-linked primary pair now reinforces the corridor instead of toggling removal when tension runtime is active
+  - new links can be tagged as reroute relief through the tension runtime heuristic
+- `LinkCollapseSystem.js`
+  - now accelerates collapse stress from `networkTension.overloadRisk` and `networkTension.chokepointScore`
+- HUD / guidance surfaces updated for the new tension block reasons:
+  - `HUD/CoreMetricsHUD.js`
+  - `HUD/GameplayHintLayer.js`
+  - `HUD/FirstRunGuidanceDirector.js`
+- Verification:
+  - `node --check NetworkTensionRuntime_v1.js`
+  - `node --check VisualNetworkTimeElasticity_v1.js`
+  - `node --check LinkCollapseSystem.js`
+  - `node --check NodeLinkingSystem.js`
+  - `node --check main.js`
+  - `node --check tests/GameplayLoopChecks.js`
+  - `node tests/GameplayLoopChecks.js`
+- Test status:
+  - all new tension / score / collapse tests passed
+  - full suite still has pre-existing unrelated failures in:
+    - runtime-truth doc assertion (`legacy/static fallback` copy expectation)
+    - `Balance-first DNA offsets only lift storage, input, and control baselines`
+- Live smoke note:
+  - Playwright boot confirms the app reaches the current `127.0.0.1:5173` flow and exposes `window.__ATOMA_TENSION__`
+  - the new run-identity overlay blocks a simple headless auto-advance path, so gameplay-level browser smoke needs either:
+    - a dedicated run-identity automation path
+    - or a smaller overlay bypass helper for deterministic QA
+
 ## 2026-04-04
 - `WaveParticleEmitter_v1` was moved toward direct semantic metric-tier listeners for node-driven particle emission.
 - The emitter now binds to `node.synergy.*`, `node.harmony.*`, `node.stability.*`, `node.corruption.*`, and `node.loadPressure.*` via `semanticBus` and keeps the wave snapshot path only as fallback when no tier listeners are active.
@@ -552,6 +596,61 @@ ode --check after the change.
 - Next useful follow-up:
   - do one manual listen pass in Quantum and Dream Desert to tune loudness and cadence by ear
   - if the new language still feels too subtle, next wave should be authored signature stingers or a light music layer, not more generic cue proliferation
+
+## 2026-05-22 — UX Polish Pass v1
+- Landed presentation-first UX hardening across the release slice without changing gameplay authority or adding a hard fail state.
+- `MainMenu` and `PauseMenu` now give explicit per-setting feedback:
+  - `APPLIED`
+  - `PENDING`
+  - `TRANSITIONING`
+- Async runtime visual toggles now visibly acknowledge processing instead of silently flipping state.
+- `AtomaLoadingOverlay` now supports a short non-blocking cue mode, and pause resume now gets a deliberate re-entry beat instead of an abrupt cut.
+- `CoreMetricsHUD` priority was tightened so `Network Time` stays primary, build state reads above run identity, and onboarding objective no longer fights the meta tag as hard.
+- `GameplayHintLayer` + `main.js` now provide one cooldown-gated soft-failure family for:
+  - rewind blocked / rising pressure
+  - lost hold after rewind drift
+  - critical node failure moments
+- Victory overlay aftermath copy was tightened and CTA labels now read:
+  - `Stabilize Again`
+  - `View Chronicle`
+- Verification:
+  - `node --check MainMenu.js`
+  - `node --check PauseMenu.js`
+  - `node --check AtomaLoadingOverlay.js`
+  - `node --check AtomaBoot.js`
+  - `node --check HUD/CoreMetricsHUD.js`
+  - `node --check HUD/GameplayHintLayer.js`
+  - `node --check main.js`
+  - live smoke on `http://127.0.0.1:5173/`
+- Smoke artifacts:
+  - `output/web-game/ux-polish-pass/`
+- TODO for next agent:
+  - do one short manual visual pass on HUD density in live play
+  - if still needed, the next pass should be spacing / hierarchy compression only, not more new UX logic
+
+## 2026-05-22 — Boot Documentation Realignment Pass
+- Created the missing canonical startup docs:
+  - `ATOMA_OVERVIEW.md`
+  - `ATOMA_CORE_CONTEXT.md`
+  - `CORE_PRINCIPLES.md`
+  - `ATOMA_CONSTITUTION.md`
+- Refactored the startup spine so `AGENTS.md` now points to a real existing documentation stack instead of a partly imaginary target model.
+- `IDENTITY.md` is now a compact startup snapshot, not a long technical dump.
+- `MEMORY.md` was reduced back to durable facts, invariants, and runtime lessons; the giant VFX catalog was removed from resident memory.
+- `BOOT.md` is now a practical boot/smoke manual only.
+- `SOUL.md` now explicitly supports ATOMA's AI-native, agent-evolvable direction as mission framing.
+- Startup docs now clearly encode:
+  - stabilizer gameplay loop
+  - release-priority worlds `Quantum Island` / `Dream Desert`
+  - first-run guidance
+  - run identity
+  - signature setpieces
+  - audio-reactive identity
+  - adaptive performance discipline
+  - UX polish / soft-failure presentation
+- TODO for next agent:
+  - if needed, create a separate dedicated audit/reference doc for VFX catalogs and event maps
+  - keep startup docs clean; do not re-bloat `MEMORY.md` or `IDENTITY.md`
 
 ## 2026-04-17
 - QuantumIsland cleanup: disabled the map-owned reference plane for `QuantumIsland` and stopped creating the local mist plane so the square ground-sheet artifacts disappear from this world.

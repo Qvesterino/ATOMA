@@ -84,6 +84,8 @@ export class LinkCollapseSystem {
       globalCorruptionAccelerator: config.globalCorruptionAccelerator ?? 1.5,   // stress speed multiplier at max global corruption
       globalStabilityAccelerator: config.globalStabilityAccelerator ?? 1.4,     // stress speed multiplier at min global stability
       globalMetricsEnabled: config.globalMetricsEnabled ?? true,                 // set false to disable global influence
+      tensionOverloadAccelerator: config.tensionOverloadAccelerator ?? 1.35,
+      tensionChokepointAccelerator: config.tensionChokepointAccelerator ?? 1.25,
       
       // Enable visual feedback hooks
       enableVisualFeedback: config.enableVisualFeedback ?? true,
@@ -457,6 +459,7 @@ export class LinkCollapseSystem {
 
     // Global stress multiplier — accelerates collapse under network-wide pressure
     const globalMultiplier = this._computeGlobalStressMultiplier();
+    const tensionMultiplier = this._computeTensionStressMultiplier(link);
 
     if (isEligible) {
       if (state.eligibleSince == null) {
@@ -464,7 +467,7 @@ export class LinkCollapseSystem {
       }
       const elapsed = Math.max(0, now - state.eligibleSince);
       // Base accumulation + global acceleration
-      const effectiveDuration = this.config.holdDurationMs / globalMultiplier;
+      const effectiveDuration = this.config.holdDurationMs / (globalMultiplier * tensionMultiplier);
       state.stressAccumulation = this._clamp01(elapsed / effectiveDuration);
       state.lastStressTime = now;
     } else {
@@ -541,6 +544,19 @@ export class LinkCollapseSystem {
         ? 'corruption-high'
         : (stabilityLow ? 'stability-low' : null),
     };
+  }
+
+  _computeTensionStressMultiplier(link) {
+    const tension = link?.userData?.networkTension;
+    if (!tension || typeof tension !== 'object') {
+      return 1;
+    }
+
+    const overloadRisk = this._clamp01(tension.overloadRisk);
+    const chokepointScore = this._clamp01(tension.chokepointScore);
+    const overloadFactor = 1 + (overloadRisk * (this.config.tensionOverloadAccelerator - 1));
+    const chokepointFactor = 1 + (chokepointScore * (this.config.tensionChokepointAccelerator - 1));
+    return overloadFactor * chokepointFactor;
   }
   
   /**

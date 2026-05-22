@@ -1092,6 +1092,7 @@ import { LinkAuraSystem_v1 } from './LEGACY/aura/LinkAuraSystem_v1.js';
 // ============================================================================
 // REMOVED: SynergyPulseVisuals_v1 — moved to LEGACY/april (2026-04-22)
 import { VisualNetworkTimeElasticity_v1, validateVisualNetworkTimeElasticity } from './VisualNetworkTimeElasticity_v1.js';
+import { NetworkTensionRuntime_v1 } from './NetworkTensionRuntime_v1.js';
 import { HarmonicResonanceCoupling_v1 } from './harmony/HarmonicResonanceCoupling_v1.js';
 import { HarmonicHubAuraSystem_Session126 } from './harmony/HarmonicHubAuraSystem_Session126.js';
 // REMOVED: HarmonicInfluencePropagationSystem_Session127 — moved to LEGACY (2026-05-14)
@@ -4824,6 +4825,9 @@ class AtomaGame {
         this.frameScheduler.register('simulation', (dt) => {
             this.metricsRuntime_v1?.update?.(dt);
         }, 'simulation.metricsRuntime_v1');
+        this.frameScheduler.register('simulation', (dt) => {
+            this.networkTensionRuntime_v1?.update?.(dt, this.time);
+        }, 'simulation.networkTensionRuntime_v1');
         this.frameScheduler.register('simulation', () => {
             this._refreshAIHudReports?.();
         }, 'simulation.aiHudReports');
@@ -11309,6 +11313,28 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
   console.warn('[main.js] MetricsRuntime_v1 failed:', err);
 }
 
+        try {
+            this.networkTensionRuntime_v1 = new NetworkTensionRuntime_v1({
+                metricsRuntime: this.metricsRuntime_v1,
+                linkSystem: this.linkingSystem,
+                semanticBus: this.semanticBus,
+                getWorldId: () => this.currentMode || 'quantum',
+                getStandingWaveTrapSystem: () => this.standingWaveTrapSystem || this.standingWaveTrap || null
+            });
+            if (this.linkingSystem) {
+                this.linkingSystem.networkTensionRuntime = this.networkTensionRuntime_v1;
+            }
+            if (this.nodeLinkingSystem) {
+                this.nodeLinkingSystem.networkTensionRuntime = this.networkTensionRuntime_v1;
+            }
+            if (typeof window !== 'undefined') {
+                window.__ATOMA_TENSION__ = () => this.networkTensionRuntime_v1?.getDebugSnapshot?.() || null;
+            }
+            console.log('[main.js] NetworkTensionRuntime_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] NetworkTensionRuntime_v1 failed:', err);
+        }
+
         // ====================================================================
         // NETWORK STRESS AGGREGATOR — standalone stress runtime layer
         // ====================================================================
@@ -11904,7 +11930,11 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         if (this.visualNetworkTimeElasticity) {
             const rawNetworkMetrics = this.metricsRuntime_v1?.getRawNetworkMetrics?.() || null;
             const runIdentityMetrics = this._applyRunIdentityMetricsOverlay(rawNetworkMetrics || {});
-            this.visualNetworkTimeElasticity.setNetworkMetricsSnapshot(runIdentityMetrics || {});
+            const tensionScoreGate = this.networkTensionRuntime_v1?.getScoreGateSnapshot?.() || null;
+            const scoreMetricsSnapshot = tensionScoreGate
+                ? { ...(runIdentityMetrics || {}), ...tensionScoreGate }
+                : (runIdentityMetrics || {});
+            this.visualNetworkTimeElasticity.setNetworkMetricsSnapshot(scoreMetricsSnapshot || {});
             this.visualNetworkTimeElasticity.update(deltaTime, this.time);
             
             // Store visual time for use in animation systems
@@ -11934,6 +11964,18 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                 this.gameplayHintLayer.show('rewindBlock', {
                     world: this.currentMode,
                     reason: scoreState.rewindBlockReason
+                });
+            }
+            if (
+                dir === 'FORWARD'
+                && scoreState?.rewindBlockReason
+                && (scoreState?.networkTime ?? 0) >= 6
+            ) {
+                this._showSoftFailureHint('softFailurePressure', {
+                    reason: scoreState.rewindBlockReason,
+                }, {
+                    cooldownMs: 12000,
+                    fingerprint: `softFailurePressure:${scoreState.rewindBlockReason}`,
                 });
             }
         }
@@ -14418,6 +14460,21 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         this.runIdentityDirector?.handleMilestone?.(milestone, world);
     }
 
+    _showSoftFailureHint(key, context = {}, { cooldownMs = 9000, fingerprint = key } = {}) {
+        if (!this.gameplayHintLayer || this.firstRunGuidanceDirector?.isActive?.()) {
+            return false;
+        }
+
+        return this.gameplayHintLayer.show(key, {
+            world: this.currentMode,
+            ...context,
+        }, {
+            allowRepeat: true,
+            cooldownMs,
+            fingerprint,
+        });
+    }
+
     runCoreMetricsOverlayTick(deltaTime) {
         if (!this.coreMetricsOverlay) return;
         if (!this.hudVisibility?.panels?.metricsOverlay) return;
@@ -16200,6 +16257,13 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                     // Link severing can amplify local cascade energy
                     console.log(`[CascadingRupture] Node failure detected, ${linkIds.length} links severed`);
                 }
+                this._showSoftFailureHint('softFailureNodeFailure', {
+                    nodeId: node?.userData?.nodeId || node?.id || null,
+                    severedLinks: Array.isArray(linkIds) ? linkIds.length : 0,
+                }, {
+                    cooldownMs: 14000,
+                    fingerprint: 'softFailureNodeFailure',
+                });
             };
 
             // Connect rupture cascade callbacks to semantic events + cascade particles
@@ -17145,6 +17209,13 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
             if (this.coreMetricsOverlay?.temporalSystem?.setTimeScale) {
                 this.coreMetricsOverlay.temporalSystem.setTimeScale(1.0, false);
             }
+            this._showSoftFailureHint('softFailureDrift', {
+                combo: payload?.combo ?? 0,
+                networkTime: payload?.networkTime ?? null,
+            }, {
+                cooldownMs: 12000,
+                fingerprint: 'softFailureDrift',
+            });
         });
 
         // Wire score:dramaZone event — heartbeat audio when near win
@@ -17421,6 +17492,13 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                     gap: 12px;
                     justify-content: center;
                 }
+                .victory-aftermath {
+                    margin: -4px 0 18px;
+                    font-size: 10px;
+                    letter-spacing: 0.14em;
+                    text-transform: uppercase;
+                    color: rgba(200, 225, 245, 0.48);
+                }
                 .victory-button {
                     display: inline-block;
                     padding: 12px 36px;
@@ -17494,9 +17572,10 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                         <div class="victory-stat-value">${worldName} <span style="font-size:10px;color:rgba(200,225,245,0.4)">${scoreRule}</span></div>
                     </div>
                 </div>
+                <div class="victory-aftermath">Aftermath / the world held. Review the field, then choose the next rhythm.</div>
                 <div class="victory-buttons">
-                    <button class="victory-button" id="atoma-victory-play-again">Play Again</button>
-                    <button class="victory-button secondary" id="atoma-victory-leaderboard">Leaderboard</button>
+                    <button class="victory-button" id="atoma-victory-play-again">Stabilize Again</button>
+                    <button class="victory-button secondary" id="atoma-victory-leaderboard">View Chronicle</button>
                 </div>
             </div>
         `;

@@ -125,8 +125,8 @@ class AtomaBootController {
 
                 setPhase({
                     title: isResume ? 'RESUMING ATOMA' : 'INITIALIZING ATOMA',
-                    subtitle: 'Preparing the world shell and initial field state.',
-                    phase: 'INITIALIZING WORLD',
+                    subtitle: 'Preparing the world shell and gathering the first stable rhythm.',
+                    phase: 'WEAVING WORLD SHELL',
                     variant: isResume ? 'resume' : 'boot',
                 });
                 await yieldFrame();
@@ -139,7 +139,7 @@ class AtomaBootController {
 
                 setPhase({
                     title: isResume ? 'RESUMING ATOMA' : 'INITIALIZING ATOMA',
-                    subtitle: 'Binding runtime systems and visual authorities.',
+                    subtitle: 'Binding runtime systems, signals, and visual authorities.',
                     phase: 'BINDING SYSTEMS',
                     variant: isResume ? 'resume' : 'boot',
                 });
@@ -151,7 +151,7 @@ class AtomaBootController {
 
                 setPhase({
                     title: isResume ? 'RESUMING ATOMA' : 'INITIALIZING ATOMA',
-                    subtitle: 'Returning to the live simulation field.',
+                    subtitle: 'Returning to the live field with control and rhythm restored.',
                     phase: 'ENTERING SIMULATION',
                     variant: isResume ? 'resume' : 'boot',
                 });
@@ -194,6 +194,12 @@ class AtomaBootController {
 
         this.pauseMenu?.hide();
         this.game.resume?.();
+        this.loadingOverlay.cue({
+            title: 'RETURNING TO FIELD',
+            subtitle: 'Simulation authority restored. Pointer focus returns to the living network.',
+            phase: 'SIMULATION LIVE',
+            variant: 'resume',
+        }, { durationMs: 680 }).catch(() => {});
     }
 
     async _switchWorldFromPause({ worldId, selectedMapId, settings }) {

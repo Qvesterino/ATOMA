@@ -37,6 +37,7 @@ class AtomaLoadingOverlay {
         this._visibleSince = 0;
         this._isVisible = false;
         this._visibilityPromise = null;
+        this._cueNonce = 0;
         this._handleDocumentInput = (event) => {
             if (!this._isVisible) return;
             event.preventDefault();
@@ -79,6 +80,14 @@ class AtomaLoadingOverlay {
                 transition:
                     opacity ${FADE_DURATION_MS}ms ease,
                     visibility 0s linear 0s;
+            }
+            #${ROOT_ID}.is-cue {
+                pointer-events: none;
+                background:
+                    radial-gradient(circle at 50% 42%, rgba(0, 214, 255, 0.05), transparent 34%),
+                    linear-gradient(180deg, rgba(4, 8, 16, 0.34), rgba(2, 5, 11, 0.56));
+                backdrop-filter: blur(10px) saturate(1.02);
+                -webkit-backdrop-filter: blur(10px) saturate(1.02);
             }
             #${ROOT_ID} .atoma-loading-overlay__scanlines,
             #${ROOT_ID} .atoma-loading-overlay__lattice {
@@ -128,6 +137,17 @@ class AtomaLoadingOverlay {
                     inset 0 0 0 1px rgba(255,255,255,0.04);
                 overflow: hidden;
             }
+            #${ROOT_ID}.is-cue .atoma-loading-overlay__panel {
+                width: min(420px, calc(100vw - 64px));
+                padding: 22px 24px 18px;
+                border-color: rgba(120, 255, 255, 0.12);
+                background:
+                    linear-gradient(180deg, rgba(7, 14, 26, 0.72), rgba(5, 10, 20, 0.82)),
+                    radial-gradient(circle at 50% 0%, rgba(0, 212, 255, 0.05), transparent 38%);
+                box-shadow:
+                    0 20px 54px rgba(0, 0, 0, 0.26),
+                    inset 0 0 0 1px rgba(255,255,255,0.03);
+            }
             #${ROOT_ID} .atoma-loading-overlay__panel::before {
                 content: '';
                 position: absolute;
@@ -138,12 +158,19 @@ class AtomaLoadingOverlay {
                 animation: atoma-loading-shimmer 3.4s linear infinite;
                 opacity: 0.28;
             }
+            #${ROOT_ID}.is-cue .atoma-loading-overlay__panel::before {
+                opacity: 0.12;
+            }
             #${ROOT_ID} .atoma-loading-overlay__ritual {
                 position: relative;
                 height: 132px;
                 display: grid;
                 place-items: center;
                 margin-bottom: 18px;
+            }
+            #${ROOT_ID}.is-cue .atoma-loading-overlay__ritual {
+                height: 88px;
+                margin-bottom: 12px;
             }
             #${ROOT_ID} .atoma-loading-overlay__ring,
             #${ROOT_ID} .atoma-loading-overlay__ring::before,
@@ -210,11 +237,18 @@ class AtomaLoadingOverlay {
                 letter-spacing: 0.12em;
                 text-transform: uppercase;
             }
+            #${ROOT_ID}.is-cue .atoma-loading-overlay__title {
+                font-size: 22px;
+            }
             #${ROOT_ID} .atoma-loading-overlay__subtitle {
                 margin-top: 10px;
                 color: rgba(186, 210, 228, 0.72);
                 font: 500 13px/1.45 "Segoe UI", system-ui, sans-serif;
                 letter-spacing: 0.03em;
+            }
+            #${ROOT_ID}.is-cue .atoma-loading-overlay__subtitle {
+                margin-top: 8px;
+                font-size: 12px;
             }
             #${ROOT_ID} .atoma-loading-overlay__phase {
                 margin-top: 22px;
@@ -223,6 +257,9 @@ class AtomaLoadingOverlay {
                 letter-spacing: 0.24em;
                 text-transform: uppercase;
             }
+            #${ROOT_ID}.is-cue .atoma-loading-overlay__phase {
+                margin-top: 14px;
+            }
             #${ROOT_ID} .atoma-loading-overlay__track {
                 position: relative;
                 margin-top: 12px;
@@ -230,6 +267,9 @@ class AtomaLoadingOverlay {
                 border-radius: 999px;
                 background: rgba(138, 194, 214, 0.14);
                 overflow: hidden;
+            }
+            #${ROOT_ID}.is-cue .atoma-loading-overlay__track {
+                margin-top: 10px;
             }
             #${ROOT_ID} .atoma-loading-overlay__track::before {
                 content: '';
@@ -356,6 +396,7 @@ class AtomaLoadingOverlay {
         const token = Symbol('atoma-loading-overlay');
 
         this._ensureDom();
+        this.root.classList.remove('is-cue');
         this._tokens.push({ token, payload: normalized });
         this._applyPayload(normalized);
 
@@ -418,9 +459,40 @@ class AtomaLoadingOverlay {
         }
 
         this.root.classList.remove('is-visible');
+        this.root.classList.remove('is-cue');
         this.root.setAttribute('aria-hidden', 'true');
         this._isVisible = false;
         this._removeInputGuards();
+        await wait(FADE_DURATION_MS);
+        return true;
+    }
+
+    async cue(payload = {}, { durationMs = 760 } = {}) {
+        if (this._tokens.length > 0) {
+            return false;
+        }
+
+        this._ensureDom();
+        this._cueNonce += 1;
+        const cueNonce = this._cueNonce;
+
+        this.root.classList.add('is-cue');
+        this._applyPayload(normalizePayload(payload));
+        this._isVisible = true;
+        this._visibleSince = performance.now();
+        this.root.classList.add('is-visible');
+        this.root.setAttribute('aria-hidden', 'false');
+        await this._waitForPaint();
+        await wait(Math.max(280, Number(durationMs) || 760));
+
+        if (cueNonce !== this._cueNonce || this._tokens.length > 0) {
+            return false;
+        }
+
+        this.root.classList.remove('is-visible');
+        this.root.classList.remove('is-cue');
+        this.root.setAttribute('aria-hidden', 'true');
+        this._isVisible = false;
         await wait(FADE_DURATION_MS);
         return true;
     }

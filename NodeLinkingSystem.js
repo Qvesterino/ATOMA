@@ -475,6 +475,7 @@ export class NodeLinkingSystem {
     this._networkMetricsAggregateScheduled = false;
     this._networkMetricsAggregateNextAt = 0;
     this._networkMetricsAggregateMinIntervalMs = 120;
+    this.networkTensionRuntime = null;
     
     // Selection callbacks (for UISelectedHUD and other listeners)
     this.onSelectCallbacks = [];
@@ -2915,7 +2916,7 @@ export class NodeLinkingSystem {
   /**
    * Attempt to link two nodes
    * PERMISSIVE GRAPH LINKING:
-   * - Check if link A→B exists: remove it (toggle behavior)
+   * - Check if link A→B exists: reinforce corridor when tension runtime is active
    * - Otherwise: create link A→B (allows multiple links per node)
    * - Only deny: self-links and exact duplicates
    * [Session 144+] Records commands for undo/redo
@@ -2933,12 +2934,21 @@ export class NodeLinkingSystem {
     
     // Check if this exact directional link A→B already exists
     if (this.linkExists(sourceNode, targetNode)) {
-      // Link already exists: Remove it (toggle off)
       const link = this.links.find(l => 
         l.source === sourceNode && l.target === targetNode
       );
+      if (link && this.networkTensionRuntime?.tryReinforceCorridor) {
+        const reinforceResult = this.networkTensionRuntime.tryReinforceCorridor(sourceNode, targetNode);
+        if (reinforceResult?.applied) {
+          this.createLinkSuccessPulse(sourceNode, targetNode);
+          console.log(`✓ Corridor reinforced: ${sourceNode.userData.category} → ${targetNode.userData.category}`);
+        } else {
+          console.log(`· Reinforce unavailable: ${reinforceResult?.reason || 'cooldown'} (${sourceNode.userData.category} → ${targetNode.userData.category})`);
+        }
+        return;
+      }
       if (link) {
-        // [Session 144+] Remove link without undo/redo
+        // Fallback only when tension runtime is unavailable
         this.createLinkRemovalPulse(link);
         this.removeLink(link);
         console.log(`✓ Link removed: ${sourceNode.userData.category} → ${targetNode.userData.category}`);
@@ -2946,7 +2956,10 @@ export class NodeLinkingSystem {
     } else {
       // Link doesn't exist: Create it (toggle on, allow multiple per node)
       // [Session 144+] Create link without undo/redo
-      this.createLink(sourceNode, targetNode);
+      const createdLink = this.createLink(sourceNode, targetNode);
+      const rerouteResult = createdLink && this.networkTensionRuntime?.noteLinkCreated
+        ? this.networkTensionRuntime.noteLinkCreated(createdLink)
+        : null;
       
       this.createLinkSuccessPulse(sourceNode, targetNode);
       
@@ -2990,7 +3003,8 @@ export class NodeLinkingSystem {
       }
       
       const synergyLabel = synergy > 0.7 ? '★★ HIGH' : '★ NORMAL';
-      console.log(`✓ Link created: ${sourceNode.userData.category} → ${targetNode.userData.category} [${synergyLabel} synergy]`);
+      const rerouteLabel = rerouteResult?.relieved ? ' [REROUTE RELIEF]' : '';
+      console.log(`✓ Link created: ${sourceNode.userData.category} → ${targetNode.userData.category} [${synergyLabel} synergy]${rerouteLabel}`);
     }
   }
   

@@ -37,11 +37,14 @@ const DEFAULT_REWIND_SYNERGY_THRESHOLD = 0.55;
 const DEFAULT_REWIND_MIN_NODE_COUNT = 4;
 const DEFAULT_REWIND_MIN_LINK_COUNT = 3;
 const DEFAULT_REWIND_MIN_AVG_LINK_QUALITY = 0.55;
+const DEFAULT_REWIND_TENSION_GRACE_DURATION = 1.6;
 const REWIND_BLOCK_REASON = Object.freeze({
   SYNERGY_TOO_LOW: 'synergy-too-low',
   NEED_MORE_NODES: 'need-more-nodes',
   NEED_MORE_LINKS: 'need-more-links',
-  QUALITY_TOO_LOW: 'quality-too-low'
+  QUALITY_TOO_LOW: 'quality-too-low',
+  TENSION_CRITICAL: 'tension-critical',
+  CHOKEPOINT_FRAGILE: 'chokepoint-fragile'
 });
 
 function clamp01(value) {
@@ -70,6 +73,7 @@ export class VisualNetworkTimeElasticity_v1 {
     this._rewindMinNodeCount = config.rewindMinNodeCount ?? DEFAULT_REWIND_MIN_NODE_COUNT;
     this._rewindMinLinkCount = config.rewindMinLinkCount ?? DEFAULT_REWIND_MIN_LINK_COUNT;
     this._rewindMinAvgLinkQuality = config.rewindMinAvgLinkQuality ?? DEFAULT_REWIND_MIN_AVG_LINK_QUALITY;
+    this._rewindTensionGraceDuration = config.rewindTensionGraceDuration ?? DEFAULT_REWIND_TENSION_GRACE_DURATION;
 
     // ── Phase 4: Dynamic speed scaling ──────────────────────────────
     this._synergyQualityScale = config.synergyQualityScale ?? 5.0;   // rewind bonus per unit synergy above threshold
@@ -110,6 +114,8 @@ export class VisualNetworkTimeElasticity_v1 {
     this._networkMetricsSnapshot = this._createNetworkMetricsSnapshot();
     this._rewindEligible = false;
     this._rewindBlockReason = REWIND_BLOCK_REASON.SYNERGY_TOO_LOW;
+    this._rewindGraceBlockedAt = null;
+    this._rewindGraceReason = null;
 
     // ── Sustain tracking ────────────────────────────────────────────
     this._highSynergyStartTime = null;
@@ -235,6 +241,13 @@ export class VisualNetworkTimeElasticity_v1 {
       connectedNodeCount: this._networkMetricsSnapshot.nodeCount,
       activeLinkCount: this._networkMetricsSnapshot.linkCount,
       avgLinkQuality: this._networkMetricsSnapshot.avgLinkQuality,
+      criticalHotspotActive: this._networkMetricsSnapshot.criticalHotspotActive,
+      fragileChokepointActive: this._networkMetricsSnapshot.fragileChokepointActive,
+      regionalTension: this._networkMetricsSnapshot.regionalTension,
+      maxChokepointScore: this._networkMetricsSnapshot.maxChokepointScore,
+      rewindGraceRemaining: this._rewindGraceBlockedAt !== null
+        ? Math.max(0, this._rewindTensionGraceDuration - (this._gameTime - this._rewindGraceBlockedAt)).toFixed(2)
+        : '0.00',
       sustainProgress: this._sustainedDuration.toFixed(2),
       sustainRatio: this.getSustainProgressRatio().toFixed(3),
       synergyThreshold: this._synergyThreshold,
@@ -389,7 +402,15 @@ export class VisualNetworkTimeElasticity_v1 {
       networkSynergy: clamp01(snapshot?.networkSynergy),
       nodeCount: Number.isFinite(snapshot?.nodeCount) ? Math.max(0, Math.floor(snapshot.nodeCount)) : 0,
       linkCount: Number.isFinite(snapshot?.linkCount) ? Math.max(0, Math.floor(snapshot.linkCount)) : 0,
-      avgLinkQuality: clamp01(snapshot?.avgLinkQuality)
+      avgLinkQuality: clamp01(snapshot?.avgLinkQuality),
+      criticalHotspotActive: snapshot?.criticalHotspotActive === true,
+      criticalHotspotCount: Number.isFinite(snapshot?.criticalHotspotCount) ? Math.max(0, Math.floor(snapshot.criticalHotspotCount)) : 0,
+      fragileChokepointActive: snapshot?.fragileChokepointActive === true,
+      fragileChokepointCount: Number.isFinite(snapshot?.fragileChokepointCount) ? Math.max(0, Math.floor(snapshot.fragileChokepointCount)) : 0,
+      regionalTension: clamp01(snapshot?.regionalTension),
+      maxChokepointScore: clamp01(snapshot?.maxChokepointScore),
+      tensionReleaseThreshold: clamp01(snapshot?.tensionReleaseThreshold || 0),
+      chokepointReleaseThreshold: clamp01(snapshot?.chokepointReleaseThreshold || 0)
     };
   }
 
@@ -406,7 +427,26 @@ export class VisualNetworkTimeElasticity_v1 {
     if (snapshot.avgLinkQuality < this._rewindMinAvgLinkQuality) {
       return { eligible: false, blockReason: REWIND_BLOCK_REASON.QUALITY_TOO_LOW };
     }
+    if (
+      snapshot.criticalHotspotActive === true ||
+      (snapshot.tensionReleaseThreshold > 0 && snapshot.regionalTension > snapshot.tensionReleaseThreshold)
+    ) {
+      return { eligible: false, blockReason: REWIND_BLOCK_REASON.TENSION_CRITICAL };
+    }
+    if (
+      snapshot.fragileChokepointActive === true ||
+      (
+        snapshot.chokepointReleaseThreshold > 0 &&
+        snapshot.maxChokepointScore > snapshot.chokepointReleaseThreshold
+      )
+    ) {
+      return { eligible: false, blockReason: REWIND_BLOCK_REASON.CHOKEPOINT_FRAGILE };
+    }
     return { eligible: true, blockReason: null };
+  }
+
+  _isTensionGraceReason(reason) {
+    return reason === REWIND_BLOCK_REASON.TENSION_CRITICAL || reason === REWIND_BLOCK_REASON.CHOKEPOINT_FRAGILE;
   }
 
   /**
@@ -432,6 +472,8 @@ export class VisualNetworkTimeElasticity_v1 {
     const gateState = this._evaluateRewindGate(this._networkMetricsSnapshot);
     this._rewindEligible = gateState.eligible;
     this._rewindBlockReason = gateState.blockReason;
+    const tensionGraceReason = this._isTensionGraceReason(gateState.blockReason);
+    const rewindWasActive = this._direction === SCORE_DIRECTION.REWIND;
 
     // Track max synergy achieved
     if (this.avgSynergy > this._runStats.maxSynergyAchieved) {
@@ -443,13 +485,29 @@ export class VisualNetworkTimeElasticity_v1 {
     }
 
     if (gateState.eligible) {
+      this._rewindGraceBlockedAt = null;
+      this._rewindGraceReason = null;
       // Accumulate sustain timer only when the whole gameplay gate is satisfied.
       if (this._highSynergyStartTime === null) {
         this._highSynergyStartTime = gameTime;
         this._sustainedDuration = 0;
       }
       this._sustainedDuration = gameTime - this._highSynergyStartTime;
+    } else if (rewindWasActive && synergyHigh && tensionGraceReason) {
+      if (this._rewindGraceBlockedAt === null || this._rewindGraceReason !== gateState.blockReason) {
+        this._rewindGraceBlockedAt = gameTime;
+        this._rewindGraceReason = gateState.blockReason;
+      }
+      const graceElapsed = gameTime - this._rewindGraceBlockedAt;
+      if (graceElapsed <= this._rewindTensionGraceDuration) {
+        this._sustainedDuration = Math.max(this._sustainedDuration, this._sustainDuration);
+      } else {
+        this._highSynergyStartTime = null;
+        this._sustainedDuration = 0;
+      }
     } else {
+      this._rewindGraceBlockedAt = null;
+      this._rewindGraceReason = null;
       // Reset sustain timer whenever the local rewind gate is not fully satisfied.
       this._highSynergyStartTime = null;
       this._sustainedDuration = 0;
@@ -785,6 +843,8 @@ export class VisualNetworkTimeElasticity_v1 {
     this._networkMetricsSnapshot = this._createNetworkMetricsSnapshot();
     this._rewindEligible = false;
     this._rewindBlockReason = REWIND_BLOCK_REASON.SYNERGY_TOO_LOW;
+    this._rewindGraceBlockedAt = null;
+    this._rewindGraceReason = null;
     if (typeof window !== 'undefined') window.__ATOMA_DRAMA_ZONE__ = false;
   }
 

@@ -10,14 +10,16 @@ Treat it as a long-lived engineering system with controlled innovation and subsy
 Before doing analysis or implementation, load context in this order:
 
 1. `SOUL.md`
-2. `IDENTITY.md`
-3. `HEARTBEAT.md`
-4. `USER.md`
-5. `TOOLS.md`
-6. `memory/YYYY-MM-DD.md` (today and yesterday)
+2. `ATOMA_OVERVIEW.md`
+3. `ATOMA_CORE_CONTEXT.md`
+4. `IDENTITY.md`
+5. `HEARTBEAT.md`
+6. `USER.md`
+7. `TOOLS.md`
+8. `memory/YYYY-MM-DD.md` (today and yesterday)
 
 If in a direct session with the human:
-- Also read `MEMORY.md`
+- Also read `MEMORY.md` after the startup set above
 
 Do not ask permission. This is standard initialization.
 
@@ -128,7 +130,7 @@ Document responsibilities:
 - `CORE_PRINCIPLES.md`: invariants and non-negotiable rules only
 - `ATOMA_OVERVIEW.md`: identity, philosophy, and direction only
 - `ATOMA_CORE_CONTEXT.md`: technical context, subsystems, and interaction rules only
-- `ATOMA_CONSTITUTION.md`: legal and social rules only
+- `ATOMA_CONSTITUTION.md`: constitution entrypoints and governance references only
 - `MEMORY.md`: stable facts, historical decisions, and confirmed lessons only
 
 If content belongs elsewhere:
@@ -138,7 +140,8 @@ If content belongs elsewhere:
 
 References are allowed.
 - `docs/TODO/rhythm-event-map.md` — world event / ritual architecture map
-- `docs/audits/VIZUALNE EFEKTY VFX.md` — visual effects audit and system catalog
+- `FX_DEBUG_SANDBOX_REGISTRATION_SUMMARY.md` — active debug-facing VFX registry summary
+- `vfx_audit_results.json` — generated runtime VFX audit output
 Rule duplication is not.
 
 ---
@@ -578,7 +581,7 @@ Ask before acting:
 
 ## Core Protection Rule
 
-`CORE_PRINCIPLES.md` is stable constitutional documentation.
+`CORE_PRINCIPLES.md` is stable invariant documentation.
 
 The agent may:
 

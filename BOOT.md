@@ -1,70 +1,108 @@
-# ATOMA Boot & Test Manual
+# ATOMA Boot & Smoke Manual
 
-## Priorita testovania
-- Preferované URL pre všetky testy: `http://127.0.0.1:5173/`
-- Spúšťaj aplikáciu cez Vite (`npm run dev`) a testuj live runtime tam
-- `5500` ber len ako legacy/static fallback, nie ako primárnu testovaciu pravdu
+This file is the practical runtime manual for humans and agents.
 
-## Boot pipeline
-1. Načítaj stránku a počkaj, kým sa zobrazí hlavné menu.
-2. Vyber mapu cez `MAP SELECTION`.
-3. Spustí sa world bootstrap, ktorý inicializuje `AINodes.js`, `EnvironmentDomainController.js` a link systémy.
-4. `NodeLinkingSystem.js` spracováva click-to-link a `LinkRendererConduit.js` zobrazuje vizuály; metriky sú spracované cez `MetricsRuntime_v1.js`.
+It is not the project philosophy layer and it is not the technical authority map.
 
-## Po načítaní aplikácie
-1. Otvor stránku a počkaj, kým sa zobrazí hlavné menu.
-2. V menu klikni na tlačidlo alebo sekciu označenú `MAP SELECTION`.
-3. Vyber možnosť `QUANTUM ISLAND`.
-4. Po výbere by sa mala hra spustiť v tomto svete.
+---
 
-## Ako vytvoriť link medzi nodmi
-### Jednoduchý krok za krokom postup
-1. Nájdeš prvý node v scéne.
-2. Dvojklikni na prvý node, aby sa stal "Primary Node".
-3. Klikni na druhý node.
-4. Ak sú podmienky platné, systém vytvorí link medzi prvým a druhým nodom.
+## Canonical Runtime Target
 
-### Alternatíva: multi-select linkovanie
-- Podrž `Ctrl` (alebo `Cmd` na Macu) a klikni na viacero nodov, aby si ich označil ako výber.
-- Potom klikni na cieľový node.
-- Systém vytvorí linky z každého vybraného zdroja na tento cieľ.
+Prefer this URL for live runtime validation:
 
-### Dôležité poznámky
-- Jednoduchý klik na prázdne miesto vymaže aktuálny primárny node alebo multi-select výber.
-- Klik na ten istý node ako primárny node nezachytí nový link.
-- Link sa vytvára iba vtedy, keď existuje vybraný primárny node a klikneš na iný node.
+- `http://127.0.0.1:5173/`
 
-## Kde je implementácia
-- Bootovanie a menu spravuje `AtomaBoot.js`.
-- Vytváranie linkov a klikacie správanie je v `NodeLinkingSystem.js`.
+Run the game through Vite and treat that runtime as the default truth source.
 
-## Rýchly testovací tip
-- Ak chceš overiť, že linkovanie funguje, vytvor jeden link medzi dvoma nodmi a sleduj vizuálnu odozvu v scéne.
-- Ak je potrebné, môžeš v konzole použiť debug helpery definované v `main.js`, napríklad `window.__DEBUG.createLinkById(idA, idB)`.
+Use legacy/static routes only when a task explicitly requires them.
 
-## FAIL FAST (KRITICKÉ)
-- ak blank page → skontroluj console (F12) a network tab
-- ak build error → neopakuj test, oprav error
-- ak port 5173 nefunguje → oprav alebo znovu spusti Vite; `5500` použi len ak task výslovne potrebuje legacy static boot
-- ak link po create nezobrazí → skontroluj, či bol prvý node nastavený ako Primary Node
+---
 
-## EXPECTED RESULT
-- po create link → viditeľný link medzi nodmi
-- metriky sa menia, resp. reagujú na nový link
-- žiadne `console` errors
-- vizuálne efekty linku sa aktivujú (puls ring / spark / aura)
+## Recommended Worlds
 
+For current release-slice validation, start with:
 
-## DO NOT DO
-- nepoužívaj Playwright automaticky
-- nespúšťaj iný server ako Vite bez dôvodu
-- nerob retry loop bez zmeny
+- `Quantum Island`
+- `Dream Desert`
 
-## MINI SYSTEM MAP
-CORE:
-- logic: `NodeLinkingSystem.js`
-- visuals: `LinkRendererConduit.js`
-- scheduler: FrameScheduler (10Hz simulation, 30Hz visual, 60Hz runtime)
+These worlds have the strongest onboarding, run-identity, setpiece, audio, and UX support.
 
-## Cieľ manuálu
-Tento dokument slúži ako jednoduchý manuál pre bootovanie testovacej verzie a pre rýchle overenie link creation flow.
+---
+
+## Boot Flow
+
+1. Start the Vite runtime.
+2. Open `http://127.0.0.1:5173/`.
+3. Wait for the main menu to finish loading.
+4. Select `Quantum Island` or `Dream Desert`.
+5. Confirm the start/run-identity flow if it appears.
+6. Let the world finish booting before judging gameplay or visuals.
+
+---
+
+## Basic Link Creation
+
+Primary link flow:
+
+1. choose a first node
+2. set it as the primary node
+3. choose a second node
+4. confirm that a visible link forms between them
+
+Practical notes:
+
+- clicking empty space clears the active selection
+- clicking the same node again does not create a new link
+- a valid link requires a selected source and a different valid target
+
+If runtime helpers are needed, use the debug helpers already exposed by the game rather than inventing parallel test paths.
+
+---
+
+## Smoke Checklist
+
+Use the lightest verification that fits the task.
+
+For a basic gameplay smoke:
+
+1. boot into `Quantum Island` or `Dream Desert`
+2. confirm the HUD appears
+3. create at least one valid link
+4. confirm link visuals respond
+5. confirm no obvious blocking console/runtime error appears
+6. confirm the menu/pause/resume loop behaves normally if relevant to the task
+
+For a gameplay-loop smoke:
+
+1. form multiple links
+2. watch `Network Time`, build-state, and guidance layers
+3. confirm the game is actually in live simulation, not still in a menu/transition surface
+4. validate the requested behavior on the canonical runtime
+
+---
+
+## Fail Fast Rules
+
+- blank page: inspect console and network before retrying
+- build error: fix the error before doing another runtime interpretation pass
+- stale browser session: verify the runtime is fresh before trusting the result
+- no `window.game`: the runtime is not in valid gameplay state yet
+- no visible link after valid create attempt: verify selection state and link authority before blaming visuals
+
+Do not run blind retry loops without changing anything.
+
+---
+
+## Verification Tooling
+
+- prefer direct manual validation when the task is simple
+- use browser automation when the task benefits from repeatability, screenshots, or runtime inspection
+- use the canonical live runtime, not an accidental fallback, unless the task explicitly requires it
+
+---
+
+## Where to Look Next
+
+- `ATOMA_CORE_CONTEXT.md` for runtime/system truth
+- `IDENTITY.md` for the compact startup snapshot
+- `MainMenu.js`, `AtomaBoot.js`, and `main.js` for the live boot chain

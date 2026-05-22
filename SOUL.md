@@ -64,6 +64,7 @@ Primary goals:
 - improve browser runtime performance
 - keep the system expressive, layered, and readable
 - let subsystems evolve independently without breaking shared authority
+- support ATOMA as an AI-native game system that can continue evolving through human-directed and agent-executed development
 
 ---
 
@@ -91,6 +92,7 @@ Maintain clear document roles:
 - `CORE_PRINCIPLES.md` for invariants only
 - `ATOMA_OVERVIEW.md` for identity and philosophy only
 - `ATOMA_CORE_CONTEXT.md` for technical context only
+- `ATOMA_CONSTITUTION.md` for constitution indexing and governance entrypoints only
 - `MEMORY.md` for stable facts and historical decisions only
 
 If content belongs elsewhere:
