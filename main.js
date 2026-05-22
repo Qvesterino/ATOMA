@@ -450,6 +450,9 @@ if (typeof window !== 'undefined') {
     // ATOMA FLAGS — CONSOLIDATED FLAG SYSTEM (Phase C)
     // ====================================================================
     const releaseContainmentProfile = ensureAtomaReleaseContainmentGlobals(window);
+    // Safety default: synergy shader stacks stay disabled unless explicitly re-enabled.
+    // This stack currently has an invalid-program failure mode on some runtimes/GPU paths.
+    const disableSynergyShaderStacks = window.ATOMA_DISABLE_SYNERGY_SHADER_STACK ?? true;
     window.ATOMA_FLAGS = {
       debug: {
         logLevel: window.ATOMA_LOG_LEVEL ?? 'error',
@@ -467,7 +470,6 @@ if (typeof window !== 'undefined') {
         spawnLogs: window.ATOMA_DEBUG_SPAWN_LOGS ?? false,
         linkSpawn: window.ATOMA_DEBUG_LINK_SPAWN ?? false,
         visualKill: window.ATOMA_DEBUG_VISUAL_KILL ?? false,
-        disableSynergyShaderStacks: window.ATOMA_DISABLE_SYNERGY_SHADER_STACK !== false,
         glyphFusionIntegrity: window.ATOMA_DEBUG_GLYPH_FUSION_INTEGRITY ?? false,
         probeSpawn: window.ATOMA_PROBE_SPAWN ?? false,
         worldProbe: window.ATOMA_WORLD_PROBE ?? false,
@@ -475,6 +477,11 @@ if (typeof window !== 'undefined') {
         devGuards: window.ATOMA_DEV_GUARDS ?? false,
         silentWarnings: window.ATOMA_SILENT_WARNINGS ?? false,
         visualBaseline: window.ATOMA_VISUAL_BASELINE ?? false
+      },
+
+      visual: {
+        disableSynergyShaderStacks,
+        synergyHighway3D: window.ATOMA_ENABLE_SYNERGY_HIGHWAY_3D ?? true
       },
       
       runtime: {
@@ -500,11 +507,18 @@ if (typeof window !== 'undefined') {
     
     // Debug Log Level (separate for backward compatibility)
     window.ATOMA_LOG_LEVEL = window.ATOMA_FLAGS.debug.logLevel;
-    window.ATOMA_DISABLE_SYNERGY_SHADER_STACK = window.ATOMA_FLAGS?.visual?.disableSynergyShaderStacks ?? false;
+    window.ATOMA_DISABLE_SYNERGY_SHADER_STACK = disableSynergyShaderStacks;
     window.ATOMA_DEMO_RELEASE_PROFILE = window.ATOMA_FLAGS?.release?.demoProfile ?? true;
     window.ATOMA_DISABLE_WAVE_SHADER_STACK = window.ATOMA_FLAGS?.release?.disableWaveShaderStack ?? true;
     window.ATOMA_DISABLE_SYNERGY_CHAIN_REACTION = window.ATOMA_FLAGS?.release?.disableSynergyChainReaction ?? true;
     window.__ATOMA_RELEASE_CONTAINMENT_PROFILE__ = () => getAtomaReleaseContainmentProfile(window);
+    window.__ATOMA_SYNERGY_SHADER_STACK_STATUS__ = () => ({
+        requestedDisabled: window.ATOMA_DISABLE_SYNERGY_SHADER_STACK ?? null,
+        visualFlagDisabled: window.ATOMA_FLAGS?.visual?.disableSynergyShaderStacks ?? null,
+        bonusLayerActive: !!window.game?.synergyBonusFXLayer,
+        resonancePackActive: !!window.game?.synergyResonanceShaderPack,
+        world: window.game?.currentMode ?? null
+    });
     
     debugLog(window.ATOMA_FLAGS.debug.enabled, '[ATOMA] Flags initialized:', window.ATOMA_FLAGS);
 }
@@ -1358,6 +1372,7 @@ import { WaveParticleEmitter_v1 } from './WaveParticleEmitter_v1.js';
 // EXTRACTION PACK V1.0 — RUNTIME ORCHESTRATION
 // ============================================================================
 import { MetricsRuntime_v1 } from './MetricsRuntime_v1.js';
+import { buildRunIdentityOverlayQAState, commitPreparedRunIdentityForQA } from './src/runtime/RunIdentityQAHooks.js';
 // REMOVED: PersonalityRuntime_v1 — moved to LEGACY/april (2026-04-22)
 import { MetricInterpretationLayer_v1, setupMetricInterpretationConsoleAPI } from './MetricInterpretationLayer_v1.js';
 // Release-disabled: StressVisualShaderSystem bootstrap is intentionally offline.
@@ -4929,16 +4944,8 @@ class AtomaGame {
                 this.metricsVisualFX.update(dt, this.aiNodes.nodes);
             }
         }, 'visual.metricsVisualFX');
-        this.frameScheduler.register('visual', (dt) => {
-            if (this.synergyBonusFXLayer && this.linkingSystem) {
-                this.synergyBonusFXLayer.update(dt, this.linkingSystem.links || []);
-            }
-        }, 'visual.synergyBonusFXLayer');
-        this.frameScheduler.register('visual', (dt) => {
-            if (this.synergyResonanceShaderPack && this.nodeLinking) {
-                this.synergyResonanceShaderPack.update(dt, this.nodeLinking.links || []);
-            }
-        }, 'visual.synergyResonanceShaderPack');
+        // Synergy shader stacks update through the later guarded visual registration path.
+        // Do not double-register them here; duplicate updates amplify shader churn and noise.
         // REMOVED: synergyCascadeFXBridge frame scheduler — moved to LEGACY/april (2026-04-22)
         this.frameScheduler.register('visual', (dt) => this.fxRuntime_v1?.update?.(dt), 'visual.fxRuntime_v1');
         // REMOVED: personalityShaderBridge + advancedShaderFX frameScheduler — moved to LEGACY/ (2026-05-14)
@@ -14456,6 +14463,33 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         return true;
     }
 
+    _getRunIdentityOverlayStateForQA() {
+        const director = this.runIdentityDirector || null;
+        const preparedSelection = director?.getPreparedSelection?.() || this._runIdentityPendingSelection || null;
+        return buildRunIdentityOverlayQAState({
+            world: this.currentMode,
+            director,
+            preparedSelection,
+            isPaused: this.isPaused === true
+        });
+    }
+
+    _commitPreparedRunIdentityForQA() {
+        const director = this.runIdentityDirector || null;
+        const result = commitPreparedRunIdentityForQA({
+            world: this.currentMode,
+            director,
+            preparedSelection: director?.getPreparedSelection?.() || this._runIdentityPendingSelection || null,
+            activeSelection: director?.getActiveRuntimeSelection?.() || this.activeRunIdentitySelection || null,
+            isPaused: this.isPaused === true,
+            lazyPrepare: (world) => this._prepareRunIdentityForWorld(world)
+        });
+        return {
+            ...result,
+            resumed: this.isPaused !== true
+        };
+    }
+
     _handleRunIdentityMilestone(milestone, world = this.currentMode) {
         this.runIdentityDirector?.handleMilestone?.(milestone, world);
     }
@@ -17735,6 +17769,8 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         window.__DEBUG.getLinkingSystem = () => this.linkingSystem ?? this.nodeLinkingSystem ?? this.nodeLinking ?? null;
         window.__DEBUG.getCollapseSystem = () => this.linkCollapseSystem ?? null;
         window.__DEBUG.getLinkResonanceFlowSystem = () => this.linkResonanceFlowSystem ?? this.linkRendererConduit?.linkResonanceFlowSystem ?? null;
+        window.__DEBUG.getRunIdentityOverlayState = () => this._getRunIdentityOverlayStateForQA();
+        window.__DEBUG.commitPreparedRunIdentity = () => this._commitPreparedRunIdentityForQA();
         window.__DEBUG.createLinkById = (idA, idB) => window.__DEBUG.getLinkingSystem()?.createLinkById?.(idA, idB) ?? null;
         window.__DEBUG.createLink = (nodeA, nodeB) => window.__DEBUG.getLinkingSystem()?.createLink?.(nodeA, nodeB) ?? null;
         window.__DEBUG.getNodeById = (id) => window.__DEBUG.getLinkingSystem()?._resolveNodeById?.(id) ?? null;

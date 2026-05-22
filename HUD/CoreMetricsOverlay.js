@@ -126,6 +126,26 @@ export class CoreMetricsOverlay {
   _getCanonicalGlobalMetrics() {
     const liveMetrics = (typeof window !== 'undefined' && window.__ATOMA_LIVE_METRICS__) || {};
     const rawMetrics = this.metricsRuntime?.getRawNetworkMetrics?.() || null;
+
+    // Safety net: if the network has no links, all global metrics must be zero.
+    // This prevents stale smoothed values from leaking into the HUD.
+    const linkCount = Number.isFinite(rawMetrics?.linkCount)
+      ? rawMetrics.linkCount
+      : (Number.isFinite(liveMetrics.linkCount) ? liveMetrics.linkCount : null);
+    if (linkCount !== null && linkCount <= 0) {
+      return withGlobalMetricAliases({
+        networkSynergy: 0,
+        harmonyFlow: 0,
+        networkStress: 0,
+        stability: 0,
+        corruptionLevel: 0,
+        loadPressure: 0,
+        nodeCount: liveMetrics.nodeCount ?? rawMetrics?.nodeCount ?? 0,
+        linkCount: 0,
+        source: rawMetrics?.source ?? 'public-live'
+      });
+    }
+
     return withGlobalMetricAliases({
       networkSynergy: rawMetrics?.networkSynergy ?? liveMetrics.networkSynergy ?? 0,
       rawNetworkSynergy: rawMetrics?.networkSynergy ?? 0,

@@ -1715,6 +1715,30 @@ const adapter = this._createLinkSystemAdapter(
 
         const result = this._refreshRawNetworkMetricsSnapshot();
 
+        // Fast-path: when the network has no links, metrics must be zero immediately.
+        // Do not let exponential smoothing decay slowly from a stale value.
+        const isEmptyNetwork = (Number.isFinite(result.linkCount) && result.linkCount <= 0)
+            || result.source === 'empty';
+
+        if (isEmptyNetwork) {
+            this._smoothedMetrics.networkSynergy = 0;
+            this._smoothedMetrics.harmonyFlow = 0;
+            this._smoothedMetrics.networkStress = 0;
+            this._smoothedMetrics.corruptionLevel = 0;
+            this._smoothedMetrics.loadPressure = 0;
+
+            this._safePublishLiveMetrics({
+                networkSynergy: 0,
+                harmonyFlow: 0,
+                networkStress: 0,
+                corruptionLevel: 0,
+                loadPressure: 0,
+                nodeCount: Number.isFinite(result.nodeCount) ? result.nodeCount : 0,
+                linkCount: 0
+            });
+            return;
+        }
+
         // Raw targets from aggregation
         const rawMetrics = {
             networkSynergy: this._clamp01(result.networkSynergy ?? result.synergy ?? 0),

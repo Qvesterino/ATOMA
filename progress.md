@@ -155,6 +155,31 @@ Original prompt: tak jako composite glyphy mali lietať po orbite nodov ako Glyp
     - a dedicated run-identity automation path
     - or a smaller overlay bypass helper for deterministic QA
 
+## 2026-05-22 — Deterministic QA bypass for run-identity overlay
+- Added `src/runtime/RunIdentityQAHooks.js` with pure QA helpers:
+  - `buildRunIdentityOverlayQAState(...)`
+  - `commitPreparedRunIdentityForQA(...)`
+- `main.js` now exposes debug-only runtime helpers:
+  - `window.__DEBUG.getRunIdentityOverlayState()`
+  - `window.__DEBUG.commitPreparedRunIdentity()`
+- Behavior:
+  - helper uses the already prepared run-identity selection for `quantum` / `desert`
+  - helper commits through `RunIdentityDirector.commitSelection()` only
+  - helper returns stable result objects instead of throwing
+  - idempotence now only reports `already-committed` when the overlay is already hidden and the committed selection matches
+- Verification:
+  - `node --check src/runtime/RunIdentityQAHooks.js`
+  - `node --check main.js`
+  - targeted Node assertions for helper registration + behavior passed
+  - official `develop-web-game` client was attempted first and failed on missing Playwright browser bundle in the skill runtime (`npx playwright install` needed there)
+  - repo-local Playwright fallback against `http://127.0.0.1:5173/` passed:
+    - overlay visible before helper call
+    - `commitPreparedRunIdentity()` returned `{ ok: true, resumed: true }`
+    - overlay hidden afterward
+    - gameplay resumed with `FORWARD` score state and live `__ATOMA_TENSION__()` snapshot
+  - screenshot artifact:
+    - `output/web-game/run-identity-qa-bypass/qa-bypass-canvas.png`
+
 ## 2026-04-04
 - `WaveParticleEmitter_v1` was moved toward direct semantic metric-tier listeners for node-driven particle emission.
 - The emitter now binds to `node.synergy.*`, `node.harmony.*`, `node.stability.*`, `node.corruption.*`, and `node.loadPressure.*` via `semanticBus` and keeps the wave snapshot path only as fallback when no tier listeners are active.
@@ -651,6 +676,34 @@ ode --check after the change.
 - TODO for next agent:
   - if needed, create a separate dedicated audit/reference doc for VFX catalogs and event maps
   - keep startup docs clean; do not re-bloat `MEMORY.md` or `IDENTITY.md`
+
+## 2026-05-22 — Synergy Shader Stack Invalid Program Hotfix
+- Investigated the reported `WebGL: INVALID_OPERATION: useProgram: program not valid` spam that showed up on spawn even with no player-created link.
+- Strongest finding:
+  - `index.html` already hard-set `window.ATOMA_DISABLE_SYNERGY_SHADER_STACK = true`
+  - but `main.js` had broken flag wiring:
+    - wrote disable state into `ATOMA_FLAGS.debug.disableSynergyShaderStacks`
+    - read boot gate from `ATOMA_FLAGS.visual.disableSynergyShaderStacks`
+  - this meant the intended shutdown path was not actually authoritative
+- Applied safe hotfix in `main.js`:
+  - created a real `ATOMA_FLAGS.visual` branch
+  - moved `disableSynergyShaderStacks` into that branch
+  - made safe-off the explicit default
+  - removed duplicate update registration for the two synergy shader systems
+- Runtime smoke on `http://127.0.0.1:5173/` confirmed:
+  - synergy shader stack stays off at boot
+  - both shader systems stay null/inactive
+  - no synergy init logs
+  - no `INVALID_OPERATION/useProgram/program not valid` logs in the smoke run
+- Artifacts:
+  - `output/web-game/shader-churn-smoke/`
+- TODO for next agent:
+  - if we ever want the synergy shader stack back, do a focused compatibility audit of:
+    - `SynergyResonanceShaderPack_v1.js`
+    - `SynergyBonusFXLayer_v1.js`
+    - `WaveShaderMaterialPatch_v1.js`
+    - `WaveShaderBridge_v1.js`
+    - `WaveTravelShaderPack_v1.js`
 
 ## 2026-04-17
 - QuantumIsland cleanup: disabled the map-owned reference plane for `QuantumIsland` and stopped creating the local mist plane so the square ground-sheet artifacts disappear from this world.

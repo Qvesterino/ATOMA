@@ -18,6 +18,10 @@ import {
   ensureAtomaReleaseContainmentGlobals,
 } from '../src/runtime/AtomaReleaseContainmentPolicy.js';
 import {
+  buildRunIdentityOverlayQAState,
+  commitPreparedRunIdentityForQA
+} from '../src/runtime/RunIdentityQAHooks.js';
+import {
   UIVisibilityConfig,
   getUIVisibilitySettingsRows,
   isHudEffectivelyVisible,
@@ -311,6 +315,143 @@ test('main debug surface exposes live link snapshot, unlink, and canonical link-
   assert(mainText.includes('window.__DEBUG.pushLinkMetrics'));
   assert(mainText.includes('window.__DEBUG.sustainLinkMetrics'));
   assert(mainText.includes('window.__DEBUG.getCollapseSystem'));
+  assert(mainText.includes('window.__DEBUG.getRunIdentityOverlayState'));
+  assert(mainText.includes('window.__DEBUG.commitPreparedRunIdentity'));
+});
+
+test('QA run-identity helper reports unsupported worlds and missing director cleanly', () => {
+  const unsupportedWorldResult = commitPreparedRunIdentityForQA({
+    world: 'fractal',
+    director: {
+      commitSelection() {},
+      getPreparedSelection() { return null; },
+      isOverlayVisible() { return false; }
+    },
+    isPaused: true
+  });
+  assert.deepStrictEqual(unsupportedWorldResult, {
+    ok: false,
+    reason: 'world-not-supported',
+    world: 'fractal',
+    packageId: null,
+    worldStateId: null,
+    overlayWasVisible: false,
+    resumed: false
+  });
+
+  const unavailableDirectorResult = commitPreparedRunIdentityForQA({
+    world: 'quantum',
+    director: null,
+    isPaused: true
+  });
+  assert.deepStrictEqual(unavailableDirectorResult, {
+    ok: false,
+    reason: 'run-identity-unavailable',
+    world: 'quantum',
+    packageId: null,
+    worldStateId: null,
+    overlayWasVisible: false,
+    resumed: false
+  });
+});
+
+test('QA run-identity helper commits the prepared selection through director authority and is idempotent', () => {
+  const preparedSelection = {
+    world: 'quantum',
+    packageId: 'surge_thread',
+    worldStateId: 'baseline_quantum'
+  };
+
+  const commitCalls = [];
+  const director = {
+    _prepared: preparedSelection,
+    _active: null,
+    _visible: true,
+    getPreparedSelection() {
+      return this._prepared;
+    },
+    getActiveRuntimeSelection() {
+      return this._active;
+    },
+    isOverlayVisible() {
+      return this._visible;
+    },
+    commitSelection(selection) {
+      commitCalls.push(selection);
+      this._active = selection;
+      this._visible = false;
+      return selection;
+    }
+  };
+
+  const lazyPrepare = () => {
+      return preparedSelection;
+  };
+
+  const firstResult = commitPreparedRunIdentityForQA({
+    world: 'quantum',
+    director,
+    preparedSelection,
+    activeSelection: null,
+    isPaused: true,
+    lazyPrepare
+  });
+  assert.deepStrictEqual(firstResult, {
+    ok: true,
+    reason: null,
+    world: 'quantum',
+    packageId: 'surge_thread',
+    worldStateId: 'baseline_quantum',
+    overlayWasVisible: true,
+    resumed: false
+  });
+  assert.strictEqual(commitCalls.length, 1);
+  assert.strictEqual(commitCalls[0], preparedSelection);
+
+  const secondResult = commitPreparedRunIdentityForQA({
+    world: 'quantum',
+    director,
+    preparedSelection,
+    activeSelection: preparedSelection,
+    isPaused: true,
+    lazyPrepare
+  });
+  assert.deepStrictEqual(secondResult, {
+    ok: false,
+    reason: 'already-committed',
+    world: 'quantum',
+    packageId: 'surge_thread',
+    worldStateId: 'baseline_quantum',
+    overlayWasVisible: false,
+    resumed: false
+  });
+  assert.strictEqual(commitCalls.length, 1);
+});
+
+test('QA run-identity overlay state helper returns deterministic read-only payload', () => {
+  const payload = buildRunIdentityOverlayQAState({
+    world: 'desert',
+    director: {
+      getPreparedSelection() {
+        return { packageId: 'surge_thread', worldStateId: 'baseline_desert' };
+      },
+      isOverlayVisible() {
+        return true;
+      }
+    },
+    preparedSelection: { packageId: 'surge_thread', worldStateId: 'baseline_desert' },
+    isPaused: true
+  });
+
+  assert.deepStrictEqual(payload, {
+    world: 'desert',
+    isVisible: true,
+    isReleaseWorld: true,
+    hasPreparedSelection: true,
+    preparedPackageId: 'surge_thread',
+    preparedWorldStateId: 'baseline_desert',
+    isPaused: true
+  });
 });
 
 test('main runs aiNodes.updateSpawning on simulation authority instead of the visual tick', () => {
