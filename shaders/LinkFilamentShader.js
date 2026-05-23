@@ -151,7 +151,13 @@ const FILAMENT_VERTEX_SHADER = /* glsl */ `
       vec3 radial2 = normalize(normal2 * cos(angle2) + binormal2 * sin(angle2));
       vEnd = point2 + radial2 * (radius2 * 0.78);
 
-      vec3 sideVec;
+      // Keep this explicitly initialized for ANGLE / stricter GLSL compilers.
+      // An uninitialized side vector here can produce an invalid program on
+      // some drivers even if other browsers appear tolerant.
+      vec3 sideVec = normalize(cross(tangent2, radial2));
+      if (length(sideVec) < 0.001) {
+        sideVec = binormal2;
+      }
       if (variant == 2) {
         // Micro-jump
         float jumpPulse = sin(uTime * 4.0 + aPhase * 2.2 + t * 12.0);
