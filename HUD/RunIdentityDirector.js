@@ -10,8 +10,25 @@ import {
 } from '../RunIdentityProfiles.js';
 import { loadMenuProfile, saveMenuProfile } from '../MainMenu.js';
 
+const RUN_IDENTITY_UX_VERSION = 1;
+
 function resolveWorldKey(world) {
   return String(world || '').trim().toLowerCase();
+}
+
+function sanitizeRunIdentityUXState(value) {
+  const runIdentityUX = value && typeof value === 'object' ? value : {};
+  const seenOverlayByWorld = runIdentityUX.seenOverlayByWorld && typeof runIdentityUX.seenOverlayByWorld === 'object'
+    ? runIdentityUX.seenOverlayByWorld
+    : {};
+
+  return {
+    version: RUN_IDENTITY_UX_VERSION,
+    seenOverlayByWorld: {
+      quantum: seenOverlayByWorld.quantum === true,
+      desert: seenOverlayByWorld.desert === true
+    }
+  };
 }
 
 function describeUnlock(unlock = {}) {
@@ -57,9 +74,12 @@ export class RunIdentityDirector {
     this._unlockToastRoot = null;
     this._world = null;
     this._metaProgression = sanitizeMetaProgression();
+    this._runIdentityUX = sanitizeRunIdentityUXState();
     this._selection = null;
     this._activeRuntimeSelection = null;
     this._visible = false;
+    this._entryMode = 'auto';
+    this._handleKeyDown = (event) => this._onKeyDown(event);
     this._createDOM();
   }
 
@@ -68,10 +88,12 @@ export class RunIdentityDirector {
     this._syncHudIdentity();
   }
 
-  prepareWorld(world) {
+  prepareWorld(world, { entryMode = 'auto' } = {}) {
     this._world = resolveWorldKey(world);
     const profile = loadMenuProfile();
     this._metaProgression = sanitizeMetaProgression(profile?.metaProgression);
+    this._runIdentityUX = sanitizeRunIdentityUXState(profile?.runIdentityUX);
+    this._entryMode = entryMode === 'manual' ? 'manual' : 'auto';
     const selection = resolveInitialSelection(this._world, this._metaProgression);
     this._selection = composeRunIdentitySelection(this._world, selection);
     return this._selection;
@@ -85,7 +107,7 @@ export class RunIdentityDirector {
     return this._activeRuntimeSelection || this._selection;
   }
 
-  handleWorldLoad(world) {
+  handleWorldLoad(world, { entryMode = 'auto' } = {}) {
     this._world = resolveWorldKey(world);
     if (!isRunIdentityWorld(this._world)) {
       this.hideOverlay();
@@ -94,11 +116,34 @@ export class RunIdentityDirector {
     }
 
     if (!this._selection || this._selection.world !== this._world) {
-      this.prepareWorld(this._world);
+      this.prepareWorld(this._world, { entryMode });
+    } else {
+      this._entryMode = entryMode === 'manual' ? 'manual' : 'auto';
+    }
+
+    if (this._entryMode === 'auto' && !this.shouldAutoShow(this._world)) {
+      this.hideOverlay();
+      return false;
     }
 
     this.showOverlay();
     return true;
+  }
+
+  shouldAutoShow(world = this._world) {
+    const worldKey = resolveWorldKey(world);
+    if (!isRunIdentityWorld(worldKey)) return false;
+    return this._runIdentityUX?.seenOverlayByWorld?.[worldKey] !== true;
+  }
+
+  openManual(world) {
+    const worldKey = resolveWorldKey(world);
+    if (!isRunIdentityWorld(worldKey)) {
+      this.hideOverlay();
+      return false;
+    }
+    this.prepareWorld(worldKey, { entryMode: 'manual' });
+    return this.showOverlay();
   }
 
   showOverlay() {
@@ -106,6 +151,7 @@ export class RunIdentityDirector {
     this._renderOverlay();
     this._container.classList.add('visible');
     this._visible = true;
+    document.addEventListener('keydown', this._handleKeyDown, true);
     return true;
   }
 
@@ -113,6 +159,7 @@ export class RunIdentityDirector {
     if (!this._container) return;
     this._container.classList.remove('visible');
     this._visible = false;
+    document.removeEventListener('keydown', this._handleKeyDown, true);
   }
 
   isOverlayVisible() {
@@ -124,15 +171,28 @@ export class RunIdentityDirector {
 
     const profile = loadMenuProfile();
     const nextMeta = applySelectionToMeta(profile?.metaProgression, selection.world, selection);
+    const nextRunIdentityUX = sanitizeRunIdentityUXState(profile?.runIdentityUX);
+    nextRunIdentityUX.seenOverlayByWorld[selection.world] = true;
     profile.metaProgression = nextMeta;
+    profile.runIdentityUX = nextRunIdentityUX;
     saveMenuProfile(profile);
     this._metaProgression = nextMeta;
+    this._runIdentityUX = nextRunIdentityUX;
     this._selection = composeRunIdentitySelection(selection.world, selection);
     this._activeRuntimeSelection = this._selection;
     this._syncHudIdentity();
     this.hideOverlay();
-    this._onCommitSelection?.(this._selection);
+    this._onCommitSelection?.(this._selection, { entryMode: this._entryMode });
     return this._selection;
+  }
+
+  dispose() {
+    this.hideOverlay();
+    this._container?.remove();
+    this._unlockToastRoot?.remove();
+    this._container = null;
+    this._overlayCard = null;
+    this._unlockToastRoot = null;
   }
 
   handleMilestone(milestone, world) {
@@ -169,7 +229,7 @@ export class RunIdentityDirector {
         #atoma-run-identity-overlay {
           position: fixed;
           inset: 0;
-          z-index: 2075;
+          z-index: 12150;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -271,6 +331,13 @@ export class RunIdentityDirector {
           align-items: center;
           justify-content: space-between;
           gap: 18px;
+          flex-wrap: wrap;
+        }
+        .atoma-run-identity-actions {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-left: auto;
         }
         .atoma-run-identity-summary {
           font-size: 11px;
@@ -279,6 +346,7 @@ export class RunIdentityDirector {
           color: rgba(208, 224, 240, 0.76);
           max-width: 520px;
         }
+        .atoma-run-identity-cancel,
         .atoma-run-identity-confirm {
           border: 1px solid rgba(0, 212, 255, 0.42);
           border-radius: 999px;
@@ -291,8 +359,19 @@ export class RunIdentityDirector {
           cursor: pointer;
           transition: transform 0.18s ease, border-color 0.18s ease;
         }
+        .atoma-run-identity-cancel {
+          border-color: rgba(120, 210, 255, 0.2);
+          background: rgba(11, 18, 28, 0.92);
+          color: rgba(208, 226, 240, 0.78);
+        }
+        .atoma-run-identity-cancel:hover,
         .atoma-run-identity-confirm:hover {
           transform: translateY(-1px);
+        }
+        .atoma-run-identity-cancel:hover {
+          border-color: rgba(120, 210, 255, 0.34);
+        }
+        .atoma-run-identity-confirm:hover {
           border-color: rgba(110, 236, 255, 0.68);
         }
         #atoma-run-identity-toast-root {
@@ -370,9 +449,15 @@ export class RunIdentityDirector {
 
     const subtitle = document.createElement('div');
     subtitle.className = 'atoma-run-identity-subtitle';
-    subtitle.textContent = this._world === 'desert'
-      ? 'Choose how this stabilizer run will breathe before the dunes start answering your links.'
-      : 'Choose how this stabilizer run will open before Quantum momentum starts pulling the lattice apart.';
+    if (this._entryMode === 'manual') {
+      subtitle.textContent = this._world === 'desert'
+        ? 'Refit this Dream Desert run without re-triggering the first-start prompt.'
+        : 'Refit this Quantum Island run without stopping future starts on the same selection step.';
+    } else {
+      subtitle.textContent = this._world === 'desert'
+        ? 'Choose how this stabilizer run will breathe before the dunes start answering your links.'
+        : 'Choose how this stabilizer run will open before Quantum momentum starts pulling the lattice apart.';
+    }
 
     this._overlayCard.appendChild(eyebrow);
     this._overlayCard.appendChild(title);
@@ -397,16 +482,31 @@ export class RunIdentityDirector {
     summary.className = 'atoma-run-identity-summary';
     summary.textContent = `${selection.runPackage.description} ${selection.worldState.description}`;
 
+    const actions = document.createElement('div');
+    actions.className = 'atoma-run-identity-actions';
+
+    if (this._entryMode === 'manual') {
+      const cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.className = 'atoma-run-identity-cancel';
+      cancel.textContent = 'Keep Current';
+      cancel.addEventListener('click', () => {
+        this.hideOverlay();
+      });
+      actions.appendChild(cancel);
+    }
+
     const confirm = document.createElement('button');
     confirm.type = 'button';
     confirm.className = 'atoma-run-identity-confirm';
-    confirm.textContent = 'Begin Run';
+    confirm.textContent = this._entryMode === 'manual' ? 'Apply Identity' : 'Begin Run';
     confirm.addEventListener('click', () => {
       this.commitSelection(this._selection);
     });
 
+    actions.appendChild(confirm);
     footer.appendChild(summary);
-    footer.appendChild(confirm);
+    footer.appendChild(actions);
     this._overlayCard.appendChild(footer);
   }
 
@@ -484,5 +584,20 @@ export class RunIdentityDirector {
 
   _clearHudIdentity() {
     this._hud?.clearRunIdentityTag?.();
+  }
+
+  _onKeyDown(event) {
+    if (!this._visible || event.defaultPrevented) {
+      return;
+    }
+    if (event.code !== 'Escape') {
+      return;
+    }
+    if (this._entryMode !== 'manual') {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    this.hideOverlay();
   }
 }

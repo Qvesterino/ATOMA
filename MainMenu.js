@@ -5,7 +5,7 @@ import {
     getLoreSectionById,
     getLoreSections,
 } from './LoreRegistry.js';
-import { META_PROGRESSION_VERSION, sanitizeMetaProgression } from './RunIdentityProfiles.js';
+import { META_PROGRESSION_VERSION, isRunIdentityWorld, sanitizeMetaProgression } from './RunIdentityProfiles.js';
 import { ATOMA_VERSION } from './src/config/version.js';
 
 const MENU_PROFILE_STORAGE_KEY = 'atoma.menu.profile.v1';
@@ -18,6 +18,7 @@ const MENU_BUILD_LABEL = ATOMA_VERSION;
 const VISUAL_LEVELS = ['LOW', 'MEDIUM', 'HIGH'];
 const SOUND_LEVELS = [0, 20, 40, 60, 80, 100];
 const GUIDED_FLOW_VERSION = 1;
+const RUN_IDENTITY_UX_VERSION = 1;
 export const SETTING_FEEDBACK_STATE = Object.freeze({
     APPLIED: 'APPLIED',
     PENDING: 'PENDING',
@@ -398,6 +399,21 @@ function sanitizeSettings(value) {
     };
 }
 
+export function sanitizeRunIdentityUX(value) {
+    const runIdentityUX = value && typeof value === 'object' ? value : {};
+    const seenOverlayByWorld = runIdentityUX.seenOverlayByWorld && typeof runIdentityUX.seenOverlayByWorld === 'object'
+        ? runIdentityUX.seenOverlayByWorld
+        : {};
+
+    return {
+        version: RUN_IDENTITY_UX_VERSION,
+        seenOverlayByWorld: {
+            quantum: seenOverlayByWorld.quantum === true,
+            desert: seenOverlayByWorld.desert === true,
+        },
+    };
+}
+
 function sanitizeProfile(value) {
     const profile = value && typeof value === 'object' ? value : {};
     return {
@@ -409,6 +425,7 @@ function sanitizeProfile(value) {
             version: META_PROGRESSION_VERSION,
             ...(profile.metaProgression || {})
         }),
+        runIdentityUX: sanitizeRunIdentityUX(profile.runIdentityUX),
     };
 }
 
@@ -1541,6 +1558,7 @@ export class MainMenu {
         this.actions = {
             resume: () => {},
             startNew: () => {},
+            openRunIdentity: () => {},
             exit: () => {},
             ...actions,
         };
@@ -1801,12 +1819,19 @@ export class MainMenu {
         }
 
         const mainEntries = [];
+        const runIdentityEnabled = isRunIdentityWorld(this.profile.selectedMapId);
         if (this.state.hasSave) {
             mainEntries.push({ id: 'continue', label: 'CONTINUE', type: 'main' });
         }
         mainEntries.push(
             { id: 'new-game', label: 'NEW GAME', type: 'main' },
             { id: 'map-selection', label: 'MAP SELECTION', type: 'main' },
+            {
+                id: 'run-identity',
+                label: 'RUN IDENTITY',
+                type: 'main',
+                selectable: runIdentityEnabled,
+            },
             { id: 'settings', label: 'SETTINGS', type: 'main' },
             { id: 'lore', label: 'LORE', type: 'main' },
             { id: 'end-game', label: 'END GAME', type: 'main' },
@@ -1921,6 +1946,10 @@ export class MainMenu {
         }
             if (entry.type === 'map') {
                 button.classList.add('atoma-main-menu__button--map');
+            }
+            if (entry.selectable === false) {
+                button.disabled = true;
+                button.setAttribute('aria-disabled', 'true');
             }
             if (index === this.state.selectedIndex) {
                 button.classList.add('is-selected');
@@ -2497,6 +2526,12 @@ export class MainMenu {
                 return;
             case 'map-selection':
                 this.switchScreen('MAP');
+                return;
+            case 'run-identity':
+                this.actions.openRunIdentity({
+                    worldId: this.profile.selectedMapId,
+                    selectedMapId: this.profile.selectedMapId,
+                });
                 return;
             case 'settings':
                 this.switchScreen('SETTINGS');

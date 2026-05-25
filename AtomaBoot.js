@@ -1,4 +1,5 @@
 import { mountAIAutomationHUD } from './HUD/AIAutomationHUD.js';
+import { RunIdentityDirector } from './HUD/RunIdentityDirector.js';
 import { startAtomaGame } from './main.js';
 import {
     isMenuDevMapUnlockEnabled,
@@ -26,13 +27,16 @@ class AtomaBootController {
         this._booting = false;
         this._hudMounted = false;
         this.pauseMenu = null;
+        this.menuRunIdentityDirector = null;
         this.loadingOverlay = getSharedAtomaLoadingOverlay();
         this._handleGlobalKeyDown = (event) => this._onGlobalKeyDown(event);
+        this._ensureBootRunIdentityDirector();
 
         this.menu = new MainMenu({
             actions: {
                 resume: ({ snapshot, settings }) => this.resume(snapshot, settings),
                 startNew: ({ worldId, selectedMapId, settings }) => this.startNew(worldId, selectedMapId, settings),
+                openRunIdentity: ({ worldId, selectedMapId }) => this.openRunIdentityFromMenu(worldId, selectedMapId),
                 exit: () => this.exit(),
             },
         });
@@ -87,6 +91,12 @@ class AtomaBootController {
         this.menu.refresh();
     }
 
+    openRunIdentityFromMenu(worldId, selectedMapId = worldId) {
+        const nextSelection = this._resolveWorldSelection(worldId, selectedMapId);
+        this._ensureBootRunIdentityDirector();
+        this.menuRunIdentityDirector?.openManual?.(nextSelection.worldId);
+    }
+
     setMapDevUnlock(enabled) {
         const nextEnabled = setMenuDevMapUnlockEnabled(enabled);
 
@@ -122,6 +132,7 @@ class AtomaBootController {
                 this._persistBootSettings(settings);
                 document.body.classList.remove(PREBOOT_BODY_CLASS);
                 this.menu.hide();
+                this._disposeBootRunIdentityDirector();
 
                 setPhase({
                     title: isResume ? 'RESUMING ATOMA' : 'INITIALIZING ATOMA',
@@ -164,6 +175,7 @@ class AtomaBootController {
             });
         } catch (error) {
             document.body.classList.add(PREBOOT_BODY_CLASS);
+            this._ensureBootRunIdentityDirector();
             this.menu.show();
             this._booting = false;
             console.error('[AtomaBoot] launch failed:', error);
@@ -183,6 +195,7 @@ class AtomaBootController {
             return;
         }
 
+        this.pauseMenu.profile.selectedMapId = resolvePublicSelectedMapId(this.game.currentMode);
         this.game.pause?.();
         this.pauseMenu?.show();
     }
@@ -224,6 +237,19 @@ class AtomaBootController {
         }
     }
 
+    _openRunIdentityFromPause(worldId, selectedMapId = worldId) {
+        if (!this.game) {
+            return;
+        }
+        const nextSelection = this._resolveWorldSelection(worldId || this.game.currentMode, selectedMapId || this.game.currentMode);
+        this.pauseMenu.profile.selectedMapId = nextSelection.selectedMapId;
+        this.pauseMenu.refresh();
+        this.game.openRunIdentityOverlay?.({
+            world: nextSelection.worldId,
+            entryMode: 'manual',
+        });
+    }
+
     _ensurePauseMenu() {
         if (this.pauseMenu) {
             return this.pauseMenu;
@@ -232,12 +258,30 @@ class AtomaBootController {
         this.pauseMenu = new PauseMenu({
             actions: {
                 resume: () => this.resumeGame(),
+                openRunIdentity: ({ worldId, selectedMapId }) => this._openRunIdentityFromPause(worldId, selectedMapId),
                 switchWorld: (payload) => void this._switchWorldFromPause(payload),
                 endGame: () => this.exit(),
             },
         });
 
         return this.pauseMenu;
+    }
+
+    _ensureBootRunIdentityDirector() {
+        if (this.menuRunIdentityDirector) {
+            return this.menuRunIdentityDirector;
+        }
+        this.menuRunIdentityDirector = new RunIdentityDirector({
+            onCommitSelection: () => {
+                this.menu?.refresh?.();
+            }
+        });
+        return this.menuRunIdentityDirector;
+    }
+
+    _disposeBootRunIdentityDirector() {
+        this.menuRunIdentityDirector?.dispose?.();
+        this.menuRunIdentityDirector = null;
     }
 
     _onGlobalKeyDown(event) {

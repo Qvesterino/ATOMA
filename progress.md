@@ -705,6 +705,18 @@ ode --check after the change.
     - `WaveShaderBridge_v1.js`
     - `WaveTravelShaderPack_v1.js`
 
+## 2026-05-23 — Run Identity Overlay Friction Fix
+- Reworked run-identity overlay behavior so `quantum` and `desert` auto-show the selector only once per world instead of every load.
+- Added local UX memory in `menuProfile.runIdentityUX.seenOverlayByWorld`.
+- Kept first-run onboarding persistence separate from run-identity persistence.
+- Added explicit `RUN IDENTITY` entry points to both `MainMenu` and `PauseMenu`.
+- `RunIdentityDirector` now supports `auto` and `manual` entry modes and manual close via `Keep Current`.
+- Runtime smoke on `http://127.0.0.1:5173/` confirmed:
+  - Quantum first-run overlay appears once, then skips on later starts
+  - Desert first-run overlay appears once
+  - manual reopen works from main menu and pause
+  - pause remains visible after cancelling the manual overlay
+
 ## 2026-04-17
 - QuantumIsland cleanup: disabled the map-owned reference plane for `QuantumIsland` and stopped creating the local mist plane so the square ground-sheet artifacts disappear from this world.
 - Performance fix: `_SafeEvolutionManager` no longer does a full `scene.traverse()` for every registered node on every frame; it now rebuilds a per-frame node lookup from the provided `nodes` array and only falls back to traversal on cache misses.

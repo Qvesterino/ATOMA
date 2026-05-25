@@ -14343,9 +14343,13 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         if (!this.runIdentityDirector) {
             this.runIdentityDirector = new RunIdentityDirector({
                 hud: this.coreMetricsOverlay?.hud || null,
-                onCommitSelection: (selection) => {
-                    this._applyRunIdentitySelection(selection, { source: 'overlay' });
-                    this.resume();
+                onCommitSelection: (selection, { entryMode = 'auto' } = {}) => {
+                    this._applyRunIdentitySelection(selection, {
+                        source: entryMode === 'manual' ? 'manual-overlay' : 'overlay'
+                    });
+                    if (entryMode !== 'manual') {
+                        this.resume();
+                    }
                 }
             });
             return;
@@ -14419,7 +14423,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         this.audioModulation?.setAudioIdentityContext?.(this._buildAudioIdentityContext());
         this.harmonicAudio?.setAudioIdentityContext?.(this._buildAudioIdentityContext());
 
-        if (source === 'overlay' && this.visualNetworkTimeElasticity?.applyWorldConfig) {
+        if ((source === 'overlay' || source === 'manual-overlay') && this.visualNetworkTimeElasticity?.applyWorldConfig) {
             this.visualNetworkTimeElasticity.applyWorldConfig(this._getRunIdentityScoreConfigForWorld(this.currentMode));
         }
 
@@ -14456,11 +14460,20 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
     }
 
     _triggerRunIdentityOverlayForCurrentWorld() {
-        if (!this.runIdentityDirector?.handleWorldLoad?.(this.currentMode)) {
+        if (!this.runIdentityDirector?.handleWorldLoad?.(this.currentMode, { entryMode: 'auto' })) {
             return false;
         }
         this.pause();
         return true;
+    }
+
+    openRunIdentityOverlay({ world = this.currentMode, entryMode = 'manual' } = {}) {
+        const worldId = String(world || this.currentMode || '').trim().toLowerCase();
+        if (!this.runIdentityDirector || !isRunIdentityWorld(worldId)) {
+            return false;
+        }
+        this._prepareRunIdentityForWorld(worldId);
+        return this.runIdentityDirector.openManual(worldId, { entryMode });
     }
 
     _getRunIdentityOverlayStateForQA() {

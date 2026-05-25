@@ -13,6 +13,7 @@ import {
     saveMenuProfile,
     setMenuAudioMuted,
 } from './MainMenu.js';
+import { isRunIdentityWorld } from './RunIdentityProfiles.js';
 import {
     getDefaultLoreSectionId,
     getLoreEntriesBySection,
@@ -54,6 +55,7 @@ export class PauseMenu {
 
         this.actions = {
             resume: () => {},
+            openRunIdentity: () => {},
             switchWorld: () => {},
             endGame: () => {},
             ...actions,
@@ -349,6 +351,12 @@ export class PauseMenu {
 
         return [
             { id: 'resume', label: 'RESUME', type: 'main', selectable: true },
+            {
+                id: 'run-identity',
+                label: 'RUN IDENTITY',
+                type: 'main',
+                selectable: isRunIdentityWorld(this.profile.selectedMapId),
+            },
             { id: 'settings', label: 'SETTINGS', type: 'main', selectable: true },
             { id: 'lore', label: 'LORE', type: 'main', selectable: true },
             { id: 'map-selection', label: 'MAP SELECT', type: 'main', selectable: true },
@@ -449,6 +457,10 @@ export class PauseMenu {
             }
             if (entry.type === 'map') {
                 button.classList.add('atoma-main-menu__button--map');
+            }
+            if (entry.selectable === false) {
+                button.disabled = true;
+                button.setAttribute('aria-disabled', 'true');
             }
             if (index === this.state.selectedIndex) {
                 button.classList.add('is-selected');
@@ -947,6 +959,12 @@ export class PauseMenu {
         switch (entryId) {
             case 'resume':
                 this.actions.resume({ settings: { ...this.profile.settings } });
+                return;
+            case 'run-identity':
+                this.actions.openRunIdentity({
+                    worldId: this.profile.selectedMapId,
+                    selectedMapId: this.profile.selectedMapId,
+                });
                 return;
             case 'settings':
                 this.switchScreen('SETTINGS');
