@@ -588,6 +588,7 @@ import { loadMenuProfile, saveMenuProfile } from './MainMenu.js';
 import { composeRunIdentitySelection, isRunIdentityWorld } from './RunIdentityProfiles.js';
 import { DoctrineRuntime } from './src/doctrine/DoctrineRuntime.js';
 import { integrateMilestoneUnlocks, describeDoctrineUnlock } from './src/doctrine/DoctrineIntegration.js';
+import { CollapseReadabilityDirector } from './src/collapse/CollapseReadabilityDirector.js';
 import { SystemStateOverlay } from './SystemStateOverlay.js';
 import { ZoneAudioReactivity } from './ZoneAudioReactivity.js';
 // DISABLED: Legacy metric reactive system (replaced by Phase 5-7 architecture)
@@ -11335,6 +11336,9 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         // Re-bind DoctrineRuntime to the live metricsRuntime_v1 now that it exists
         this._setupDoctrineRuntime();
 
+        // Initialize CollapseReadabilityDirector after metrics and hint layer exist
+        this._setupCollapseReadabilityDirector();
+
         try {
             this.networkTensionRuntime_v1 = new NetworkTensionRuntime_v1({
                 metricsRuntime: this.metricsRuntime_v1,
@@ -11600,6 +11604,9 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                     timestamp: performance.now()
                 }, { priority: this.semanticBus.priority?.NORMAL });
             }
+
+            // Reset collapse readability state for new world
+            this.collapseReadabilityDirector?.setWorld?.(worldId);
 
             console.log('[LOADWORLD] after registry', worldId);
         } catch (e) {
@@ -12096,6 +12103,10 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         // }
         if (this.semanticActivityFilter) {
             this.semanticActivityFilter.update();
+        }
+        // Collapse readability scan (10 Hz is sufficient for threat classification)
+        if (this.collapseReadabilityDirector?.enabled) {
+            this.collapseReadabilityDirector.scan(this.linkingSystem, this.aiNodes);
         }
     }
 
@@ -14402,6 +14413,20 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         if (typeof window !== 'undefined') {
             window.__ATOMA_DOCTRINE__ = () => this.doctrineRuntime?.getState?.() || null;
             window.__ATOMA_DOCTRINE_MODS__ = () => this.doctrineRuntime?.getModifiers?.() || null;
+        }
+    }
+
+    _setupCollapseReadabilityDirector() {
+        if (this.collapseReadabilityDirector) {
+            this.collapseReadabilityDirector.dispose();
+        }
+        this.collapseReadabilityDirector = new CollapseReadabilityDirector({
+            semanticBus: this.semanticBus,
+            gameplayHintLayer: this.gameplayHintLayer,
+            linkingSystem: this.linkingSystem
+        });
+        if (typeof window !== 'undefined') {
+            window.__ATOMA_COLLAPSE_READABILITY__ = () => this.collapseReadabilityDirector?.getDebugSnapshot?.() || null;
         }
     }
 

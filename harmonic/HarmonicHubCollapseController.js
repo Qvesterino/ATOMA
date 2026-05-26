@@ -41,7 +41,11 @@ export class HarmonicHubCollapseController {
 
         // Overload state tracking
         this.isInOverload = false;
+        this._wasInOverload = false;
         this.overloadAge = 0.0; // Time spent in overload
+
+        // Semantic bus (injected externally)
+        this.semanticBus = null;
 
         // Phase variance (increases with corruption)
         this.phaseVariance = 0.0;
@@ -104,6 +108,20 @@ export class HarmonicHubCollapseController {
 
         // === 1. CHECK OVERLOAD ACTIVATION ===
         this.isInOverload = this._checkOverloadConditions(harmony, corruption, synergy, stability);
+
+        // Emit predictive event on false -> true transition
+        if (!this._wasInOverload && this.isInOverload && this.semanticBus) {
+            this.semanticBus.emit('hub.overload', {
+                node: this.harmonicController?.node,
+                collapseFactor: this.collapseFactor,
+                phaseVariance: this.phaseVariance,
+                harmony,
+                corruption,
+                synergy,
+                stability
+            });
+        }
+        this._wasInOverload = this.isInOverload;
 
         if (this.isInOverload) {
             this.overloadAge += deltaTime;

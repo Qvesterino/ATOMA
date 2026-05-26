@@ -6478,6 +6478,9 @@ const makeWaveSlice = () => {
         if (this.corruptionSpreadAnimator?.setEventBus) {
             this.corruptionSpreadAnimator.setEventBus(bus);
         }
+        if (this.nodeHarmonicManager?.setEventBus) {
+            this.nodeHarmonicManager.setEventBus(bus);
+        }
     }
 }
 

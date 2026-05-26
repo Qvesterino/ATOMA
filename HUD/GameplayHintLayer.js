@@ -104,6 +104,40 @@ function resolveSoftFailureNodeFailureHint(context = {}) {
   return 'A critical anchor failed. Repair the local lattice before you push the network wider.';
 }
 
+function resolveCollapseReadabilityHint(context = {}) {
+  const { state, reason, action, text, nodeLabel, corridorLabel } = context;
+  const label = corridorLabel || nodeLabel || 'corridor';
+
+  if (state === 'fracturing') {
+    if (reason === 'node-countdown') {
+      return `Structural failure in ${label}. ${action} now or lose the chain.`;
+    }
+    if (reason === 'cascade-propagating') {
+      return `Cascade tearing through ${label}. ${action}.`;
+    }
+    return `Fracturing detected in ${label}. ${action} immediately.`;
+  }
+
+  if (state === 'critical') {
+    if (reason === 'chokepoint-overload') {
+      return `Critical chokepoint: ${action} or lose chain.`;
+    }
+    if (reason === 'corruption-spike') {
+      return `Corruption link unstable under hold: ${action}.`;
+    }
+    if (reason === 'hub-overload') {
+      return `Hub overloading: ${action} before collapse spreads.`;
+    }
+    return `Critical corridor: ${action}.`;
+  }
+
+  if (state === 'strained') {
+    return `${label} strained. ${action} before it hardens.`;
+  }
+
+  return `${label} under stress. ${action}.`;
+}
+
 const HINTS = Object.freeze({
   start: {
     text: resolveStartHint,
@@ -168,6 +202,12 @@ const HINTS = Object.freeze({
     durationMs: 6200,
     priority: 11,
     variant: 'major'
+  },
+  collapseReadability: {
+    text: resolveCollapseReadabilityHint,
+    durationMs: 5200,
+    priority: 12,
+    variant: 'default'
   }
 });
 

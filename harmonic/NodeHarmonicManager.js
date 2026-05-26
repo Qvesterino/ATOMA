@@ -46,6 +46,12 @@ export class NodeHarmonicManager {
         this.frameCounter = 0;
     }
 
+    setEventBus(semanticBus) {
+        for (const controller of this.collapseControllers.values()) {
+            if (controller) controller.semanticBus = semanticBus;
+        }
+    }
+
     registerNode(node) {
         if (!this.nodeControllers.has(node)) {
             const controller = new NodeHarmonicSyncController(node);

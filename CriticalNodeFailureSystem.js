@@ -478,6 +478,18 @@ export class CriticalNodeFailureSystem {
         const links = this.linkingSystem.getNodeLinks(node);
         if (!links || links.length === 0) return;
 
+        // Emit predictive warning BEFORE countdown starts
+        const nodeMetrics = node.userData?.metrics || {};
+        this.semanticBus?.emit?.('node.failure.warning', {
+            nodeId: this._getNodeId(node),
+            node,
+            reason: 'stability-critical',
+            stability: nodeMetrics.stability ?? 1.0,
+            corruption: nodeMetrics.corruption ?? 0,
+            countdownDuration: CONFIG.FAILURE_COUNTDOWN_DURATION,
+            linkCount: links.length
+        });
+
         // Start countdown
         failureState.startCountdown(node, links);
 
