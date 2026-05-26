@@ -17,12 +17,17 @@ export function integrateMilestoneUnlocks(metaProgression = {}, milestone = {}, 
   const runUnlocks = existingUnlocks;
   
   const doctrineUnlocks = determineMilestoneDoctrineUnlocks(metaProgression, milestone, world);
+  const persisted = metaProgression.unlockedDoctrines || [];
   for (const unlock of doctrineUnlocks) {
-    const id = unlock.type === 'school' ? unlock.id : `mutator_${unlock.id}`;
+    const id = unlock.type === 'school' ? unlock.id : unlock.id;
     if (!runUnlocks.some(u => u.id === id)) {
       runUnlocks.push({ type: 'doctrine', doctrineType: unlock.type, ...unlock });
     }
+    if (!persisted.includes(id)) {
+      persisted.push(id);
+    }
   }
+  metaProgression.unlockedDoctrines = persisted;
   
   return runUnlocks;
 }
@@ -79,9 +84,6 @@ export function describeDoctrineUnlock(unlock = {}) {
 
 export function isDoctrineUnlocked(metaProgression = {}, doctrineId = '') {
   const doctrineIdKey = String(doctrineId || '').trim().toLowerCase();
-  
-  if (SCHOOL_OF_THOUGHT_DEFINITIONS[doctrineIdKey]) return true;
-  if (WORLD_MUTATOR_DEFINITIONS[doctrineIdKey]) return true;
   
   const unlocked = metaProgression?.unlockedDoctrines || [];
   return unlocked.includes(doctrineIdKey);

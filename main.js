@@ -9011,7 +9011,10 @@ window.__ATOMA_SCENE__ = this.scene;
                 this.gameplayHintLayer.show('start', { world: this.currentMode });
             }
         }
-        this._triggerRunIdentityOverlayForCurrentWorld();
+        const runIdentityOpened = this._triggerRunIdentityOverlayForCurrentWorld();
+        if (!runIdentityOpened) {
+            this._triggerDoctrineDraftForCurrentWorld();
+        }
         } finally {
             this._worldTransitionInProgress = false;
         }
@@ -11328,6 +11331,9 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
 } catch (err) {
   console.warn('[main.js] MetricsRuntime_v1 failed:', err);
 }
+
+        // Re-bind DoctrineRuntime to the live metricsRuntime_v1 now that it exists
+        this._setupDoctrineRuntime();
 
         try {
             this.networkTensionRuntime_v1 = new NetworkTensionRuntime_v1({
@@ -14360,6 +14366,9 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                     if (entryMode !== 'manual') {
                         this.resume();
                     }
+                    if (entryMode === 'auto') {
+                        setTimeout(() => this._triggerDoctrineDraftForCurrentWorld(), 0);
+                    }
                 }
             });
             return;
@@ -14386,6 +14395,9 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         });
         this.doctrineRuntime.onCrisis((event, data) => {
             this.semanticBus?.emit?.(`doctrine.${event}`, data);
+            if (event === 'draft:complete' || event === 'draft:skip') {
+                this.resume();
+            }
         });
         if (typeof window !== 'undefined') {
             window.__ATOMA_DOCTRINE__ = () => this.doctrineRuntime?.getState?.() || null;
@@ -14408,7 +14420,10 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
             detail: this._runIdentityPendingSelection?.hudDetail
         });
 
-        this.doctrineRuntime?.initializeForWorld?.(worldId);
+        const profile = loadMenuProfile();
+        const metaProgression = profile?.metaProgression || {};
+        const unlockedDoctrines = metaProgression.unlockedDoctrines || [];
+        this.doctrineRuntime?.initializeForWorld?.(worldId, unlockedDoctrines);
 
         return this._runIdentityPendingSelection;
     }
@@ -14510,7 +14525,21 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
 
             applyMod('networkSynergy', doctrineModifiers.synergy);
             applyMod('harmonyFlow', doctrineModifiers.harmony);
-            applyMod('networkStress', doctrineModifiers.stability);
+
+            // Stability modifier applies to stability (1 - networkStress), not directly to networkStress
+            // Higher stability scale should reduce networkStress, not increase it
+            if (doctrineModifiers.stability) {
+                const stability = 1 - (nextMetrics.networkStress || 0);
+                const mod = doctrineModifiers.stability;
+                let result = stability;
+                if (mod.scale && mod.scale !== 1) result *= mod.scale;
+                if (mod.drift) result += mod.drift;
+                if (mod.softCap !== undefined && mod.softCap < 1) {
+                    result = Math.min(result, mod.softCap);
+                }
+                nextMetrics.networkStress = 1 - Math.max(0, Math.min(1, result));
+            }
+
             applyMod('corruptionLevel', doctrineModifiers.corruption);
             applyMod('loadPressure', doctrineModifiers.loadPressure);
         }
@@ -14565,8 +14594,10 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
     _handleRunIdentityMilestone(milestone, world = this.currentMode) {
         this.runIdentityDirector?.handleMilestone?.(milestone, world);
 
+        const profile = loadMenuProfile();
+        const metaProgression = profile?.metaProgression || {};
         const unlocks = integrateMilestoneUnlocks(
-            this.runIdentityDirector?._metaProgression || {},
+            metaProgression,
             milestone,
             world,
             []
@@ -14577,10 +14608,33 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                 this.runIdentityDirector?._showUnlockToast?.(desc.title, desc.detail);
             }
         }
+        // Persist milestone unlocks into menu profile (canonical meta-progression)
+        if (metaProgression.unlockedDoctrines?.length) {
+            profile.metaProgression = metaProgression;
+            saveMenuProfile(profile);
+            this.doctrineRuntime?.setUnlockedDoctrines?.(metaProgression.unlockedDoctrines);
+        }
     }
 
     triggerMidrunDoctrineDraft() {
-        return this.doctrineRuntime?.triggerMidrunDraft?.() || false;
+        if (!this.doctrineRuntime) return false;
+        this.pause();
+        const opened = this.doctrineRuntime.triggerMidrunDraft();
+        if (!opened) {
+            this.resume();
+        }
+        return opened;
+    }
+
+    _triggerDoctrineDraftForCurrentWorld() {
+        if (!this.doctrineRuntime) return false;
+        if (this.doctrineRuntime.isDraftAvailable()) return false;
+        this.pause();
+        const opened = this.doctrineRuntime.triggerMidrunDraft();
+        if (!opened) {
+            this.resume();
+        }
+        return opened;
     }
 
     _showSoftFailureHint(key, context = {}, { cooldownMs = 9000, fingerprint = key } = {}) {

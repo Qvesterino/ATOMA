@@ -34,6 +34,7 @@ export class DoctrineRuntime {
     this._world = null;
     this._activeSchool = null;
     this._activeMutator = null;
+    this._unlockedDoctrines = [];
     
     this._crisisCheckAccumulator = 0;
     this._crisisTickAccumulator = 0;
@@ -54,16 +55,37 @@ export class DoctrineRuntime {
     if (runIdentityDirector) this._runIdentityDirector = runIdentityDirector;
   }
   
-  initializeForWorld(world) {
+  initializeForWorld(world, unlockedDoctrines = []) {
     this._world = String(world || '').trim().toLowerCase();
     this._state = sanitizeDoctrineState();
     this._draftPhase = 'none';
     this._activeSchool = null;
     this._activeMutator = null;
+    this._unlockedDoctrines = Array.isArray(unlockedDoctrines) ? unlockedDoctrines : [];
     
     const savedState = this._loadDoctrineState();
     if (savedState) {
-      this._state = sanitizeDoctrineState(savedState);
+      const loaded = sanitizeDoctrineState(savedState);
+      // Migrate any legacy unlockedDoctrines from world-scoped storage into the
+      // meta-persistent field, then keep only run-local state.
+      if (loaded.unlockedDoctrines?.length) {
+        this._unlockedDoctrines = loaded.unlockedDoctrines;
+      }
+      this._state = {
+        version: loaded.version,
+        activeSchools: loaded.activeSchools,
+        activeMutators: loaded.activeMutators,
+        activeCrisis: loaded.activeCrisis,
+        draftHistory: loaded.draftHistory,
+        draftCount: loaded.draftCount
+      };
+    }
+    // Scrub mutators that do not apply to the current world
+    if (this._state.activeMutators?.length) {
+      this._state.activeMutators = this._state.activeMutators.filter(id => {
+        const mutator = getWorldMutator(id);
+        return mutator && mutator.appliesTo.includes(this._world);
+      });
     }
   }
   
@@ -84,6 +106,7 @@ export class DoctrineRuntime {
     this._draftPhase = 'none';
     this._isDraftAvailable = true;
     this._hideOverlay();
+    this._emit('draft:skip', { world: this._world });
   }
   
   selectSchool(schoolId) {
@@ -169,7 +192,14 @@ export class DoctrineRuntime {
   }
   
   getState() {
-    return this._state;
+    return {
+      ...this._state,
+      unlockedDoctrines: this._unlockedDoctrines
+    };
+  }
+  
+  setUnlockedDoctrines(doctrines) {
+    this._unlockedDoctrines = Array.isArray(doctrines) ? doctrines : [];
   }
   
   getModifiers() {
@@ -307,7 +337,7 @@ export class DoctrineRuntime {
   }
   
   _renderSchoolSelection() {
-    const schools = getAvailableSchools(this._world);
+    const schools = getAvailableSchools(this._world, this._unlockedDoctrines);
     
     const eyebrow = document.createElement('div');
     eyebrow.className = 'doctrine-overlay-eyebrow';
@@ -385,7 +415,14 @@ export class DoctrineRuntime {
   }
   
   _renderMutatorSelection() {
-    const mutators = getAvailableMutators(this._world);
+    const unlocked = new Set(this._unlockedDoctrines);
+    const schools = this._state.activeSchools || [];
+    // Only show mutators if a school is already chosen; filter by unlock state
+    if (!schools.length) {
+      this.skipDraft();
+      return;
+    }
+    const mutators = getAvailableMutators(this._world).filter(m => unlocked.has(m.id));
     
     const eyebrow = document.createElement('div');
     eyebrow.className = 'doctrine-overlay-eyebrow';
@@ -576,16 +613,28 @@ export class DoctrineRuntime {
     }
   }
   
+  _storageKey() {
+    return `atoma_doctrine_state_${this._world || 'global'}`;
+  }
+
   _loadDoctrineState() {
     try {
-      const saved = localStorage.getItem('atoma_doctrine_state');
+      const saved = localStorage.getItem(this._storageKey());
       return saved ? JSON.parse(saved) : null;
     } catch { return null; }
   }
   
   _saveDoctrineState() {
     try {
-      localStorage.setItem('atoma_doctrine_state', JSON.stringify(this._state));
+      const runLocal = {
+        version: this._state.version,
+        activeSchools: this._state.activeSchools,
+        activeMutators: this._state.activeMutators,
+        activeCrisis: this._state.activeCrisis,
+        draftHistory: this._state.draftHistory,
+        draftCount: this._state.draftCount
+      };
+      localStorage.setItem(this._storageKey(), JSON.stringify(runLocal));
     } catch { }
   }
 }
