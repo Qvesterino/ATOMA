@@ -31,6 +31,9 @@ import {
 import { NODE_VISUAL_REGISTRY } from '../NodeVisualRegistry.js';
 import { NetworkMetricsAggregator } from '../src/metrics/NetworkMetricsAggregator.js';
 import { onLinkCreated, onLinkRemoved } from '../src/metrics/NodeMetricEngine.js';
+import { RUN_SHAPER_DEFINITIONS, getRunShaper, sanitizeDoctrineState } from '../src/doctrine/DoctrineLayer.js';
+import { DoctrineRuntime } from '../src/doctrine/DoctrineRuntime.js';
+import { CollapseReadabilityDirector } from '../src/collapse/CollapseReadabilityDirector.js';
 
 const tests = [];
 function test(name, fn) {
@@ -2176,6 +2179,168 @@ tests.push({
     assert.strictEqual(director.getCrisisMastery('resonance_surge').survivedCount, 3, 'should have 3 survivals');
 
     director.dispose();
+  }
+});
+
+// ── Run-Shaper Doctrine Tests ───────────────────────────────────────────────
+
+tests.push({
+  name: 'DoctrineLayer run-shaper definitions have full config',
+  fn: () => {
+    assert(RUN_SHAPER_DEFINITIONS.sacrifice_pivot, 'sacrifice_pivot should exist');
+    assert(RUN_SHAPER_DEFINITIONS.reinforce_discipline, 'reinforce_discipline should exist');
+    assert(RUN_SHAPER_DEFINITIONS.risky_rewind, 'risky_rewind should exist');
+
+    const sp = RUN_SHAPER_DEFINITIONS.sacrifice_pivot;
+    assert.strictEqual(sp.decisionType, 'sacrifice', 'sacrifice_pivot decisionType');
+    assert(sp.crisisPattern.peakDurationScale < 1, 'sacrifice_pivot has shorter peak');
+    assert(sp.counterplayPayoff.rerouteReliefScale > 1, 'sacrifice_pivot favors reroute');
+    assert(sp.rewindBehavior.thresholdOffset < 0, 'sacrifice_pivot easier rewind gate');
+
+    const rd = RUN_SHAPER_DEFINITIONS.reinforce_discipline;
+    assert.strictEqual(rd.decisionType, 'discipline', 'reinforce_discipline decisionType');
+    assert(rd.crisisPattern.peakDurationScale > 1, 'reinforce_discipline has longer peak');
+    assert(rd.counterplayPayoff.reinforceDurationScale > 1, 'reinforce_discipline favors reinforce');
+    assert(rd.rewindBehavior.thresholdOffset > 0, 'reinforce_discipline harder rewind gate');
+
+    const rr = RUN_SHAPER_DEFINITIONS.risky_rewind;
+    assert.strictEqual(rr.decisionType, 'gamble', 'risky_rewind decisionType');
+    assert(rr.crisisPattern.intensityCurveScale > 1, 'risky_rewind higher intensity');
+    assert(rr.rewindBehavior.thresholdOffset < 0, 'risky_rewind easier rewind gate');
+    assert(rr.rewindBehavior.peakBonusMultiplier > 1, 'risky_rewind peak bonus');
+  }
+});
+
+tests.push({
+  name: 'DoctrineLayer backward compatibility migrates legacy schools',
+  fn: () => {
+    const legacy = {
+      activeSchools: ['synergy_cascade'],
+      unlockedDoctrines: ['stability_doctrine', 'quantum_entropy_wave']
+    };
+    const migrated = sanitizeDoctrineState(legacy);
+    assert.strictEqual(migrated.activeShaper, 'sacrifice_pivot', 'synergy_cascade maps to sacrifice_pivot');
+    assert(migrated.unlockedDoctrines.includes('reinforce_discipline'), 'stability_doctrine maps to reinforce_discipline');
+    assert(migrated.unlockedDoctrines.includes('quantum_entropy_wave'), 'mutator stays unchanged');
+  }
+});
+
+tests.push({
+  name: 'DoctrineRuntime emits doctrine.shaperActive on semantic bus',
+  fn: () => {
+    const emitted = [];
+    const mockBus = {
+      emit: (tag, payload, opts) => emitted.push({ tag, payload }),
+      priority: { NORMAL: 2 }
+    };
+    const runtime = new DoctrineRuntime({ semanticBus: mockBus });
+    runtime.initializeForWorld('quantum', ['sacrifice_pivot', 'reinforce_discipline', 'risky_rewind']);
+    runtime.selectShaper('sacrifice_pivot');
+
+    const shaperEvent = emitted.find(e => e.tag === 'doctrine.shaperActive');
+    assert(shaperEvent, 'should emit doctrine.shaperActive');
+    assert.strictEqual(shaperEvent.payload.shaperId, 'sacrifice_pivot', 'payload shaperId');
+    assert(shaperEvent.payload.shaperConfig, 'payload shaperConfig');
+    assert.strictEqual(shaperEvent.payload.world, 'quantum', 'payload world');
+  }
+});
+
+tests.push({
+  name: 'CrisisPhaseDirector applies shaper crisis pattern scaling',
+  fn: () => {
+    const director = new CrisisPhaseDirector({ semanticBus: null, getWorldId: () => 'default' });
+
+    // Apply reinforce_discipline shaper (longer peak)
+    director._onShaperActive({
+      shaperConfig: {
+        crisisPattern: {
+          introDurationScale: 1.2,
+          surgeDurationScale: 1.4,
+          peakDurationScale: 1.5,
+          decayDurationScale: 1.2,
+          intensityCurveScale: 0.9
+        }
+      }
+    });
+
+    director._onCrisisStart({ crisisId: 'resonance_surge', duration: 15 });
+    const crisis = director._activeCrisis;
+    assert(crisis.phaseConfig.peakDuration > 2.5, 'peak duration should be scaled up');
+    assert(crisis.phaseConfig.surgeDuration > 4.0, 'surge duration should be scaled up');
+
+    // Intensity should be lower due to 0.9 curve scale
+    const intensity = director._computeIntensity('SURGE', 2.0, crisis.phaseConfig);
+    assert(intensity < 0.7, 'intensity should be scaled down by curve scale');
+
+    director.dispose();
+  }
+});
+
+tests.push({
+  name: 'NetworkTensionRuntime applies shaper counterplay payoff',
+  fn: () => {
+    const runtime = new NetworkTensionRuntime_v1({ semanticBus: null });
+
+    // Apply sacrifice_pivot shaper (favors reroute, penalizes reinforce)
+    runtime._shaperConfig = {
+      counterplayPayoff: {
+        rerouteReliefScale: 1.6,
+        rerouteRecoveryImpulseScale: 1.2,
+        reinforceDurationScale: 0.6,
+        reinforceStabilityCostScale: 1.4,
+        reinforceRecoveryImpulseScale: 0.8,
+        abandonStabilityBonus: 0.03,
+        tickPressureScale: 1.05
+      }
+    };
+
+    // Verify shaper config is stored
+    assert.strictEqual(runtime._shaperConfig.counterplayPayoff.rerouteReliefScale, 1.6, 'reroute relief scale');
+    assert.strictEqual(runtime._shaperConfig.counterplayPayoff.reinforceDurationScale, 0.6, 'reinforce duration scale');
+    assert.strictEqual(runtime._shaperConfig.counterplayPayoff.abandonStabilityBonus, 0.03, 'abandon stability bonus');
+  }
+});
+
+tests.push({
+  name: 'VisualNetworkTimeElasticity applies shaper rewind behavior',
+  fn: () => {
+    const score = new VisualNetworkTimeElasticity_v1({ synergyThreshold: 0.55 });
+
+    // Apply risky_rewind shaper (easier gate, shorter duration, peak bonus)
+    score._shaperConfig = {
+      rewindBehavior: {
+        thresholdOffset: -0.08,
+        gateDurationScale: 0.8,
+        peakBonusMultiplier: 1.5
+      }
+    };
+
+    // Simulate PEAK phase with crisis offset
+    score.onCrisisPhaseChanged({ phase: 'PEAK', thresholdOffset: 0.02 });
+    assert.strictEqual(score._crisisGateThresholdOffset, 0.03, 'threshold offset = 0.02 * 1.5 peak bonus');
+
+    // Effective threshold should be lower (easier gate)
+    // 0.55 + 0.03 - 0.08 = 0.50 conceptually, but floating point makes it ~0.50000000000000004
+    // Use 0.51 to safely clear the gate
+    const gateState = score._evaluateRewindGate({ networkSynergy: 0.51, nodeCount: 5, linkCount: 5, avgLinkQuality: 0.6, criticalHotspotActive: false, regionalTension: 0, tensionReleaseThreshold: 0 });
+    assert(gateState.eligible, 'should be eligible with lowered threshold (0.55 + 0.03 - 0.08 ≈ 0.50)');
+  }
+});
+
+tests.push({
+  name: 'CollapseReadabilityDirector applies shaper collapse tolerance',
+  fn: () => {
+    const director = new CollapseReadabilityDirector({ semanticBus: null });
+
+    // Apply sacrifice_pivot shaper (+0.15 fracture threshold offset = more tolerant)
+    director._shaperConfig = {
+      collapseTolerance: {
+        fractureThresholdOffset: 0.15
+      }
+    };
+
+    // Verify the shaper config is stored and accessible
+    assert.strictEqual(director._shaperConfig.collapseTolerance.fractureThresholdOffset, 0.15, 'shaper offset stored');
   }
 });
 

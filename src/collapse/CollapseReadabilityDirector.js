@@ -63,9 +63,21 @@ const THRESHOLDS = Object.freeze({
 // ---------------------------------------------------------------------------
 // CLASSIFICATION HELPERS
 // ---------------------------------------------------------------------------
-function classifyLinkThreat(link) {
+function _getEffectiveThresholds(shaperConfig = null) {
+  const offset = shaperConfig?.collapseTolerance?.fractureThresholdOffset ?? 0;
+  return {
+    STRAINED_QUALITY: THRESHOLDS.STRAINED_QUALITY - offset,
+    STRAINED_STABILITY: THRESHOLDS.STRAINED_STABILITY - offset,
+    CRITICAL_QUALITY: THRESHOLDS.CRITICAL_QUALITY - offset,
+    CRITICAL_STABILITY: THRESHOLDS.CRITICAL_STABILITY - offset,
+    CRITICAL_CORRUPTION: THRESHOLDS.CRITICAL_CORRUPTION + offset
+  };
+}
+
+function classifyLinkThreat(link, shaperConfig = null) {
   if (!link || !link.userData) return null;
 
+  const t = _getEffectiveThresholds(shaperConfig);
   const quality = link.userData?.quality?.score ?? link.userData?.quality ?? 1.0;
   const corruption = link.userData?.corruption ?? 0;
   const sourceNode = link.source ?? link.sourceNode ?? link.from ?? link.userData?.nodeA;
@@ -89,19 +101,19 @@ function classifyLinkThreat(link) {
     };
   }
 
-  if (quality < THRESHOLDS.CRITICAL_QUALITY || corruption > THRESHOLDS.CRITICAL_CORRUPTION) {
+  if (quality < t.CRITICAL_QUALITY || corruption > t.CRITICAL_CORRUPTION) {
     return {
       id,
       type: 'link',
       state: 'critical',
-      reason: corruption > THRESHOLDS.CRITICAL_CORRUPTION ? 'corruption-spike' : 'quality-degraded',
+      reason: corruption > t.CRITICAL_CORRUPTION ? 'corruption-spike' : 'quality-degraded',
       quality,
       corruption,
       entity: link
     };
   }
 
-  if (quality < THRESHOLDS.STRAINED_QUALITY) {
+  if (quality < t.STRAINED_QUALITY) {
     return {
       id,
       type: 'link',
@@ -116,9 +128,10 @@ function classifyLinkThreat(link) {
   return null;
 }
 
-function classifyNodeThreat(node) {
+function classifyNodeThreat(node, shaperConfig = null) {
   if (!node || !node.userData) return null;
 
+  const t = _getEffectiveThresholds(shaperConfig);
   const stability = node.userData?.metrics?.stability ?? node.userData?.stability ?? 1.0;
   const corruption = node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0;
   const isCountdown = node.userData?.failureCountdown ?? false;
@@ -139,19 +152,19 @@ function classifyNodeThreat(node) {
     };
   }
 
-  if (stability < THRESHOLDS.CRITICAL_STABILITY || corruption > THRESHOLDS.CRITICAL_CORRUPTION) {
+  if (stability < t.CRITICAL_STABILITY || corruption > t.CRITICAL_CORRUPTION) {
     return {
       id,
       type: 'node',
       state: 'critical',
-      reason: corruption > THRESHOLDS.CRITICAL_CORRUPTION ? 'corruption-spike' : 'chokepoint-overload',
+      reason: corruption > t.CRITICAL_CORRUPTION ? 'corruption-spike' : 'chokepoint-overload',
       stability,
       corruption,
       entity: node
     };
   }
 
-  if (stability < THRESHOLDS.STRAINED_STABILITY) {
+  if (stability < t.STRAINED_STABILITY) {
     return {
       id,
       type: 'node',
@@ -201,6 +214,9 @@ export class CollapseReadabilityDirector {
     // Crisis phase elevation state
     this._crisisPhase = null;
     this._crisisIntensity = 0;
+
+    // Run-shaper config
+    this._shaperConfig = null;
 
     // FX semantic label cache (for external systems to read)
     this.fxSemanticLabels = new Map(); // entity id -> { state, reason, fxFamily }
@@ -254,6 +270,11 @@ export class CollapseReadabilityDirector {
     // Crisis phase events
     reg('crisis:phaseChanged', (payload = {}) => {
       this._onCrisisPhaseChanged(payload);
+    });
+
+    // Doctrine shaper events
+    reg('doctrine.shaperActive', (payload = {}) => {
+      this._shaperConfig = payload?.shaperConfig || null;
     });
   }
 
@@ -475,7 +496,7 @@ export class CollapseReadabilityDirector {
     // Scan links
     const links = linkingSystem?.getAllLinks?.() ?? [];
     for (const link of links) {
-      const threat = classifyLinkThreat(link);
+      const threat = classifyLinkThreat(link, this._shaperConfig);
       if (threat) {
         const existing = this.threats.get(threat.id);
         if (existing) {
@@ -493,7 +514,7 @@ export class CollapseReadabilityDirector {
     // Scan nodes
     const nodes = aiNodes?.nodes ?? [];
     for (const node of nodes) {
-      const threat = classifyNodeThreat(node);
+      const threat = classifyNodeThreat(node, this._shaperConfig);
       if (threat) {
         const existing = this.threats.get(threat.id);
         if (existing) {

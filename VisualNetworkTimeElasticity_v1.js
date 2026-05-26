@@ -29,6 +29,7 @@
  */
 
 import { getDefaultMetricThresholds } from './src/metrics/MetricTierClassifier.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 // ALPHA HARDENING: lowered from canonical .high (0.45) to 0.55
 // because NodeMetricEngine synergy steady-state is 0.26-0.51,
@@ -127,6 +128,11 @@ export class VisualNetworkTimeElasticity_v1 {
     // ── Crisis phase gate impact ────────────────────────────────────
     this._crisisGateThresholdOffset = 0;
     this._crisisGateActiveUntil = 0;
+
+    // ── Run-shaper rewind behavior ──────────────────────────────────
+    this._shaperConfig = null;
+    this._shaperRegDisposers = [];
+    this._bindShaperEvents();
 
     // ── Sustain tracking ────────────────────────────────────────────
     this._highSynergyStartTime = null;
@@ -431,9 +437,10 @@ export class VisualNetworkTimeElasticity_v1 {
       : Date.now();
 
     // Crisis phase gate impact: temporarily raise synergy threshold during active crisis
-    const effectiveSynergyThreshold = (now < this._crisisGateActiveUntil)
-      ? this._synergyThreshold + this._crisisGateThresholdOffset
-      : this._synergyThreshold;
+    const crisisOffset = (now < this._crisisGateActiveUntil) ? this._crisisGateThresholdOffset : 0;
+    // Shaper rewind behavior: apply threshold offset and gate duration scale
+    const shaperOffset = this._shaperConfig?.rewindBehavior?.thresholdOffset ?? 0;
+    const effectiveSynergyThreshold = this._synergyThreshold + crisisOffset + shaperOffset;
 
     if (snapshot.networkSynergy < effectiveSynergyThreshold) {
       return { eligible: false, blockReason: REWIND_BLOCK_REASON.SYNERGY_TOO_LOW };
@@ -933,13 +940,27 @@ export class VisualNetworkTimeElasticity_v1 {
     const now = (typeof performance !== 'undefined' && typeof performance.now === 'function')
       ? performance.now()
       : Date.now();
-    if (phase === 'PEAK' && thresholdOffset > 0) {
-      this._crisisGateThresholdOffset = thresholdOffset;
-      this._crisisGateActiveUntil = now + 30000; // generous upper bound
+    const shaperDurationScale = this._shaperConfig?.rewindBehavior?.gateDurationScale ?? 1.0;
+    const shaperPeakBonus = this._shaperConfig?.rewindBehavior?.peakBonusMultiplier ?? 1.0;
+    if (phase === 'PEAK' && thresholdOffset !== 0) {
+      this._crisisGateThresholdOffset = thresholdOffset * shaperPeakBonus;
+      this._crisisGateActiveUntil = now + (30000 * shaperDurationScale); // generous upper bound
     } else if (phase === 'RESOLVED') {
       this._crisisGateThresholdOffset = 0;
       this._crisisGateActiveUntil = 0;
     }
+  }
+
+  _bindShaperEvents() {
+    if (typeof eventRegistrationRegistry === 'undefined' || !eventRegistrationRegistry.register) return;
+    const disposer = eventRegistrationRegistry.register(
+      'VisualNetworkTimeElasticity_v1', 'doctrine.shaperActive',
+      (payload = {}) => {
+        this._shaperConfig = payload?.shaperConfig || null;
+      },
+      null // no semanticBus needed for this registration pattern
+    );
+    this._shaperRegDisposers.push(disposer);
   }
 
   dispose() {

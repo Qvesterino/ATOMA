@@ -1,4 +1,5 @@
 import { applyMetricImpulse } from './src/metrics/NodeMetricEngine.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 function clamp01(value) {
   const numeric = Number(value);
@@ -170,6 +171,23 @@ export class NetworkTensionRuntime_v1 {
 
     // CrisisPhaseDirector overrides (applied during active crisis phases)
     this._crisisPhaseOverrides = null;
+
+    // Run-shaper config from DoctrineRuntime
+    this._shaperConfig = null;
+    this._shaperRegDisposers = [];
+    this._bindShaperEvents();
+  }
+
+  _bindShaperEvents() {
+    if (!this.semanticBus) return;
+    const disposer = eventRegistrationRegistry.register(
+      'NetworkTensionRuntime_v1', 'doctrine.shaperActive',
+      (payload = {}) => {
+        this._shaperConfig = payload?.shaperConfig || null;
+      },
+      this.semanticBus
+    );
+    this._shaperRegDisposers.push(disposer);
   }
 
   _resolveWorldId() {
@@ -494,9 +512,11 @@ export class NetworkTensionRuntime_v1 {
     const stepScale = Math.max(0.4, Math.min(1.8, (Number(dt) || 0.1) / 0.1));
     // Apply crisis override multiplier if active
     const crisisTickMultiplier = this._crisisPhaseOverrides?.tickPressureScale || 1.0;
+    // Apply shaper tick pressure scale
+    const shaperTickMultiplier = this._shaperConfig?.counterplayPayoff?.tickPressureScale || 1.0;
     for (const analysis of linkAnalyses) {
       if (analysis.snapshot.hotspotWeight < profile.hotspotThreshold) continue;
-      const pressure = profile.tickPressureScale * analysis.snapshot.hotspotWeight * stepScale * crisisTickMultiplier;
+      const pressure = profile.tickPressureScale * analysis.snapshot.hotspotWeight * stepScale * crisisTickMultiplier * shaperTickMultiplier;
       const impulse = {
         loadPressure: pressure,
         stability: -pressure * 0.85,
@@ -652,7 +672,11 @@ export class NetworkTensionRuntime_v1 {
     // Apply crisis overrides for reinforce duration and stability cost
     const crisisDurationMult = this._crisisPhaseOverrides?.reinforceDuration || 1.0;
     const crisisStabilityCostMult = this._crisisPhaseOverrides?.reinforceStabilityCost || 1.0;
-    const effectiveDurationMs = profile.reinforceDurationMs * crisisDurationMult;
+    // Apply shaper reinforce scales
+    const shaperDurationScale = this._shaperConfig?.counterplayPayoff?.reinforceDurationScale || 1.0;
+    const shaperCostScale = this._shaperConfig?.counterplayPayoff?.reinforceStabilityCostScale || 1.0;
+    const shaperRecoveryScale = this._shaperConfig?.counterplayPayoff?.reinforceRecoveryImpulseScale || 1.0;
+    const effectiveDurationMs = profile.reinforceDurationMs * crisisDurationMult * shaperDurationScale;
 
     if (!link.userData) link.userData = {};
     link.userData.networkTension = {
@@ -665,16 +689,16 @@ export class NetworkTensionRuntime_v1 {
     };
 
     const recoveryImpulse = {
-      stability: profile.reinforceRecoveryImpulse,
-      corruption: -(profile.reinforceRecoveryImpulse * 0.55),
+      stability: profile.reinforceRecoveryImpulse * shaperRecoveryScale,
+      corruption: -(profile.reinforceRecoveryImpulse * 0.55 * shaperRecoveryScale),
       harmony: -profile.reinforceHarmonyCost,
       loadPressure: profile.reinforceLoadCost
     };
     applyMetricImpulse(sourceNode, recoveryImpulse, { source: 'network-tension-runtime' });
     applyMetricImpulse(targetNode, recoveryImpulse, { source: 'network-tension-runtime' });
 
-    // Post-decay stability cost (with crisis override)
-    const effectiveStabilityCost = profile.reinforceStabilityCost * (this._crisisPhaseOverrides?.reinforceStabilityCost || 1.0);
+    // Post-decay stability cost (with crisis and shaper overrides)
+    const effectiveStabilityCost = profile.reinforceStabilityCost * (this._crisisPhaseOverrides?.reinforceStabilityCost || 1.0) * shaperCostScale;
     if (effectiveStabilityCost > 0) {
       const decayImpulse = {
         stability: -effectiveStabilityCost,
@@ -728,9 +752,11 @@ export class NetworkTensionRuntime_v1 {
       return { relieved: false };
     }
 
-    // Apply crisis reroute relief scale multiplier
+    // Apply crisis and shaper reroute relief scale multipliers
     const crisisReliefMult = this._crisisPhaseOverrides?.rerouteReliefScale || 1.0;
-    const effectiveReliefScale = profile.rerouteReliefScale * crisisReliefMult;
+    const shaperReliefScale = this._shaperConfig?.counterplayPayoff?.rerouteReliefScale || 1.0;
+    const shaperRecoveryScale = this._shaperConfig?.counterplayPayoff?.rerouteRecoveryImpulseScale || 1.0;
+    const effectiveReliefScale = profile.rerouteReliefScale * crisisReliefMult * shaperReliefScale;
     const reliefDurationMs = profile.rerouteDurationMs;
 
     if (!link.userData) link.userData = {};
@@ -752,9 +778,9 @@ export class NetworkTensionRuntime_v1 {
     };
 
     const recoveryImpulse = {
-      stability: profile.rerouteRecoveryImpulse,
-      corruption: -(profile.rerouteRecoveryImpulse * 0.65),
-      loadPressure: -(profile.rerouteRecoveryImpulse * 0.4)
+      stability: profile.rerouteRecoveryImpulse * shaperRecoveryScale,
+      corruption: -(profile.rerouteRecoveryImpulse * 0.65 * shaperRecoveryScale),
+      loadPressure: -(profile.rerouteRecoveryImpulse * 0.4 * shaperRecoveryScale)
     };
     applyMetricImpulse(adjacentHotspot.sourceNode, recoveryImpulse, { source: 'network-tension-runtime' });
     applyMetricImpulse(adjacentHotspot.targetNode, recoveryImpulse, { source: 'network-tension-runtime' });
@@ -831,9 +857,10 @@ export class NetworkTensionRuntime_v1 {
       }
     }
 
-    // Source and target node bonuses
+    // Source and target node bonuses (with shaper abandon bonus)
+    const shaperAbandonBonus = this._shaperConfig?.counterplayPayoff?.abandonStabilityBonus || 0;
     const abandonImpulse = {
-      stability: 0.06,
+      stability: 0.06 + shaperAbandonBonus,
       corruption: -0.04,
       loadPressure: -0.04
     };

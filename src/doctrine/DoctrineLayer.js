@@ -1,58 +1,131 @@
 /**
- * DOCTRINE LAYER
- * Mid-run drafting system using existing global metrics:
- * synergy, harmony, stability, corruption, loadPressure
- * 
- * Integrates with RunIdentityProfiles for package/state selection
- * and MetricsRuntime_v1 for real-time metric application.
+ * DOCTRINE LAYER — Run-Shaper Edition
+ * Mid-run drafting system where doctrines shape decision types, not just numbers.
+ *
+ * 3 strong run-shapers replace 5 weak numeric schools:
+ *   - sacrifice_pivot: abandon/reroute favored, short intense crises
+ *   - reinforce_discipline: hold lines, extended crises, reinforced links stronger
+ *   - risky_rewind: gamble on precise rewind timing, short peak, massive reward
  */
 
-export const DOCTRINE_VERSION = 1;
+export const DOCTRINE_VERSION = 2;
 
-export const SCHOOL_OF_THOUGHT_DEFINITIONS = Object.freeze({
-  synergy_cascade: Object.freeze({
-    id: 'synergy_cascade',
-    label: 'SYNERGY CASCADE',
-    description: 'Synergy scoring amplified. Momentum builds on momentum.',
-    metricModifiers: Object.freeze({
-      synergy: { scale: 1.5 },
-      corruption: { drift: 0.2 }
+// ── Run Shaper Definitions ──────────────────────────────────────────────────
+// Each shaper defines how it changes crisis pattern, collapse tolerance,
+// counterplay payoff ratios, and rewind behavior.
+
+export const RUN_SHAPER_DEFINITIONS = Object.freeze({
+  sacrifice_pivot: Object.freeze({
+    id: 'sacrifice_pivot',
+    label: 'SACRIFICE \u0026 PIVOT',
+    description: 'Abandon weak corridors. Reroute fast. Let things break.',
+    decisionType: 'sacrifice',
+    crisisPattern: Object.freeze({
+      introDurationScale: 0.8,
+      surgeDurationScale: 0.9,
+      peakDurationScale: 0.6,
+      decayDurationScale: 0.5,
+      intensityCurveScale: 1.15
+    }),
+    collapseTolerance: Object.freeze({
+      fractureThresholdOffset: 0.15,
+      collapseRateScale: 0.85,
+      recoveryRateScale: 1.0
+    }),
+    counterplayPayoff: Object.freeze({
+      rerouteReliefScale: 1.6,
+      rerouteRecoveryImpulseScale: 1.2,
+      reinforceDurationScale: 0.6,
+      reinforceStabilityCostScale: 1.4,
+      reinforceRecoveryImpulseScale: 0.8,
+      abandonReliefScale: 1.0,
+      abandonStabilityBonus: 0.03,
+      tickPressureScale: 1.05
+    }),
+    rewindBehavior: Object.freeze({
+      thresholdOffset: -0.05,
+      gateDurationScale: 0.7,
+      peakBonusMultiplier: 1.0
     })
   }),
-  stability_doctrine: Object.freeze({
-    id: 'stability_doctrine',
-    label: 'STABILITY DOCTRINE',
-    description: 'Anchors form stronger. Hold pressure becomes your ally.',
-    metricModifiers: Object.freeze({
-      stability: { scale: 1.25 }
+  reinforce_discipline: Object.freeze({
+    id: 'reinforce_discipline',
+    label: 'REINFORCE DISCIPLINE',
+    description: 'Hold lines. Weather the storm. Reinforced links are your fortress.',
+    decisionType: 'discipline',
+    crisisPattern: Object.freeze({
+      introDurationScale: 1.2,
+      surgeDurationScale: 1.4,
+      peakDurationScale: 1.5,
+      decayDurationScale: 1.2,
+      intensityCurveScale: 0.9
+    }),
+    collapseTolerance: Object.freeze({
+      fractureThresholdOffset: -0.10,
+      collapseRateScale: 1.0,
+      recoveryRateScale: 0.9
+    }),
+    counterplayPayoff: Object.freeze({
+      rerouteReliefScale: 0.8,
+      rerouteRecoveryImpulseScale: 0.9,
+      reinforceDurationScale: 1.8,
+      reinforceStabilityCostScale: 0.5,
+      reinforceRecoveryImpulseScale: 1.3,
+      abandonReliefScale: 1.0,
+      abandonStabilityBonus: 0.0,
+      tickPressureScale: 0.95
+    }),
+    rewindBehavior: Object.freeze({
+      thresholdOffset: 0.06,
+      gateDurationScale: 1.5,
+      peakBonusMultiplier: 1.0
     })
   }),
-  pressure_embrace: Object.freeze({
-    id: 'pressure_embrace',
-    label: 'PRESSURE EMBRACE',
-    description: 'LoadPressure becomes active resource. More pressure, more power.',
-    metricModifiers: Object.freeze({
-      loadPressure: { scale: 1.4 },
-      stability: { softCap: 0.7 }
-    })
-  }),
-  harmony_resonance: Object.freeze({
-    id: 'harmony_resonance',
-    label: 'HARMONY RESONANCE',
-    description: 'Harmony decay slowed. Coherence holds longer under stress.',
-    metricModifiers: Object.freeze({})
-  }),
-  corruption_acceptance: Object.freeze({
-    id: 'corruption_acceptance',
-    label: 'CORRUPTION ACCEPTANCE',
-    description: 'Corruption spreads faster. But your nodes tolerate more.',
-    metricModifiers: Object.freeze({
-      corruption: { scale: 1.5 },
-      stability: { drift: 0.15 }
+  risky_rewind: Object.freeze({
+    id: 'risky_rewind',
+    label: 'RISKY REWIND',
+    description: 'Gamble on precise rewind timing. The window is narrow but the payoff is massive.',
+    decisionType: 'gamble',
+    crisisPattern: Object.freeze({
+      introDurationScale: 0.7,
+      surgeDurationScale: 0.8,
+      peakDurationScale: 0.5,
+      decayDurationScale: 0.6,
+      intensityCurveScale: 1.3
+    }),
+    collapseTolerance: Object.freeze({
+      fractureThresholdOffset: 0.0,
+      collapseRateScale: 1.08,
+      recoveryRateScale: 1.3
+    }),
+    counterplayPayoff: Object.freeze({
+      rerouteReliefScale: 1.0,
+      rerouteRecoveryImpulseScale: 1.0,
+      reinforceDurationScale: 1.0,
+      reinforceStabilityCostScale: 1.0,
+      reinforceRecoveryImpulseScale: 1.0,
+      abandonReliefScale: 1.0,
+      abandonStabilityBonus: 0.0,
+      tickPressureScale: 1.0
+    }),
+    rewindBehavior: Object.freeze({
+      thresholdOffset: -0.08,
+      gateDurationScale: 0.8,
+      peakBonusMultiplier: 1.5
     })
   })
 });
 
+// ── Legacy school mapping for backward compatibility ────────────────────────
+const LEGACY_SCHOOL_TO_SHAPER = Object.freeze({
+  synergy_cascade: 'sacrifice_pivot',
+  pressure_embrace: 'sacrifice_pivot',
+  stability_doctrine: 'reinforce_discipline',
+  harmony_resonance: 'risky_rewind',
+  corruption_acceptance: 'risky_rewind'
+});
+
+// ── World Mutators (unchanged) ─────────────────────────────────────────────
 export const WORLD_MUTATOR_DEFINITIONS = Object.freeze({
   quantum_split_window: Object.freeze({
     id: 'quantum_split_window',
@@ -92,6 +165,7 @@ export const WORLD_MUTATOR_DEFINITIONS = Object.freeze({
   })
 });
 
+// ── Crisis Cards (unchanged) ─────────────────────────────────────────────────
 export const CRISIS_CARD_DEFINITIONS = Object.freeze({
   resonance_surge: Object.freeze({
     id: 'resonance_surge',
@@ -150,8 +224,10 @@ export const CRISIS_CARD_DEFINITIONS = Object.freeze({
   })
 });
 
-export function getSchoolOfThought(id) {
-  return SCHOOL_OF_THOUGHT_DEFINITIONS[id] || null;
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+export function getRunShaper(id) {
+  return RUN_SHAPER_DEFINITIONS[id] || null;
 }
 
 export function getWorldMutator(id) {
@@ -162,8 +238,8 @@ export function getCrisisCard(id) {
   return CRISIS_CARD_DEFINITIONS[id] || null;
 }
 
-export function getAvailableSchools(world = null, unlockedDoctrines = null) {
-  const all = Object.values(SCHOOL_OF_THOUGHT_DEFINITIONS);
+export function getAvailableShapers(world = null, unlockedDoctrines = null) {
+  const all = Object.values(RUN_SHAPER_DEFINITIONS);
   if (!unlockedDoctrines) return all;
   const unlocked = new Set(unlockedDoctrines);
   return all.filter(s => unlocked.has(s.id));
@@ -182,27 +258,35 @@ export function getAvailableMutators(world = null) {
 
 export function resolveCrisisTrigger(metrics = {}) {
   const { synergy = 0, harmony = 0, stability = 0, corruption = 0, loadPressure = 0 } = metrics;
-  
+
   if (synergy >= 0.8) return { crisis: 'resonance_surge', metrics: { synergy } };
   if (corruption >= 0.5) return { crisis: 'integrity_fracture', metrics: { corruption } };
   if (stability <= 0.3) return { crisis: 'anchor_collapse', metrics: { stability } };
   if (loadPressure >= 0.75) return { crisis: 'pressure_rupture', metrics: { loadPressure } };
   if (harmony <= 0.2) return { crisis: 'harmony_void', metrics: { harmony } };
-  
+
   return null;
 }
 
+// ── State Management ──────────────────────────────────────────────────────
+
 export function sanitizeDoctrineState(value = {}) {
   const state = value && typeof value === 'object' ? value : {};
-  
-  const activeSchools = Array.isArray(state.activeSchools) 
-    ? state.activeSchools.filter(id => SCHOOL_OF_THOUGHT_DEFINITIONS[id])
-    : [];
-  
+
+  // Migrate legacy activeSchools array → single activeShaper
+  let activeShaper = state.activeShaper || null;
+  if (!activeShaper && Array.isArray(state.activeSchools) && state.activeSchools.length > 0) {
+    const firstLegacy = state.activeSchools[0];
+    activeShaper = LEGACY_SCHOOL_TO_SHAPER[firstLegacy] || null;
+  }
+  if (activeShaper && !RUN_SHAPER_DEFINITIONS[activeShaper]) {
+    activeShaper = null;
+  }
+
   const activeMutators = Array.isArray(state.activeMutators)
     ? state.activeMutators.filter(id => WORLD_MUTATOR_DEFINITIONS[id])
     : [];
-  
+
   const activeCrisis = state.activeCrisis && typeof state.activeCrisis === 'object'
     ? {
         id: String(state.activeCrisis.id || ''),
@@ -210,21 +294,31 @@ export function sanitizeDoctrineState(value = {}) {
         duration: Number.isFinite(state.activeCrisis.duration) ? state.activeCrisis.duration : 0
       }
     : null;
-  
-  const unlockedDoctrines = Array.isArray(state.unlockedDoctrines)
-    ? state.unlockedDoctrines.filter(id =>
-        SCHOOL_OF_THOUGHT_DEFINITIONS[id] ||
-        WORLD_MUTATOR_DEFINITIONS[id]
-      )
+
+  // Migrate legacy unlockedDoctrines
+  let unlockedDoctrines = Array.isArray(state.unlockedDoctrines)
+    ? state.unlockedDoctrines.slice()
     : [];
-  
+  // Map any legacy school IDs to shaper IDs
+  unlockedDoctrines = unlockedDoctrines.map(id => {
+    if (RUN_SHAPER_DEFINITIONS[id]) return id;
+    const mapped = LEGACY_SCHOOL_TO_SHAPER[id];
+    return mapped || id;
+  });
+  // Deduplicate
+  unlockedDoctrines = [...new Set(unlockedDoctrines)];
+  // Filter to only valid shapers and mutators
+  unlockedDoctrines = unlockedDoctrines.filter(id =>
+    RUN_SHAPER_DEFINITIONS[id] || WORLD_MUTATOR_DEFINITIONS[id]
+  );
+
   const draftHistory = Array.isArray(state.draftHistory)
     ? state.draftHistory.slice(-20)
     : [];
-  
+
   return {
     version: DOCTRINE_VERSION,
-    activeSchools,
+    activeShaper,
     activeMutators,
     activeCrisis,
     unlockedDoctrines,
@@ -235,16 +329,14 @@ export function sanitizeDoctrineState(value = {}) {
 
 export function applyDraftToState(state = {}, draft = {}, world = null) {
   const current = sanitizeDoctrineState(state);
-  const { schoolId, mutatorId } = draft;
-  
+  const { shaperId, mutatorId } = draft;
+
   const next = { ...current };
-  
-  if (schoolId && SCHOOL_OF_THOUGHT_DEFINITIONS[schoolId]) {
-    if (!next.activeSchools.includes(schoolId)) {
-      next.activeSchools = [...next.activeSchools, schoolId];
-    }
+
+  if (shaperId && RUN_SHAPER_DEFINITIONS[shaperId]) {
+    next.activeShaper = shaperId;
   }
-  
+
   if (mutatorId && WORLD_MUTATOR_DEFINITIONS[mutatorId]) {
     const mutator = WORLD_MUTATOR_DEFINITIONS[mutatorId];
     const worldKey = String(world || '').trim().toLowerCase();
@@ -254,16 +346,20 @@ export function applyDraftToState(state = {}, draft = {}, world = null) {
       }
     }
   }
-  
+
   next.draftHistory = [...next.draftHistory, { ...draft, timestamp: Date.now() }];
   next.draftCount = current.draftCount + 1;
-  
+
   return next;
 }
 
+// ── Modifier Computation ──────────────────────────────────────────────────
+// Returns both legacy numeric modifiers AND the active shaper config
+// for downstream systems that need decision-shaping parameters.
+
 export function computeDoctrineModifiers(state = {}) {
   const docState = sanitizeDoctrineState(state);
-  
+
   const modifiers = {
     synergy: { scale: 1, drift: 0 },
     harmony: { scale: 1, drift: 0 },
@@ -271,42 +367,14 @@ export function computeDoctrineModifiers(state = {}) {
     corruption: { scale: 1, drift: 0 },
     loadPressure: { scale: 1, drift: 0 }
   };
-  
-  for (const schoolId of docState.activeSchools) {
-    const school = SCHOOL_OF_THOUGHT_DEFINITIONS[schoolId];
-    if (!school) continue;
-    
-    const schoolMods = school.metricModifiers;
-    
-    if (schoolMods.synergy) {
-      if (schoolMods.synergy.scale) modifiers.synergy.scale *= schoolMods.synergy.scale;
-      if (schoolMods.synergy.drift) modifiers.synergy.drift += schoolMods.synergy.drift;
-    }
-    if (schoolMods.harmony) {
-      if (schoolMods.harmony.scale) modifiers.harmony.scale *= schoolMods.harmony.scale;
-      if (schoolMods.harmony.drift) modifiers.harmony.drift += schoolMods.harmony.drift;
-    }
-    if (schoolMods.stability) {
-      if (schoolMods.stability.scale) modifiers.stability.scale *= schoolMods.stability.scale;
-      if (schoolMods.stability.drift) modifiers.stability.drift += schoolMods.stability.drift;
-      if (schoolMods.stability.softCap !== undefined) modifiers.stability.softCap = schoolMods.stability.softCap;
-    }
-    if (schoolMods.corruption) {
-      if (schoolMods.corruption.scale) modifiers.corruption.scale *= schoolMods.corruption.scale;
-      if (schoolMods.corruption.drift) modifiers.corruption.drift += schoolMods.corruption.drift;
-    }
-    if (schoolMods.loadPressure) {
-      if (schoolMods.loadPressure.scale) modifiers.loadPressure.scale *= schoolMods.loadPressure.scale;
-      if (schoolMods.loadPressure.drift) modifiers.loadPressure.drift += schoolMods.loadPressure.drift;
-    }
-  }
-  
+
+  // Apply mutator numeric modifiers (unchanged behavior)
   for (const mutatorId of docState.activeMutators) {
     const mutator = WORLD_MUTATOR_DEFINITIONS[mutatorId];
     if (!mutator) continue;
-    
+
     const mutMods = mutator.metricModifiers;
-    
+
     if (mutMods.synergy) {
       if (mutMods.synergy.scale) modifiers.synergy.scale *= mutMods.synergy.scale;
       if (mutMods.synergy.drift) modifiers.synergy.drift += mutMods.synergy.drift;
@@ -325,7 +393,8 @@ export function computeDoctrineModifiers(state = {}) {
       if (mutMods.loadPressure.drift) modifiers.loadPressure.drift += mutMods.loadPressure.drift;
     }
   }
-  
+
+  // Apply crisis card numeric modifiers (unchanged behavior)
   if (docState.activeCrisis) {
     const crisis = CRISIS_CARD_DEFINITIONS[docState.activeCrisis.id];
     if (crisis) {
@@ -336,39 +405,53 @@ export function computeDoctrineModifiers(state = {}) {
       if (crisisMods.loadPressure?.ruptureDrain) modifiers.loadPressure.scale *= (1 - crisisMods.loadPressure.ruptureDrain);
     }
   }
-  
-  return modifiers;
+
+  // Attach active shaper config for downstream decision-shaping systems
+  const shaper = docState.activeShaper ? RUN_SHAPER_DEFINITIONS[docState.activeShaper] : null;
+
+  return {
+    ...modifiers,
+    shaperConfig: shaper || null,
+    activeShaper: docState.activeShaper
+  };
 }
+
+// ── Milestone Unlocks ───────────────────────────────────────────────────────
 
 export function determineMilestoneDoctrineUnlocks(metaProgression = {}, milestone = {}, world = null) {
   const unlocks = [];
   const milestoneKey = String(milestone || '').trim().toLowerCase();
-  
+
   if (milestoneKey === 'won') {
-    unlocks.push({ type: 'school', id: 'harmony_resonance' });
+    unlocks.push({ type: 'shaper', id: 'risky_rewind' });
     if (world === 'quantum') {
       unlocks.push({ type: 'mutator', id: 'quantum_entropy_wave' });
     } else if (world === 'desert') {
       unlocks.push({ type: 'mutator', id: 'desert_deep_anchor' });
     }
   }
-  
+
   if (milestoneKey === 'crisis_survived') {
-    unlocks.push({ type: 'school', id: 'corruption_acceptance' });
+    unlocks.push({ type: 'shaper', id: 'reinforce_discipline' });
   }
-  
+
+  // Starting shaper is always unlocked
+  unlocks.push({ type: 'shaper', id: 'sacrifice_pivot' });
+
   return unlocks;
 }
 
+// ── Default Export ────────────────────────────────────────────────────────
+
 export default {
   DOCTRINE_VERSION,
-  SCHOOL_OF_THOUGHT_DEFINITIONS,
+  RUN_SHAPER_DEFINITIONS,
   WORLD_MUTATOR_DEFINITIONS,
   CRISIS_CARD_DEFINITIONS,
-  getSchoolOfThought,
+  getRunShaper,
   getWorldMutator,
   getCrisisCard,
-  getAvailableSchools,
+  getAvailableShapers,
   getAvailableMutators,
   resolveCrisisTrigger,
   sanitizeDoctrineState,

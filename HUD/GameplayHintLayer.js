@@ -313,6 +313,51 @@ const HINTS = Object.freeze({
     durationMs: 5200,
     priority: 14,
     variant: 'warning'
+  },
+  doctrineSacrificePivot: {
+    text: (ctx) => {
+      const world = String(ctx?.world || '').toLowerCase();
+      if (world === 'quantum') {
+        return 'SACRIFICE & PIVOT: Let weak links break. Reroute fast. The quantum lattice rewards decisive cuts.';
+      }
+      if (world === 'desert') {
+        return 'SACRIFICE & PIVOT: Abandon what cannot hold. The desert reclaims — use its momentum.';
+      }
+      return 'SACRIFICE & PIVOT: Abandon weak corridors. Reroute fast. Let things break.';
+    },
+    durationMs: 6000,
+    priority: 15,
+    variant: 'default'
+  },
+  doctrineReinforceDiscipline: {
+    text: (ctx) => {
+      const world = String(ctx?.world || '').toLowerCase();
+      if (world === 'quantum') {
+        return 'REINFORCE DISCIPLINE: Hold the line. Your reinforced links are anchors in the quantum storm.';
+      }
+      if (world === 'desert') {
+        return 'REINFORCE DISCIPLINE: Weather the storm. The desert respects patience and strong anchors.';
+      }
+      return 'REINFORCE DISCIPLINE: Hold lines. Weather the storm. Reinforced links are your fortress.';
+    },
+    durationMs: 6000,
+    priority: 15,
+    variant: 'default'
+  },
+  doctrineRiskyRewind: {
+    text: (ctx) => {
+      const world = String(ctx?.world || '').toLowerCase();
+      if (world === 'quantum') {
+        return 'RISKY REWIND: The window is narrow but the payoff is massive. Time your rewind precisely.';
+      }
+      if (world === 'desert') {
+        return 'RISKY REWIND: Gamble on the perfect moment. The desert rewards those who dare.';
+      }
+      return 'RISKY REWIND: Gamble on precise rewind timing. The window is narrow but the payoff is massive.';
+    },
+    durationMs: 6000,
+    priority: 15,
+    variant: 'default'
   }
 });
 

@@ -14432,12 +14432,18 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         this.doctrineRuntime = new DoctrineRuntime({
             game: this,
             metricsRuntime: this.metricsRuntime_v1,
-            runIdentityDirector: this.runIdentityDirector
+            runIdentityDirector: this.runIdentityDirector,
+            semanticBus: this.semanticBus
         });
         this.doctrineRuntime.onCrisis((event, data) => {
             this.semanticBus?.emit?.(`doctrine.${event}`, data);
             if (event === 'draft:complete' || event === 'draft:skip') {
                 this.resume();
+            }
+            // Show doctrine-specific hint when shaper is selected
+            if (event === 'shaperActive' && data?.shaperId) {
+                const hintKey = `doctrine${data.shaperId.split('_').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('')}`;
+                this.gameplayHintLayer?.show?.(hintKey, { world: data.world }, { fingerprint: `doctrine:${data.shaperId}`, cooldownMs: 0 });
             }
         });
         if (typeof window !== 'undefined') {

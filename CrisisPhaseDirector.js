@@ -140,6 +140,9 @@ export class CrisisPhaseDirector {
     // Crisis profile overrides applied to NetworkTensionRuntime
     this._activeOverrides = null;
 
+    // Active run-shaper config from DoctrineRuntime
+    this._activeShaperConfig = null;
+
     this._bindEvents();
   }
 
@@ -165,6 +168,11 @@ export class CrisisPhaseDirector {
     });
     reg('doctrine.crisis:tick', (payload = {}) => {
       this._onCrisisTick(payload);
+    });
+
+    // Doctrine shaper events
+    reg('doctrine.shaperActive', (payload = {}) => {
+      this._onShaperActive(payload);
     });
 
     // Player agency events
@@ -197,7 +205,10 @@ export class CrisisPhaseDirector {
     if (!crisisId) return;
 
     const worldId = this._resolveWorldId();
-    const phaseConfig = WORLD_PHASE_CONFIG[worldId] || WORLD_PHASE_CONFIG.default;
+    const basePhaseConfig = WORLD_PHASE_CONFIG[worldId] || WORLD_PHASE_CONFIG.default;
+
+    // Apply shaper crisis pattern scaling
+    const phaseConfig = this._applyShaperToPhaseConfig(basePhaseConfig);
 
     const now = getNowMs();
     this._activeCrisis = {
@@ -320,20 +331,40 @@ export class CrisisPhaseDirector {
   }
 
   _computeIntensity(phase, elapsedInPhase, config) {
+    const curveScale = this._activeShaperConfig?.crisisPattern?.intensityCurveScale ?? 1.0;
     switch (phase) {
       case PHASES.INTRO:
-        return 0.1 + (elapsedInPhase / config.introDuration) * 0.2;
+        return 0.1 + (elapsedInPhase / config.introDuration) * 0.2 * curveScale;
       case PHASES.SURGE:
-        return 0.3 + (elapsedInPhase / config.surgeDuration) * 0.4;
+        return 0.3 + (elapsedInPhase / config.surgeDuration) * 0.4 * curveScale;
       case PHASES.PEAK:
-        return 0.7 + (elapsedInPhase / config.peakDuration) * 0.25;
+        return 0.7 + (elapsedInPhase / config.peakDuration) * 0.25 * curveScale;
       case PHASES.DECAY:
-        return Math.max(0, 0.95 - (elapsedInPhase / config.decayDuration) * 0.95);
+        return Math.max(0, 0.95 - (elapsedInPhase / config.decayDuration) * 0.95 * curveScale);
       case PHASES.RESOLVED:
         return 0;
       default:
         return 0;
     }
+  }
+
+  _onShaperActive(payload) {
+    const shaperConfig = payload?.shaperConfig || null;
+    this._activeShaperConfig = shaperConfig;
+  }
+
+  _applyShaperToPhaseConfig(baseConfig) {
+    if (!this._activeShaperConfig) return baseConfig;
+    const pattern = this._activeShaperConfig.crisisPattern;
+    if (!pattern) return baseConfig;
+
+    return {
+      ...baseConfig,
+      introDuration: baseConfig.introDuration * (pattern.introDurationScale ?? 1.0),
+      surgeDuration: baseConfig.surgeDuration * (pattern.surgeDurationScale ?? 1.0),
+      peakDuration: baseConfig.peakDuration * (pattern.peakDurationScale ?? 1.0),
+      decayDuration: baseConfig.decayDuration * (pattern.decayDurationScale ?? 1.0)
+    };
   }
 
   // ========================================================================
@@ -493,11 +524,18 @@ export class CrisisPhaseDirector {
   // ========================================================================
   _applyCrisisOverrides(config) {
     if (!this.networkTensionRuntime) return;
+
+    // Merge world config with shaper counterplay config
+    const cp = this._activeShaperConfig?.counterplayPayoff || {};
     this._activeOverrides = {
-      tickPressureScale: config.tickPressureScaleMultiplier,
-      rerouteReliefScale: config.rerouteReliefScaleMultiplier,
-      reinforceDuration: config.reinforceDurationMultiplier,
-      reinforceStabilityCost: config.reinforceStabilityCostMultiplier
+      tickPressureScale: config.tickPressureScaleMultiplier * (cp.tickPressureScale ?? 1.0),
+      rerouteReliefScale: config.rerouteReliefScaleMultiplier * (cp.rerouteReliefScale ?? 1.0),
+      rerouteRecoveryImpulseScale: cp.rerouteRecoveryImpulseScale ?? 1.0,
+      reinforceDuration: config.reinforceDurationMultiplier * (cp.reinforceDurationScale ?? 1.0),
+      reinforceStabilityCost: config.reinforceStabilityCostMultiplier * (cp.reinforceStabilityCostScale ?? 1.0),
+      reinforceRecoveryImpulseScale: cp.reinforceRecoveryImpulseScale ?? 1.0,
+      abandonReliefScale: cp.abandonReliefScale ?? 1.0,
+      abandonStabilityBonus: cp.abandonStabilityBonus ?? 0
     };
     // Store on the runtime for it to read during update()
     if (this.networkTensionRuntime) {
@@ -517,8 +555,10 @@ export class CrisisPhaseDirector {
   // ========================================================================
   _applyCrisisGateImpact(config) {
     if (!this.visualNetworkTimeScore) return;
-    const offset = config.rewindSynergyThresholdOffset;
-    if (offset > 0 && typeof this.visualNetworkTimeScore.onCrisisPhaseChanged === 'function') {
+    const worldOffset = config.rewindSynergyThresholdOffset;
+    const shaperOffset = this._activeShaperConfig?.rewindBehavior?.thresholdOffset ?? 0;
+    const offset = worldOffset + shaperOffset;
+    if (offset !== 0 && typeof this.visualNetworkTimeScore.onCrisisPhaseChanged === 'function') {
       this.visualNetworkTimeScore.onCrisisPhaseChanged({ phase: PHASES.PEAK, thresholdOffset: offset });
     }
   }
@@ -663,6 +703,7 @@ export class CrisisPhaseDirector {
   reset() {
     this._activeCrisis = null;
     this._activeOverrides = null;
+    this._activeShaperConfig = null;
     this._buffActiveUntil = 0;
     this._aftershockActiveUntil = 0;
     this._currentBuff = null;
