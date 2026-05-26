@@ -12,6 +12,7 @@ import { LinkCollapseSystem } from '../LinkCollapseSystem.js';
 import { NetworkTensionRuntime_v1, NETWORK_TENSION_WORLD_PROFILES } from '../NetworkTensionRuntime_v1.js';
 import { PostCollapseResidueSystem } from '../PostCollapseResidueSystem.js';
 import { getDefaultMetricThresholds } from '../src/metrics/MetricTierClassifier.js';
+import { CrisisPhaseDirector } from '../CrisisPhaseDirector.js';
 import { CompetitionDominanceAdapter_v1 } from '../CompetitionDominanceAdapter_v1.js';
 import { applyDominancePulseModulation } from '../harmony/HarmonyStabilization.js';
 import {
@@ -1970,6 +1971,211 @@ tests.push({
     assert.strictEqual(link.userData.recoveryMode, 'dangerousReconnect', 'should select dangerousReconnect when unstable');
     assert(link.userData.immediateStrain > 0, 'should apply immediate strain');
     system.dispose();
+  }
+});
+
+// ── Crisis Phase Director Tests ───────────────────────────────────────────
+
+tests.push({
+  name: 'CrisisPhaseDirector transitions through all 5 phases',
+  fn: () => {
+    const events = [];
+    const mockBus = {
+      emit: (tag, payload) => { events.push({ tag, payload }); },
+      priority: { NORMAL: 2 }
+    };
+    const director = new CrisisPhaseDirector({
+      semanticBus: mockBus,
+      getWorldId: () => 'default'
+    });
+
+    // Start crisis
+    director._onCrisisStart({ crisisId: 'resonance_surge', duration: 15 });
+    assert.strictEqual(director.getActiveCrisis().phase, 'INTRO', 'should start in INTRO');
+
+    // Advance through phases
+    const config = director._activeCrisis.phaseConfig;
+    director.update(0);
+    assert.strictEqual(director.getActiveCrisis().phase, 'INTRO', 'still INTRO before duration');
+
+    // Simulate time passing for each phase
+    director._activeCrisis.phaseStartTime -= (config.introDuration + 0.1) * 1000;
+    director.update(0);
+    assert.strictEqual(director.getActiveCrisis().phase, 'SURGE', 'should transition to SURGE');
+
+    director._activeCrisis.phaseStartTime -= (config.surgeDuration + 0.1) * 1000;
+    director.update(0);
+    assert.strictEqual(director.getActiveCrisis().phase, 'PEAK', 'should transition to PEAK');
+
+    director._activeCrisis.phaseStartTime -= (config.peakDuration + 0.1) * 1000;
+    director.update(0);
+    assert.strictEqual(director.getActiveCrisis().phase, 'DECAY', 'should transition to DECAY');
+
+    director._activeCrisis.phaseStartTime -= (config.decayDuration + 0.1) * 1000;
+    director.update(0);
+    assert.strictEqual(director.getActiveCrisis(), null, 'should resolve and clear');
+
+    // Check phase change events
+    const phaseEvents = events.filter(e => e.tag === 'crisis:phaseChanged');
+    assert.strictEqual(phaseEvents.length, 5, 'should emit 5 phase change events');
+
+    director.dispose();
+  }
+});
+
+tests.push({
+  name: 'CrisisPhaseDirector player agency tracking scores actions correctly',
+  fn: () => {
+    const director = new CrisisPhaseDirector({
+      semanticBus: null,
+      getWorldId: () => 'default'
+    });
+
+    director._onCrisisStart({ crisisId: 'resonance_surge', duration: 15 });
+    // Force into SURGE phase
+    director._activeCrisis.phase = 'SURGE';
+
+    // Score reinforce
+    director._scorePlayerAction('reinforceCorridor', { linkId: 'l1' });
+    assert.strictEqual(director._activeCrisis.responseScore, 2.0, 'reinforce should score +2');
+
+    // Score reroute
+    director._scorePlayerAction('rerouteHotspot', { linkId: 'l2' });
+    assert.strictEqual(director._activeCrisis.responseScore, 5.0, 'reroute should score +3');
+
+    // Score abandon
+    director._scorePlayerAction('abandonCorridor', { linkId: 'l3' });
+    assert.strictEqual(director._activeCrisis.responseScore, 6.0, 'abandon should score +1');
+
+    // Score create link
+    director._scorePlayerAction('createLink', { linkId: 'l4' });
+    assert.strictEqual(director._activeCrisis.responseScore, 6.5, 'createLink should score +0.5');
+
+    // Deduplicate same action within 2s
+    director._scorePlayerAction('createLink', { linkId: 'l4' });
+    assert.strictEqual(director._activeCrisis.responseScore, 6.5, 'duplicate createLink should not score');
+
+    // Score fracture residue (negative)
+    director._scorePlayerAction('fractureResidueCreated', { linkId: 'l5' });
+    assert.strictEqual(director._activeCrisis.responseScore, 5.5, 'fracture should score -1');
+
+    director.dispose();
+  }
+});
+
+tests.push({
+  name: 'CrisisPhaseDirector Quantum crisis has shorter phase durations than Desert',
+  fn: () => {
+    const quantumDirector = new CrisisPhaseDirector({
+      semanticBus: null,
+      getWorldId: () => 'quantum'
+    });
+    const desertDirector = new CrisisPhaseDirector({
+      semanticBus: null,
+      getWorldId: () => 'desert'
+    });
+
+    quantumDirector._onCrisisStart({ crisisId: 'resonance_surge', duration: 15 });
+    desertDirector._onCrisisStart({ crisisId: 'anchor_collapse', duration: 15 });
+
+    const qConfig = quantumDirector._activeCrisis.phaseConfig;
+    const dConfig = desertDirector._activeCrisis.phaseConfig;
+
+    assert(qConfig.introDuration < dConfig.introDuration, 'Quantum intro should be shorter');
+    assert(qConfig.surgeDuration < dConfig.surgeDuration, 'Quantum surge should be shorter');
+    assert(qConfig.peakDuration < dConfig.peakDuration, 'Quantum peak should be shorter');
+    assert.strictEqual(qConfig.tickPressureScaleMultiplier, 1.3, 'Quantum should have pressure multiplier');
+    assert.strictEqual(dConfig.reinforceDurationMultiplier, 1.3, 'Desert should have reinforce duration multiplier');
+
+    quantumDirector.dispose();
+    desertDirector.dispose();
+  }
+});
+
+tests.push({
+  name: 'CrisisPhaseDirector survived crisis grants temporary buff',
+  fn: () => {
+    const director = new CrisisPhaseDirector({
+      semanticBus: null,
+      getWorldId: () => 'default'
+    });
+
+    director._onCrisisStart({ crisisId: 'resonance_surge', duration: 15 });
+    director._activeCrisis.phase = 'SURGE';
+    // Score enough to survive
+    director._scorePlayerAction('rerouteHotspot', { linkId: 'l1' });
+    director._scorePlayerAction('reinforceCorridor', { linkId: 'l2' });
+    director._scorePlayerAction('abandonCorridor', { linkId: 'l3' });
+    // responseScore = 6.0 >= 4 (SURVIVED)
+
+    director._transitionToPhase('DECAY');
+    director._transitionToPhase('RESOLVED');
+
+    const buff = director.getActiveBuff();
+    assert(buff, 'should have active buff after survival');
+    assert.strictEqual(buff.crisisId, 'resonance_surge');
+    assert(buff.synergy > 0, 'buff should have positive synergy');
+    assert.strictEqual(director.getCrisisMastery('resonance_surge').survivedCount, 1, 'mastery should increment');
+
+    director.dispose();
+  }
+});
+
+tests.push({
+  name: 'CrisisPhaseDirector failed crisis applies aftershock and unlocks mutation',
+  fn: () => {
+    const director = new CrisisPhaseDirector({
+      semanticBus: null,
+      getWorldId: () => 'default'
+    });
+
+    director._onCrisisStart({ crisisId: 'integrity_fracture', duration: 15 });
+    director._activeCrisis.phase = 'SURGE';
+    // Score low (only create link = 0.5)
+    director._scorePlayerAction('createLink', { linkId: 'l1' });
+    // responseScore = 0.5 < 2 (FAILED)
+
+    director._transitionToPhase('DECAY');
+    director._transitionToPhase('RESOLVED');
+
+    const aftershock = director.getActiveAftershock();
+    assert(aftershock, 'should have active aftershock after failure');
+    assert.strictEqual(aftershock.crisisId, 'integrity_fracture');
+    assert(aftershock.corruption > 0, 'aftershock should have corruption');
+    assert.strictEqual(aftershock.unlockedMutation, 'corruption_acceptance', 'should unlock mutation');
+    assert.strictEqual(director.getCrisisMastery('integrity_fracture').failedCount, 1, 'mastery failed count should increment');
+
+    director.dispose();
+  }
+});
+
+tests.push({
+  name: 'CrisisPhaseDirector mastery progression increases trigger threshold',
+  fn: () => {
+    const director = new CrisisPhaseDirector({
+      semanticBus: null,
+      getWorldId: () => 'default'
+    });
+
+    // Base threshold for resonance_surge is 0.8
+    const baseThreshold = director.getCrisisTriggerThreshold('resonance_surge');
+    assert.strictEqual(baseThreshold, 0.8, 'base threshold should be 0.8');
+
+    // Simulate 3 survived crises
+    for (let i = 0; i < 3; i++) {
+      director._onCrisisStart({ crisisId: 'resonance_surge', duration: 15 });
+      director._activeCrisis.phase = 'SURGE';
+      director._scorePlayerAction('rerouteHotspot', { linkId: `l${i}` });
+      director._scorePlayerAction('reinforceCorridor', { linkId: `r${i}` });
+      director._transitionToPhase('DECAY');
+      director._transitionToPhase('RESOLVED');
+    }
+
+    const increasedThreshold = director.getCrisisTriggerThreshold('resonance_surge');
+    assertNear(increasedThreshold, 0.86, 1e-9, 'threshold should increase by 0.02 per survival');
+    assert.strictEqual(director.getCrisisMastery('resonance_surge').survivedCount, 3, 'should have 3 survivals');
+
+    director.dispose();
   }
 });
 

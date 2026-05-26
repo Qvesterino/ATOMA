@@ -590,6 +590,7 @@ import { composeRunIdentitySelection, isRunIdentityWorld } from './RunIdentityPr
 import { DoctrineRuntime } from './src/doctrine/DoctrineRuntime.js';
 import { integrateMilestoneUnlocks, describeDoctrineUnlock } from './src/doctrine/DoctrineIntegration.js';
 import { CollapseReadabilityDirector } from './src/collapse/CollapseReadabilityDirector.js';
+import { CrisisPhaseDirector } from './CrisisPhaseDirector.js';
 import { SystemStateOverlay } from './SystemStateOverlay.js';
 import { ZoneAudioReactivity } from './ZoneAudioReactivity.js';
 // DISABLED: Legacy metric reactive system (replaced by Phase 5-7 architecture)
@@ -5979,6 +5980,13 @@ this.setHudDirty('nodeInspect');
             console.log('[main.js] DoctrineRuntime disposed');
         }
         this.doctrineRuntime = null;
+
+        // Crisis Phase Director
+        if (this.crisisPhaseDirector && typeof this.crisisPhaseDirector.dispose === 'function') {
+            this.crisisPhaseDirector.dispose();
+            console.log('[main.js] CrisisPhaseDirector disposed');
+        }
+        this.crisisPhaseDirector = null;
 
         // Extraction Pack v1.1 — Runtime Orchestration (World & FX)
         this.worldRuntime_v1 = null;
@@ -12319,6 +12327,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         regGuard('nodeInteraction', 'realtime.nodeInteraction', (dt) => this.nodeInteractionEngine?.update?.(dt));
         regGuard('metricsRuntime_v1', 'simulation.metricsRuntime_v1', (dt) => this.metricsRuntime_v1?.update?.(dt));
         regGuard('doctrineRuntime', 'simulation.doctrineRuntime', (dt) => this.doctrineRuntime?.update?.(dt));
+        regGuard('crisisPhaseDirector', 'simulation.crisisPhaseDirector', (dt) => this.crisisPhaseDirector?.update?.(dt));
         regGuard('aiHudReports', 'simulation.aiHudReports', () => this._refreshAIHudReports?.());
         // REMOVED: personalityRuntime_v1 regGuard — moved to LEGACY/april (2026-04-22)
         // REMOVED: personalityShaderBridge + advancedShaderFX regGuard — moved to LEGACY/ (2026-05-14)
@@ -14434,6 +14443,25 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         if (typeof window !== 'undefined') {
             window.__ATOMA_DOCTRINE__ = () => this.doctrineRuntime?.getState?.() || null;
             window.__ATOMA_DOCTRINE_MODS__ = () => this.doctrineRuntime?.getModifiers?.() || null;
+        }
+
+        // Crisis Phase Director — sits above DoctrineRuntime, manages phased lifecycle
+        this._setupCrisisPhaseDirector();
+    }
+
+    _setupCrisisPhaseDirector() {
+        if (this.crisisPhaseDirector) {
+            this.crisisPhaseDirector.dispose();
+        }
+        this.crisisPhaseDirector = new CrisisPhaseDirector({
+            semanticBus: this.semanticBus,
+            networkTensionRuntime: this.networkTensionRuntime_v1,
+            visualNetworkTimeScore: this.visualNetworkTimeElasticity,
+            gameplayHintLayer: this.gameplayHintLayer,
+            getWorldId: () => this._getCanonicalWorldContext()?.worldContext?.worldId || 'default'
+        });
+        if (typeof window !== 'undefined') {
+            window.__ATOMA_CRISIS__ = () => this.crisisPhaseDirector?.getDebugSnapshot?.() || null;
         }
     }
 

@@ -198,6 +198,10 @@ export class CollapseReadabilityDirector {
     // World context
     this._worldId = 'global';
 
+    // Crisis phase elevation state
+    this._crisisPhase = null;
+    this._crisisIntensity = 0;
+
     // FX semantic label cache (for external systems to read)
     this.fxSemanticLabels = new Map(); // entity id -> { state, reason, fxFamily }
 
@@ -245,6 +249,11 @@ export class CollapseReadabilityDirector {
     });
     reg('network:corridorAbandoned', (payload = {}) => {
       this._onCorridorAbandoned(payload);
+    });
+
+    // Crisis phase events
+    reg('crisis:phaseChanged', (payload = {}) => {
+      this._onCrisisPhaseChanged(payload);
     });
   }
 
@@ -314,6 +323,41 @@ export class CollapseReadabilityDirector {
     });
     // Remove threat for abandoned link
     this.threats.delete(linkId);
+  }
+
+  _onCrisisPhaseChanged(payload) {
+    const { phase, intensity } = payload || {};
+    this._crisisPhase = phase || null;
+    this._crisisIntensity = intensity || 0;
+
+    // During SURGE and PEAK, elevate all threat states by one level
+    if (phase === 'SURGE' || phase === 'PEAK') {
+      for (const threat of this.threats.values()) {
+        if (threat.state === 'strained') {
+          threat.state = 'critical';
+          threat.crisisElevated = true;
+        } else if (threat.state === 'critical' && !threat.crisisElevated) {
+          threat.state = 'fracturing';
+          threat.crisisElevated = true;
+        }
+      }
+      this._recomputeTopThreats();
+    }
+
+    // When crisis resolves, restore elevated threats
+    if (phase === 'RESOLVED') {
+      for (const threat of this.threats.values()) {
+        if (threat.crisisElevated) {
+          if (threat.state === 'fracturing') {
+            threat.state = 'critical';
+          } else if (threat.state === 'critical') {
+            threat.state = 'strained';
+          }
+          delete threat.crisisElevated;
+        }
+      }
+      this._recomputeTopThreats();
+    }
   }
 
   _onFractureResidueCreated(payload) {

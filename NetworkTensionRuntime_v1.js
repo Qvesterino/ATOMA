@@ -167,6 +167,9 @@ export class NetworkTensionRuntime_v1 {
     this._criticalHotspotActive = false;
     this._fragileChokepointActive = false;
     this._abandonCooldownUntil = new Map();
+
+    // CrisisPhaseDirector overrides (applied during active crisis phases)
+    this._crisisPhaseOverrides = null;
   }
 
   _resolveWorldId() {
@@ -489,9 +492,11 @@ export class NetworkTensionRuntime_v1 {
 
   _applyTickPressure(linkAnalyses, profile, dt) {
     const stepScale = Math.max(0.4, Math.min(1.8, (Number(dt) || 0.1) / 0.1));
+    // Apply crisis override multiplier if active
+    const crisisTickMultiplier = this._crisisPhaseOverrides?.tickPressureScale || 1.0;
     for (const analysis of linkAnalyses) {
       if (analysis.snapshot.hotspotWeight < profile.hotspotThreshold) continue;
-      const pressure = profile.tickPressureScale * analysis.snapshot.hotspotWeight * stepScale;
+      const pressure = profile.tickPressureScale * analysis.snapshot.hotspotWeight * stepScale * crisisTickMultiplier;
       const impulse = {
         loadPressure: pressure,
         stability: -pressure * 0.85,
@@ -644,13 +649,18 @@ export class NetworkTensionRuntime_v1 {
       return { applied: false, reason: 'not-threatened' };
     }
 
+    // Apply crisis overrides for reinforce duration and stability cost
+    const crisisDurationMult = this._crisisPhaseOverrides?.reinforceDuration || 1.0;
+    const crisisStabilityCostMult = this._crisisPhaseOverrides?.reinforceStabilityCost || 1.0;
+    const effectiveDurationMs = profile.reinforceDurationMs * crisisDurationMult;
+
     if (!link.userData) link.userData = {};
     link.userData.networkTension = {
       ...existing,
-      reinforcedUntil: now + profile.reinforceDurationMs,
-      reliefUntil: Math.max(Number(existing.reliefUntil) || 0, now + Math.round(profile.reinforceDurationMs * 0.62)),
+      reinforcedUntil: now + effectiveDurationMs,
+      reliefUntil: Math.max(Number(existing.reliefUntil) || 0, now + Math.round(effectiveDurationMs * 0.62)),
       cooldownUntil: now + profile.reinforceCooldownMs,
-      fatigueUntil: now + profile.reinforceDurationMs + 1500,
+      fatigueUntil: now + effectiveDurationMs + 1500,
       rerouteCandidate: false
     };
 
@@ -663,10 +673,11 @@ export class NetworkTensionRuntime_v1 {
     applyMetricImpulse(sourceNode, recoveryImpulse, { source: 'network-tension-runtime' });
     applyMetricImpulse(targetNode, recoveryImpulse, { source: 'network-tension-runtime' });
 
-    // Post-decay stability cost
-    if (profile.reinforceStabilityCost > 0) {
+    // Post-decay stability cost (with crisis override)
+    const effectiveStabilityCost = profile.reinforceStabilityCost * (this._crisisPhaseOverrides?.reinforceStabilityCost || 1.0);
+    if (effectiveStabilityCost > 0) {
       const decayImpulse = {
-        stability: -profile.reinforceStabilityCost,
+        stability: -effectiveStabilityCost,
         loadPressure: profile.reinforceLoadCost * 0.5
       };
       applyMetricImpulse(sourceNode, decayImpulse, { source: 'network-tension-runtime' });
@@ -717,13 +728,18 @@ export class NetworkTensionRuntime_v1 {
       return { relieved: false };
     }
 
+    // Apply crisis reroute relief scale multiplier
+    const crisisReliefMult = this._crisisPhaseOverrides?.rerouteReliefScale || 1.0;
+    const effectiveReliefScale = profile.rerouteReliefScale * crisisReliefMult;
+    const reliefDurationMs = profile.rerouteDurationMs;
+
     if (!link.userData) link.userData = {};
     const newLinkTension = link.userData.networkTension && typeof link.userData.networkTension === 'object'
       ? link.userData.networkTension
       : {};
     link.userData.networkTension = {
       ...newLinkTension,
-      reliefUntil: now + profile.rerouteDurationMs,
+      reliefUntil: now + reliefDurationMs,
       rerouteCandidate: false
     };
 
@@ -732,7 +748,7 @@ export class NetworkTensionRuntime_v1 {
       : {};
     adjacentHotspot.link.userData.networkTension = {
       ...hotspotTension,
-      reliefUntil: now + profile.rerouteDurationMs
+      reliefUntil: now + reliefDurationMs
     };
 
     const recoveryImpulse = {

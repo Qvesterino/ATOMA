@@ -250,6 +250,69 @@ const HINTS = Object.freeze({
     durationMs: 3200,
     priority: 11,
     variant: 'default'
+  },
+  crisisIntro: {
+    text: (ctx) => `${ctx.crisisLabel || 'Crisis'} incoming. Prepare your network.`,
+    durationMs: 4200,
+    priority: 15,
+    variant: 'warning'
+  },
+  crisisSurge: {
+    text: (ctx) => {
+      const world = String(ctx?.world || '').toLowerCase();
+      if (world === 'quantum') {
+        return `${ctx.crisisLabel || 'Crisis'} active. Reroute fast — Quantum rewards bold momentum.`;
+      }
+      if (world === 'desert') {
+        return `${ctx.crisisLabel || 'Crisis'} active. Reinforce anchors — Desert tests your discipline.`;
+      }
+      return `${ctx.crisisLabel || 'Crisis'} active. Reinforce, reroute, or abandon threatened corridors.`;
+    },
+    durationMs: 5200,
+    priority: 16,
+    variant: 'major'
+  },
+  crisisPeak: {
+    text: (ctx) => {
+      const world = String(ctx?.world || '').toLowerCase();
+      if (world === 'quantum') {
+        return `${ctx.crisisLabel || 'Crisis'} peaking. Split-window — choose now or lose ground.`;
+      }
+      return `${ctx.crisisLabel || 'Crisis'} peaking. Last chance to stabilize before it hardens.`;
+    },
+    durationMs: 4200,
+    priority: 17,
+    variant: 'danger'
+  },
+  crisisSurvived: {
+    text: (ctx) => {
+      const world = String(ctx?.world || '').toLowerCase();
+      if (world === 'quantum') {
+        return 'Crisis survived. The island stabilizes with renewed quantum coherence.';
+      }
+      if (world === 'desert') {
+        return 'Crisis survived. The dunes settle — your anchors held.';
+      }
+      return 'Crisis survived. Network stabilizes with renewed strength.';
+    },
+    durationMs: 4800,
+    priority: 14,
+    variant: 'default'
+  },
+  crisisFailed: {
+    text: (ctx) => {
+      const world = String(ctx?.world || '').toLowerCase();
+      if (world === 'quantum') {
+        return 'Crisis overwhelmed the lattice. The island mutates in response — learn from it.';
+      }
+      if (world === 'desert') {
+        return 'The dunes shifted faster than your hold. The desert teaches through change.';
+      }
+      return 'Crisis overwhelmed the lattice. The world mutates in response.';
+    },
+    durationMs: 5200,
+    priority: 14,
+    variant: 'warning'
   }
 });
 

@@ -124,6 +124,10 @@ export class VisualNetworkTimeElasticity_v1 {
     // ── Post-collapse residue penalty ───────────────────────────────
     this._residuePenaltyGraceUntil = 0;
 
+    // ── Crisis phase gate impact ────────────────────────────────────
+    this._crisisGateThresholdOffset = 0;
+    this._crisisGateActiveUntil = 0;
+
     // ── Sustain tracking ────────────────────────────────────────────
     this._highSynergyStartTime = null;
     this._sustainedDuration = 0;     // how long synergy has been above threshold
@@ -426,7 +430,12 @@ export class VisualNetworkTimeElasticity_v1 {
       ? performance.now()
       : Date.now();
 
-    if (snapshot.networkSynergy < this._synergyThreshold) {
+    // Crisis phase gate impact: temporarily raise synergy threshold during active crisis
+    const effectiveSynergyThreshold = (now < this._crisisGateActiveUntil)
+      ? this._synergyThreshold + this._crisisGateThresholdOffset
+      : this._synergyThreshold;
+
+    if (snapshot.networkSynergy < effectiveSynergyThreshold) {
       return { eligible: false, blockReason: REWIND_BLOCK_REASON.SYNERGY_TOO_LOW };
     }
     if (snapshot.nodeCount < this._rewindMinNodeCount) {
@@ -875,6 +884,8 @@ export class VisualNetworkTimeElasticity_v1 {
     this._rewindGraceReason = null;
     this._hotspotReliefGraceUntil = 0;
     this._abandonGraceUntil = 0;
+    this._crisisGateThresholdOffset = 0;
+    this._crisisGateActiveUntil = 0;
     if (typeof window !== 'undefined') window.__ATOMA_DRAMA_ZONE__ = false;
   }
 
@@ -912,6 +923,23 @@ export class VisualNetworkTimeElasticity_v1 {
       ? performance.now()
       : Date.now();
     this._residuePenaltyGraceUntil = now + 6000; // 6s penalty window
+  }
+
+  /**
+   * Called when crisis phase changes.
+   * Applies temporary threshold offset during PEAK phase.
+   */
+  onCrisisPhaseChanged({ phase, thresholdOffset = 0 }) {
+    const now = (typeof performance !== 'undefined' && typeof performance.now === 'function')
+      ? performance.now()
+      : Date.now();
+    if (phase === 'PEAK' && thresholdOffset > 0) {
+      this._crisisGateThresholdOffset = thresholdOffset;
+      this._crisisGateActiveUntil = now + 30000; // generous upper bound
+    } else if (phase === 'RESOLVED') {
+      this._crisisGateThresholdOffset = 0;
+      this._crisisGateActiveUntil = 0;
+    }
   }
 
   dispose() {
