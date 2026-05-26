@@ -66,6 +66,7 @@ import { CONFIG } from './config.js';
 import { FrameClock } from './FrameClock.js';
 import { FrameScheduler } from './FrameScheduler.js';
 import { LinkCollapseSystem } from './LinkCollapseSystem.js';
+import { PostCollapseResidueSystem } from './PostCollapseResidueSystem.js';
 import { LinkCollapseEventFX, validateLinkCollapseEventFX } from './LinkCollapseEventFX.js';
 import { AtomaLeaderboard, validateAtomaLeaderboard } from './AtomaLeaderboard.js';
 import { DistanceLODController } from './DistanceLODController.js';
@@ -10400,6 +10401,26 @@ window.__ATOMA_SCENE__ = this.scene;
         console.log('[main.js] LinkCollapseSystem initialized ✓');
 
         // ===================================================================
+        // POST-COLLAPSE RESIDUE SYSTEM — Fracture residue zones + recovery modes
+        // ===================================================================
+        this.postCollapseResidueSystem = new PostCollapseResidueSystem({
+            scene: this.scene,
+            semanticBus: this.semanticBus,
+            linkingSystem: this.linkingSystem,
+            config: {
+                residueDurationMs: 16000,
+                freshDurationMs: 6000,
+                coolingDurationMs: 6000,
+                fadingDurationMs: 4000,
+            }
+        });
+        this.linkingSystem.postCollapseResidueSystem = this.postCollapseResidueSystem;
+        if (this.networkTensionRuntime) {
+            this.networkTensionRuntime.postCollapseResidueSystem = this.postCollapseResidueSystem;
+        }
+        console.log('[main.js] PostCollapseResidueSystem initialized ✓');
+
+        // ===================================================================
         // LINK COLLAPSE EVENT FX — Multi-phase visual/audio for link collapse
         // ===================================================================
         this.linkCollapseEventFX = new LinkCollapseEventFX(
@@ -17443,6 +17464,13 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
             });
             this.semanticBus.on('network:corridorAbandoned', () => {
                 this.visualNetworkTimeElasticity?.onCorridorAbandoned?.();
+            });
+            this.semanticBus.on('network:fractureResidueCreated', (payload) => {
+                this.collapseReadabilityDirector?._onFractureResidueCreated?.(payload);
+                this.visualNetworkTimeElasticity?.onFractureResidueCreated?.();
+            });
+            this.semanticBus.on('network:fractureResidueExpired', (payload) => {
+                this.collapseReadabilityDirector?._onFractureResidueExpired?.(payload);
             });
         }
 

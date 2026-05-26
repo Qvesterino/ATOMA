@@ -121,6 +121,9 @@ export class VisualNetworkTimeElasticity_v1 {
     this._hotspotReliefGraceUntil = 0;
     this._abandonGraceUntil = 0;
 
+    // ── Post-collapse residue penalty ───────────────────────────────
+    this._residuePenaltyGraceUntil = 0;
+
     // ── Sustain tracking ────────────────────────────────────────────
     this._highSynergyStartTime = null;
     this._sustainedDuration = 0;     // how long synergy has been above threshold
@@ -458,6 +461,15 @@ export class VisualNetworkTimeElasticity_v1 {
         return { eligible: false, blockReason: REWIND_BLOCK_REASON.CHOKEPOINT_FRAGILE };
       }
     }
+    // Post-collapse residue penalty: if a residue was recently created, make rewind slightly harder
+    if (now < this._residuePenaltyGraceUntil) {
+      // Penalty: require slightly higher synergy to rewind while residue is fresh
+      const effectiveSynergyThreshold = this._synergyThreshold * 1.08;
+      if (snapshot.networkSynergy < effectiveSynergyThreshold) {
+        return { eligible: false, blockReason: REWIND_BLOCK_REASON.SYNERGY_TOO_LOW };
+      }
+    }
+
     return { eligible: true, blockReason: null };
   }
 
@@ -889,6 +901,17 @@ export class VisualNetworkTimeElasticity_v1 {
       ? performance.now()
       : Date.now();
     this._abandonGraceUntil = now + 2000;
+  }
+
+  /**
+   * Called when a fracture residue is created after collapse.
+   * Applies a temporary penalty to rewind gate synergy threshold.
+   */
+  onFractureResidueCreated() {
+    const now = (typeof performance !== 'undefined' && typeof performance.now === 'function')
+      ? performance.now()
+      : Date.now();
+    this._residuePenaltyGraceUntil = now + 6000; // 6s penalty window
   }
 
   dispose() {

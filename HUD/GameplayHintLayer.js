@@ -226,6 +226,30 @@ const HINTS = Object.freeze({
     durationMs: 3800,
     priority: 13,
     variant: 'default'
+  },
+  fractureResidueCreated: {
+    text: (ctx) => `Corridor collapsed. Fracture residue fading in ${(ctx.secondsRemaining || 16).toFixed(0)}s.`,
+    durationMs: 4200,
+    priority: 12,
+    variant: 'warning'
+  },
+  cleanRebuildAvailable: {
+    text: 'Clean rebuild possible. Corruption and stability penalties apply.',
+    durationMs: 3800,
+    priority: 13,
+    variant: 'default'
+  },
+  dangerousReconnectWarning: {
+    text: 'Dangerous reconnect: immediate strain spike. Use only if urgent.',
+    durationMs: 4200,
+    priority: 14,
+    variant: 'danger'
+  },
+  residueExpired: {
+    text: 'Fracture residue dissipated. Zone is safe to rebuild.',
+    durationMs: 3200,
+    priority: 11,
+    variant: 'default'
   }
 });
 

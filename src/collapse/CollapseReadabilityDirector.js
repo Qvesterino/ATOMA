@@ -316,6 +316,46 @@ export class CollapseReadabilityDirector {
     this.threats.delete(linkId);
   }
 
+  _onFractureResidueCreated(payload) {
+    if (!this.gameplayHintLayer) return;
+    const { sourceNodeId, targetNodeId, riskLevel, secondsRemaining } = payload || {};
+    const id = `residue-${sourceNodeId}-${targetNodeId}`;
+    this.threats.set(id, {
+      id,
+      type: 'fracture-residue',
+      state: riskLevel > 0.7 ? 'critical' : riskLevel > 0.3 ? 'warning' : 'stable',
+      reason: 'fracture-residue-active',
+      label: `Fracture residue (${(riskLevel * 100).toFixed(0)}%)`,
+      action: riskLevel > 0.7 ? 'Wait or dangerous reconnect' : 'Clean rebuild available',
+      fxFamily: 'link-fracture-burst',
+      sourceNodeId,
+      targetNodeId,
+      riskLevel,
+    });
+    this._recomputeTopThreats();
+
+    this.gameplayHintLayer.show('fractureResidueCreated', {
+      secondsRemaining: secondsRemaining || 16
+    }, {
+      fingerprint: `residue:${sourceNodeId}-${targetNodeId}`,
+      cooldownMs: 6000
+    });
+  }
+
+  _onFractureResidueExpired(payload) {
+    const { sourceNodeId, targetNodeId } = payload || {};
+    const id = `residue-${sourceNodeId}-${targetNodeId}`;
+    this.threats.delete(id);
+    this._recomputeTopThreats();
+
+    if (this.gameplayHintLayer) {
+      this.gameplayHintLayer.show('residueExpired', {}, {
+        fingerprint: `residue-expired:${sourceNodeId}-${targetNodeId}`,
+        cooldownMs: 4000
+      });
+    }
+  }
+
   // ========================================================================
   // THREAT MANAGEMENT
   // ========================================================================

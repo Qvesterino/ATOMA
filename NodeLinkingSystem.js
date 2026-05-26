@@ -2144,6 +2144,40 @@ export class NodeLinkingSystem {
           });
         }
       }
+
+      // Post-Collapse Recovery: check if this link creation crosses an active residue zone
+      if (this.postCollapseResidueSystem) {
+        const residue = this.postCollapseResidueSystem.getResidueForPair(sourceId, targetId);
+        if (residue && residue.riskLevel > 0.2) {
+          const mode = this._selectRecoveryMode(activeLink, residue);
+          const risk = residue.riskLevel;
+          if (mode === 'cleanRebuild') {
+            activeLink.userData.recoveryMode = 'cleanRebuild';
+            activeLink.userData.corruptionPenalty = 0.12 * risk;
+            activeLink.userData.stabilityPenalty = 0.08 * risk;
+            activeLink.userData.immediateStrain = 0;
+          } else {
+            activeLink.userData.recoveryMode = 'dangerousReconnect';
+            activeLink.userData.corruptionPenalty = 0.38 * risk;
+            activeLink.userData.stabilityPenalty = 0.22 * risk;
+            activeLink.userData.immediateStrain = 0.45 * risk;
+          }
+          if (semanticBus?.emit) {
+            semanticBus.emit('network:recoveryModeChosen', {
+              mode,
+              residueId: residue.id,
+              sourceNodeId: sourceId,
+              targetNodeId: targetId,
+              riskLevel: risk,
+              penalties: {
+                corruption: activeLink.userData.corruptionPenalty,
+                stability: activeLink.userData.stabilityPenalty,
+                immediateStrain: activeLink.userData.immediateStrain,
+              },
+            });
+          }
+        }
+      }
     }, sourceNode, targetNode, link, fanoutPriority);
 
     this._scheduleDeferredLinkCreatedCallbacks();
@@ -8690,6 +8724,24 @@ getLinksForNode(node) {
       reason: 'conditions-not-met',
       decidedAt: now,
     };
+  }
+
+  /**
+   * Select recovery mode for a link created across an active residue zone.
+   * @private
+   */
+  _selectRecoveryMode(link, residue) {
+    const source = link.source;
+    const target = link.target;
+    const srcStability = source?.userData?.metrics?.stability ?? source?.userData?.stability ?? 1;
+    const tgtStability = target?.userData?.metrics?.stability ?? target?.userData?.stability ?? 1;
+    const minStability = Math.min(srcStability, tgtStability);
+
+    // Clean rebuild only when risk is moderate and nodes are stable enough
+    if (residue.riskLevel <= 0.5 && minStability >= 0.35) {
+      return 'cleanRebuild';
+    }
+    return 'dangerousReconnect';
   }
 
   /**

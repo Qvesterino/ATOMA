@@ -10,6 +10,7 @@ import { VisualNetworkTimeElasticity_v1, SCORE_DIRECTION } from '../VisualNetwor
 import { AtomaLeaderboard } from '../AtomaLeaderboard.js';
 import { LinkCollapseSystem } from '../LinkCollapseSystem.js';
 import { NetworkTensionRuntime_v1, NETWORK_TENSION_WORLD_PROFILES } from '../NetworkTensionRuntime_v1.js';
+import { PostCollapseResidueSystem } from '../PostCollapseResidueSystem.js';
 import { getDefaultMetricThresholds } from '../src/metrics/MetricTierClassifier.js';
 import { CompetitionDominanceAdapter_v1 } from '../CompetitionDominanceAdapter_v1.js';
 import { applyDominancePulseModulation } from '../harmony/HarmonyStabilization.js';
@@ -1868,6 +1869,107 @@ test('LinkCollapseSystem enqueues collapse only once per link collapse event', (
     assert.strictEqual(collapseSystem.getCollapseStatistics().totalCollapses, 1);
   } finally {
     Date.now = originalDateNow;
+  }
+});
+
+// ── Post-Collapse Residue System Tests ────────────────────────────────────
+
+function createMockNode(nodeId, stability = 0.5) {
+  return {
+    userData: { nodeId, metrics: { stability } },
+    position: { x: 0, y: 0, z: 0 }
+  };
+}
+
+tests.push({
+  name: 'PostCollapseResidueSystem creates residue on link collapse',
+  fn: () => {
+    const system = new PostCollapseResidueSystem({ scene: null, semanticBus: null });
+    const src = createMockNode('ra');
+    const tgt = createMockNode('rb');
+    const link = createTensionLink(src, tgt);
+    system.onLinkCollapsed({ link });
+    assert.strictEqual(system.getActiveResidueCount(), 1, 'should create one active residue');
+    const residue = system.getResidueForPair('ra', 'rb');
+    assert(residue, 'residue should exist for node pair');
+    assert.strictEqual(residue.riskLevel, 1.0, 'fresh residue should have riskLevel 1.0');
+    assert.strictEqual(residue.stage, 'fresh', 'fresh residue stage');
+    system.dispose();
+  }
+});
+
+tests.push({
+  name: 'PostCollapseResidueSystem risk decays over time',
+  fn: () => {
+    const system = new PostCollapseResidueSystem({ scene: null, semanticBus: null });
+    const src = createMockNode('rc');
+    const tgt = createMockNode('rd');
+    const link = createTensionLink(src, tgt);
+    const now = Date.now();
+    system.onLinkCollapsed({ link });
+    const residue = system.getResidueForPair('rc', 'rd');
+    // Simulate 8 seconds elapsed
+    residue.createdAt = now - 8000;
+    residue.expiresAt = now + 8000;
+    system.update(0);
+    assert(residue.riskLevel < 1.0, 'risk should decay after 8s');
+    assert.strictEqual(residue.stage, 'cooling', 'should be in cooling stage after 8s');
+    system.dispose();
+  }
+});
+
+tests.push({
+  name: 'PostCollapseResidueSystem expires after 16s',
+  fn: () => {
+    const system = new PostCollapseResidueSystem({ scene: null, semanticBus: null });
+    const src = createMockNode('re');
+    const tgt = createMockNode('rf');
+    const link = createTensionLink(src, tgt);
+    const now = Date.now();
+    system.onLinkCollapsed({ link });
+    const residue = system.getResidueForPair('re', 'rf');
+    residue.createdAt = now - 17000;
+    residue.expiresAt = now - 1000;
+    system.update(0);
+    assert.strictEqual(system.getActiveResidueCount(), 0, 'residue should expire');
+    system.dispose();
+  }
+});
+
+tests.push({
+  name: 'PostCollapseResidueSystem recovery mode selection respects conditions',
+  fn: () => {
+    const system = new PostCollapseResidueSystem({ scene: null, semanticBus: null });
+    const src = createMockNode('rg', 0.6);
+    const tgt = createMockNode('rh', 0.6);
+    const link = createTensionLink(src, tgt);
+    const now = Date.now();
+    system.onLinkCollapsed({ link });
+    // Advance time so risk decays below 0.5 (clean rebuild threshold)
+    const residue = system.getResidueForPair('rg', 'rh');
+    residue.createdAt = now - 7500;
+    residue.expiresAt = now + 8500;
+    system.update(0);
+    // Simulate link creation across residue
+    system.onLinkCreated({ link });
+    assert.strictEqual(link.userData.recoveryMode, 'cleanRebuild', 'should select cleanRebuild when stable and risk moderate');
+    assert(link.userData.corruptionPenalty > 0, 'should apply corruption penalty');
+    system.dispose();
+  }
+});
+
+tests.push({
+  name: 'PostCollapseResidueSystem dangerous reconnect when nodes unstable',
+  fn: () => {
+    const system = new PostCollapseResidueSystem({ scene: null, semanticBus: null });
+    const src = createMockNode('ri', 0.2);
+    const tgt = createMockNode('rj', 0.2);
+    const link = createTensionLink(src, tgt);
+    system.onLinkCollapsed({ link });
+    system.onLinkCreated({ link });
+    assert.strictEqual(link.userData.recoveryMode, 'dangerousReconnect', 'should select dangerousReconnect when unstable');
+    assert(link.userData.immediateStrain > 0, 'should apply immediate strain');
+    system.dispose();
   }
 });
 

@@ -392,6 +392,17 @@ export class NetworkTensionRuntime_v1 {
         overloadRisk *= Math.max(0.52, reliefScale + 0.12);
       }
 
+      // Post-collapse residue zone bias: active residue increases strain and overload risk
+      if (this.postCollapseResidueSystem) {
+        const residue = this.postCollapseResidueSystem.getResidueForPair(sourceId, targetId);
+        if (residue && residue.riskLevel > 0.2) {
+          const risk = residue.riskLevel;
+          strain = clamp01(strain * (1 + risk * 0.35));
+          overloadRisk = clamp01(overloadRisk * (1 + risk * 0.22));
+          hotspotWeight = clamp01(hotspotWeight * (1 + risk * 0.18));
+        }
+      }
+
       const rerouteCandidate =
         hotspotWeight >= profile.rerouteCandidateThreshold ||
         (chokepointScore >= (profile.chokepointCriticalThreshold * 0.94) && strain >= (profile.releaseThreshold * 0.92));
