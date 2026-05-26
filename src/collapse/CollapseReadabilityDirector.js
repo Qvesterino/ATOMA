@@ -235,6 +235,17 @@ export class CollapseReadabilityDirector {
     reg('link.corruption.high', (payload = {}) => {
       this._onLinkCorruptionHigh(payload);
     });
+
+    // Counterplay verb events
+    reg('network:corridorReinforced', (payload = {}) => {
+      this._onCorridorReinforced(payload);
+    });
+    reg('network:corridorRerouted', (payload = {}) => {
+      this._onCorridorRerouted(payload);
+    });
+    reg('network:corridorAbandoned', (payload = {}) => {
+      this._onCorridorAbandoned(payload);
+    });
   }
 
   // ========================================================================
@@ -266,6 +277,43 @@ export class CollapseReadabilityDirector {
     const linkId = payload?.linkId ?? null;
     if (!linkId) return;
     this._ensureThreatFromLinkId(linkId, 'critical', 'corruption-spike');
+  }
+
+  _onCorridorReinforced(payload) {
+    if (!this.gameplayHintLayer) return;
+    const linkId = payload?.linkId ?? null;
+    if (!linkId) return;
+    // Remove any chokepoint-fragile threat for this link since it was reinforced
+    const threat = this.threats.get(linkId);
+    if (threat && threat.reason === 'chokepoint-overload') {
+      this.threats.delete(linkId);
+    }
+  }
+
+  _onCorridorRerouted(payload) {
+    if (!this.gameplayHintLayer) return;
+    const relievedLinkId = payload?.relievedLinkId ?? null;
+    if (!relievedLinkId) return;
+    this.gameplayHintLayer.show('rerouteSuccess', {
+      hotspotLabel: String(relievedLinkId).slice(0, 6)
+    }, {
+      fingerprint: `reroute:${relievedLinkId}`,
+      cooldownMs: 6000
+    });
+  }
+
+  _onCorridorAbandoned(payload) {
+    if (!this.gameplayHintLayer) return;
+    const linkId = payload?.linkId ?? null;
+    if (!linkId) return;
+    this.gameplayHintLayer.show('abandonSacrifice', {
+      corridorLabel: String(linkId).slice(0, 6)
+    }, {
+      fingerprint: `abandon:${linkId}`,
+      cooldownMs: 8000
+    });
+    // Remove threat for abandoned link
+    this.threats.delete(linkId);
   }
 
   // ========================================================================

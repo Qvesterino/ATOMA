@@ -117,6 +117,10 @@ export class VisualNetworkTimeElasticity_v1 {
     this._rewindGraceBlockedAt = null;
     this._rewindGraceReason = null;
 
+    // ── Counterplay verb grace periods ──────────────────────────────
+    this._hotspotReliefGraceUntil = 0;
+    this._abandonGraceUntil = 0;
+
     // ── Sustain tracking ────────────────────────────────────────────
     this._highSynergyStartTime = null;
     this._sustainedDuration = 0;     // how long synergy has been above threshold
@@ -415,6 +419,10 @@ export class VisualNetworkTimeElasticity_v1 {
   }
 
   _evaluateRewindGate(snapshot = this._networkMetricsSnapshot) {
+    const now = (typeof performance !== 'undefined' && typeof performance.now === 'function')
+      ? performance.now()
+      : Date.now();
+
     if (snapshot.networkSynergy < this._synergyThreshold) {
       return { eligible: false, blockReason: REWIND_BLOCK_REASON.SYNERGY_TOO_LOW };
     }
@@ -431,7 +439,11 @@ export class VisualNetworkTimeElasticity_v1 {
       snapshot.criticalHotspotActive === true ||
       (snapshot.tensionReleaseThreshold > 0 && snapshot.regionalTension > snapshot.tensionReleaseThreshold)
     ) {
-      return { eligible: false, blockReason: REWIND_BLOCK_REASON.TENSION_CRITICAL };
+      if (now < this._hotspotReliefGraceUntil) {
+        // hotspot was just relieved by reroute — allow grace
+      } else {
+        return { eligible: false, blockReason: REWIND_BLOCK_REASON.TENSION_CRITICAL };
+      }
     }
     if (
       snapshot.fragileChokepointActive === true ||
@@ -440,7 +452,11 @@ export class VisualNetworkTimeElasticity_v1 {
         snapshot.maxChokepointScore > snapshot.chokepointReleaseThreshold
       )
     ) {
-      return { eligible: false, blockReason: REWIND_BLOCK_REASON.CHOKEPOINT_FRAGILE };
+      if (now < this._abandonGraceUntil) {
+        // chokepoint was just cleared by abandon — allow grace
+      } else {
+        return { eligible: false, blockReason: REWIND_BLOCK_REASON.CHOKEPOINT_FRAGILE };
+      }
     }
     return { eligible: true, blockReason: null };
   }
@@ -845,12 +861,36 @@ export class VisualNetworkTimeElasticity_v1 {
     this._rewindBlockReason = REWIND_BLOCK_REASON.SYNERGY_TOO_LOW;
     this._rewindGraceBlockedAt = null;
     this._rewindGraceReason = null;
+    this._hotspotReliefGraceUntil = 0;
+    this._abandonGraceUntil = 0;
     if (typeof window !== 'undefined') window.__ATOMA_DRAMA_ZONE__ = false;
   }
 
   /**
    * Dispose and clean up
    */
+  /**
+   * Called when a hotspot is relieved by reroute.
+   * Grants a short grace period where TENSION_CRITICAL does not block rewind.
+   */
+  onHotspotRelieved() {
+    const now = (typeof performance !== 'undefined' && typeof performance.now === 'function')
+      ? performance.now()
+      : Date.now();
+    this._hotspotReliefGraceUntil = now + 1000;
+  }
+
+  /**
+   * Called when a corridor is abandoned.
+   * Grants a grace period where CHOKEPOINT_FRAGILE does not block rewind.
+   */
+  onCorridorAbandoned() {
+    const now = (typeof performance !== 'undefined' && typeof performance.now === 'function')
+      ? performance.now()
+      : Date.now();
+    this._abandonGraceUntil = now + 2000;
+  }
+
   dispose() {
     this._eventHandlers = { 'score:forward': [], 'score:rewinding': [], 'score:won': [], 'score:dramaZone': [], 'score:milestone': [] };
     this.reset({ countGamePlayed: false });

@@ -208,6 +208,24 @@ const HINTS = Object.freeze({
     durationMs: 5200,
     priority: 12,
     variant: 'default'
+  },
+  abandonSacrifice: {
+    text: (ctx) => `Corridor ${ctx.corridorLabel || 'sacrificed'}. Core lattice relieved.`,
+    durationMs: 4200,
+    priority: 13,
+    variant: 'warning'
+  },
+  reinforceUnavailable: {
+    text: 'Corridor not threatened enough to reinforce.',
+    durationMs: 2800,
+    priority: 14,
+    variant: 'default'
+  },
+  rerouteSuccess: {
+    text: (ctx) => `Reroute opened. Hotspot ${ctx.hotspotLabel || 'relieved'} cooling.`,
+    durationMs: 3800,
+    priority: 13,
+    variant: 'default'
   }
 });
 

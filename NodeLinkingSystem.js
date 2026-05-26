@@ -2934,7 +2934,7 @@ export class NodeLinkingSystem {
     
     // Check if this exact directional link A→B already exists
     if (this.linkExists(sourceNode, targetNode)) {
-      const link = this.links.find(l => 
+      const link = this.links.find(l =>
         l.source === sourceNode && l.target === targetNode
       );
       if (link && this.networkTensionRuntime?.tryReinforceCorridor) {
@@ -2942,13 +2942,25 @@ export class NodeLinkingSystem {
         if (reinforceResult?.applied) {
           this.createLinkSuccessPulse(sourceNode, targetNode);
           console.log(`✓ Corridor reinforced: ${sourceNode.userData.category} → ${targetNode.userData.category}`);
-        } else {
-          console.log(`· Reinforce unavailable: ${reinforceResult?.reason || 'cooldown'} (${sourceNode.userData.category} → ${targetNode.userData.category})`);
+          return;
         }
-        return;
+        if (reinforceResult?.reason === 'cooldown') {
+          console.log(`· Reinforce unavailable: cooldown (${sourceNode.userData.category} → ${targetNode.userData.category})`);
+          return;
+        }
+        // Reinforce not applicable — try abandon if link is threatened
+        if (this.networkTensionRuntime?.tryAbandonCorridor) {
+          const abandonResult = this.networkTensionRuntime.tryAbandonCorridor(link);
+          if (abandonResult?.applied) {
+            this.createLinkRemovalPulse(link);
+            this.removeLink(link);
+            console.log(`✓ Corridor sacrificed: ${sourceNode.userData.category} → ${targetNode.userData.category}`);
+            return;
+          }
+        }
+        // Fall through to normal removal
       }
       if (link) {
-        // Fallback only when tension runtime is unavailable
         this.createLinkRemovalPulse(link);
         this.removeLink(link);
         console.log(`✓ Link removed: ${sourceNode.userData.category} → ${targetNode.userData.category}`);

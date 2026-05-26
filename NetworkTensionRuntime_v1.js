@@ -66,16 +66,17 @@ const DEFAULT_WORLD_PROFILE = Object.freeze({
   releaseThreshold: 0.54,
   chokepointCriticalThreshold: 0.68,
   rerouteCandidateThreshold: 0.56,
-  rerouteDurationMs: 4600,
-  rerouteReliefScale: 0.5,
-  rerouteRecoveryImpulse: 0.012,
-  reinforceDurationMs: 5200,
-  reinforceCooldownMs: 5400,
-  reinforceStrainScale: 0.64,
-  reinforceOverloadScale: 0.7,
-  reinforceRecoveryImpulse: 0.015,
-  reinforceHarmonyCost: 0.008,
-  reinforceLoadCost: 0.018,
+  rerouteDurationMs: 5800,
+  rerouteReliefScale: 0.72,
+  rerouteRecoveryImpulse: 0.018,
+  reinforceDurationMs: 3200,
+  reinforceCooldownMs: 8200,
+  reinforceStrainScale: 0.58,
+  reinforceOverloadScale: 0.65,
+  reinforceRecoveryImpulse: 0.012,
+  reinforceHarmonyCost: 0.018,
+  reinforceStabilityCost: 0.012,
+  reinforceLoadCost: 0.022,
   tickPressureScale: 0.0036,
   linkEventThreshold: 0.72
 });
@@ -89,10 +90,17 @@ export const NETWORK_TENSION_WORLD_PROFILES = Object.freeze({
     hotspotThreshold: 0.60,
     criticalHotspotThreshold: 0.79,
     releaseThreshold: 0.55,
-    rerouteDurationMs: 3600,
-    rerouteReliefScale: 0.58,
-    reinforceDurationMs: 4200,
-    reinforceCooldownMs: 5000,
+    rerouteDurationMs: 4800,
+    rerouteReliefScale: 0.78,
+    rerouteRecoveryImpulse: 0.020,
+    reinforceDurationMs: 2800,
+    reinforceCooldownMs: 7600,
+    reinforceStrainScale: 0.54,
+    reinforceOverloadScale: 0.62,
+    reinforceRecoveryImpulse: 0.014,
+    reinforceHarmonyCost: 0.020,
+    reinforceStabilityCost: 0.014,
+    reinforceLoadCost: 0.024,
     tickPressureScale: 0.0041
   }),
   desert: Object.freeze({
@@ -103,10 +111,17 @@ export const NETWORK_TENSION_WORLD_PROFILES = Object.freeze({
     criticalHotspotThreshold: 0.74,
     releaseThreshold: 0.50,
     chokepointCriticalThreshold: 0.65,
-    rerouteDurationMs: 5200,
-    rerouteReliefScale: 0.42,
-    reinforceDurationMs: 6400,
-    reinforceCooldownMs: 5800,
+    rerouteDurationMs: 6400,
+    rerouteReliefScale: 0.65,
+    rerouteRecoveryImpulse: 0.016,
+    reinforceDurationMs: 3800,
+    reinforceCooldownMs: 8800,
+    reinforceStrainScale: 0.60,
+    reinforceOverloadScale: 0.68,
+    reinforceRecoveryImpulse: 0.010,
+    reinforceHarmonyCost: 0.016,
+    reinforceStabilityCost: 0.010,
+    reinforceLoadCost: 0.020,
     tickPressureScale: 0.0032
   })
 });
@@ -151,6 +166,7 @@ export class NetworkTensionRuntime_v1 {
     this._linkHighEventAt = new Map();
     this._criticalHotspotActive = false;
     this._fragileChokepointActive = false;
+    this._abandonCooldownUntil = new Map();
   }
 
   _resolveWorldId() {
@@ -293,6 +309,7 @@ export class NetworkTensionRuntime_v1 {
       reinforcedUntil: Number(existing.reinforcedUntil) || 0,
       reliefUntil: Number(existing.reliefUntil) || 0,
       cooldownUntil: Number(existing.cooldownUntil) || 0,
+      fatigueUntil: Number(existing.fatigueUntil) || 0,
       rerouteCandidate: computed.rerouteCandidate === true
     };
   }
@@ -363,6 +380,11 @@ export class NetworkTensionRuntime_v1 {
         strain *= profile.reinforceStrainScale;
         overloadRisk *= profile.reinforceOverloadScale;
         hotspotWeight *= 0.76;
+      }
+      // Post-decay fatigue spike: 1.5s after reinforce expires, strain jumps
+      if ((Number(existing.fatigueUntil) || 0) > now && (Number(existing.reinforcedUntil) || 0) <= now) {
+        strain = clamp01(strain * 1.15);
+        overloadRisk = clamp01(overloadRisk * 1.08);
       }
       if ((Number(existing.reliefUntil) || 0) > now) {
         const reliefScale = 1 - profile.rerouteReliefScale;
@@ -601,12 +623,23 @@ export class NetworkTensionRuntime_v1 {
       };
     }
 
+    // Situational gating: only allow reinforce on actually threatened links
+    const hotspotWeight = Number(existing.hotspotWeight) || 0;
+    const strain = Number(existing.strain) || 0;
+    const isThreatened =
+      hotspotWeight >= profile.hotspotThreshold * 0.85 ||
+      strain >= profile.releaseThreshold * 0.9;
+    if (!isThreatened) {
+      return { applied: false, reason: 'not-threatened' };
+    }
+
     if (!link.userData) link.userData = {};
     link.userData.networkTension = {
       ...existing,
       reinforcedUntil: now + profile.reinforceDurationMs,
       reliefUntil: Math.max(Number(existing.reliefUntil) || 0, now + Math.round(profile.reinforceDurationMs * 0.62)),
       cooldownUntil: now + profile.reinforceCooldownMs,
+      fatigueUntil: now + profile.reinforceDurationMs + 1500,
       rerouteCandidate: false
     };
 
@@ -618,6 +651,24 @@ export class NetworkTensionRuntime_v1 {
     };
     applyMetricImpulse(sourceNode, recoveryImpulse, { source: 'network-tension-runtime' });
     applyMetricImpulse(targetNode, recoveryImpulse, { source: 'network-tension-runtime' });
+
+    // Post-decay stability cost
+    if (profile.reinforceStabilityCost > 0) {
+      const decayImpulse = {
+        stability: -profile.reinforceStabilityCost,
+        loadPressure: profile.reinforceLoadCost * 0.5
+      };
+      applyMetricImpulse(sourceNode, decayImpulse, { source: 'network-tension-runtime' });
+      applyMetricImpulse(targetNode, decayImpulse, { source: 'network-tension-runtime' });
+    }
+
+    emitSemantic(this.semanticBus, 'network:corridorReinforced', {
+      worldId: this._resolveWorldId(),
+      linkId: String(link.id || link.userData?.id || ''),
+      sourceNodeId: getNodeId(sourceNode),
+      targetNodeId: getNodeId(targetNode),
+      durationMs: profile.reinforceDurationMs
+    });
 
     emitSemantic(this.semanticBus, 'network:tensionRecovered', {
       worldId: this._resolveWorldId(),
@@ -681,6 +732,20 @@ export class NetworkTensionRuntime_v1 {
     applyMetricImpulse(adjacentHotspot.sourceNode, recoveryImpulse, { source: 'network-tension-runtime' });
     applyMetricImpulse(adjacentHotspot.targetNode, recoveryImpulse, { source: 'network-tension-runtime' });
 
+    emitSemantic(this.semanticBus, 'network:hotspotRelieved', {
+      worldId: this._resolveWorldId(),
+      relievedLinkId: adjacentHotspot.linkId,
+      newLinkId: String(link.id || link.userData?.id || ''),
+      reliefScale: profile.rerouteReliefScale,
+      durationMs: profile.rerouteDurationMs
+    });
+
+    emitSemantic(this.semanticBus, 'network:corridorRerouted', {
+      worldId: this._resolveWorldId(),
+      relievedLinkId: adjacentHotspot.linkId,
+      newLinkId: String(link.id || link.userData?.id || '')
+    });
+
     emitSemantic(this.semanticBus, 'network:tensionRecovered', {
       worldId: this._resolveWorldId(),
       mode: 'reroute',
@@ -691,6 +756,75 @@ export class NetworkTensionRuntime_v1 {
     return {
       relieved: true,
       relievedLinkId: adjacentHotspot.linkId
+    };
+  }
+
+  tryAbandonCorridor(link) {
+    if (!link) return { applied: false, reason: 'missing-link' };
+    const profile = this._getWorldProfile();
+    const now = getNowMs();
+
+    const existing = link?.userData?.networkTension && typeof link.userData.networkTension === 'object'
+      ? link.userData.networkTension
+      : {};
+    const hotspotWeight = Number(existing.hotspotWeight) || 0;
+    const chokepointScore = Number(existing.chokepointScore) || 0;
+
+    const isThreatened =
+      hotspotWeight >= profile.hotspotThreshold ||
+      chokepointScore >= profile.chokepointCriticalThreshold * 0.85;
+    if (!isThreatened) {
+      return { applied: false, reason: 'not-threatened' };
+    }
+
+    const sourceId = getNodeId(link.source);
+    const targetId = getNodeId(link.target);
+    const componentId = this._lastLinkAnalyses
+      .find((a) => a.sourceId === sourceId && a.targetId === targetId)
+      ?.componentId || null;
+
+    const cooldownKey = componentId || `${sourceId}->${targetId}`;
+    const cooldownUntil = this._abandonCooldownUntil.get(cooldownKey) || 0;
+    if (cooldownUntil > now) {
+      return { applied: false, reason: 'cooldown', remainingMs: cooldownUntil - now };
+    }
+    this._abandonCooldownUntil.set(cooldownKey, now + 4000);
+
+    // Component-wide load relief
+    if (componentId) {
+      const componentLinks = this._lastLinkAnalyses.filter((a) => a.componentId === componentId);
+      for (const analysis of componentLinks) {
+        if (analysis.link === link) continue;
+        const nodeImpulse = {
+          loadPressure: -0.08,
+          stability: 0.02
+        };
+        applyMetricImpulse(analysis.sourceNode, nodeImpulse, { source: 'network-tension-runtime' });
+        applyMetricImpulse(analysis.targetNode, nodeImpulse, { source: 'network-tension-runtime' });
+      }
+    }
+
+    // Source and target node bonuses
+    const abandonImpulse = {
+      stability: 0.06,
+      corruption: -0.04,
+      loadPressure: -0.04
+    };
+    applyMetricImpulse(link.source, abandonImpulse, { source: 'network-tension-runtime' });
+    applyMetricImpulse(link.target, abandonImpulse, { source: 'network-tension-runtime' });
+
+    emitSemantic(this.semanticBus, 'network:corridorAbandoned', {
+      worldId: this._resolveWorldId(),
+      linkId: String(link.id || link.userData?.id || ''),
+      sourceNodeId: sourceId,
+      targetNodeId: targetId,
+      componentId: componentId || null
+    });
+
+    return {
+      applied: true,
+      reason: 'abandoned',
+      componentId: componentId || null
     };
   }
 

@@ -17436,6 +17436,16 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
             if (this.audioSystem?.playMilestoneChime) this.audioSystem.playMilestoneChime(payload.stars);
         });
 
+        // Wire counterplay verb events to hold gate grace periods
+        if (this.semanticBus?.on) {
+            this.semanticBus.on('network:hotspotRelieved', () => {
+                this.visualNetworkTimeElasticity?.onHotspotRelieved?.();
+            });
+            this.semanticBus.on('network:corridorAbandoned', () => {
+                this.visualNetworkTimeElasticity?.onCorridorAbandoned?.();
+            });
+        }
+
         // Wire score system to CoreMetricsHUD (if overlay already created)
         this._wireScoreSystemToHUD();
         

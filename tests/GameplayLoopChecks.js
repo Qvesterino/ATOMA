@@ -9,7 +9,7 @@ import {
 import { VisualNetworkTimeElasticity_v1, SCORE_DIRECTION } from '../VisualNetworkTimeElasticity_v1.js';
 import { AtomaLeaderboard } from '../AtomaLeaderboard.js';
 import { LinkCollapseSystem } from '../LinkCollapseSystem.js';
-import { NetworkTensionRuntime_v1 } from '../NetworkTensionRuntime_v1.js';
+import { NetworkTensionRuntime_v1, NETWORK_TENSION_WORLD_PROFILES } from '../NetworkTensionRuntime_v1.js';
 import { getDefaultMetricThresholds } from '../src/metrics/MetricTierClassifier.js';
 import { CompetitionDominanceAdapter_v1 } from '../CompetitionDominanceAdapter_v1.js';
 import { applyDominancePulseModulation } from '../harmony/HarmonyStabilization.js';
@@ -1003,6 +1003,117 @@ test('NetworkTensionRuntime reroute relief triggers only on a real hotspot-adjac
   const unrelatedLink = createTensionLink(c, e, 0.64);
   const noRelief = runtime.noteLinkCreated(unrelatedLink);
   assert.strictEqual(noRelief.relieved, false);
+});
+
+test('NetworkTensionRuntime reinforce is gated to threatened links', () => {
+  const source = createTestNode('ga', 'quantum', {
+    synergy: 0.52,
+    harmony: 0.4,
+    stability: 0.36,
+    corruption: 0.44,
+    loadPressure: 0.8
+  });
+  const target = createTestNode('gb', 'control', {
+    synergy: 0.5,
+    harmony: 0.38,
+    stability: 0.34,
+    corruption: 0.42,
+    loadPressure: 0.76
+  });
+  const links = [createTensionLink(source, target, 0.18)];
+
+  const runtime = new NetworkTensionRuntime_v1({
+    linkSystem: createTensionLinkingSystem(links),
+    getWorldId: () => 'default'
+  });
+
+  runtime.update(0.1, 0);
+
+  // With low quality and high load, the link should be threatened
+  const reinforce = runtime.tryReinforceCorridor(source, target);
+  assert.strictEqual(reinforce.applied, true, 'reinforce should apply on threatened link');
+
+  // Create a calm link with low load and high quality
+  const calmSource = createTestNode('gc', 'storage', {
+    synergy: 0.6,
+    harmony: 0.6,
+    stability: 0.8,
+    corruption: 0.1,
+    loadPressure: 0.1
+  });
+  const calmTarget = createTestNode('gd', 'storage', {
+    synergy: 0.6,
+    harmony: 0.6,
+    stability: 0.8,
+    corruption: 0.1,
+    loadPressure: 0.1
+  });
+  const calmLink = createTensionLink(calmSource, calmTarget, 0.95);
+  const calmLinks = [calmLink];
+  const calmRuntime = new NetworkTensionRuntime_v1({
+    linkSystem: createTensionLinkingSystem(calmLinks),
+    getWorldId: () => 'default'
+  });
+  calmRuntime.update(0.1, 0);
+
+  const calmReinforce = calmRuntime.tryReinforceCorridor(calmSource, calmTarget);
+  assert.strictEqual(calmReinforce.applied, false, 'reinforce should NOT apply on calm link');
+  assert.strictEqual(calmReinforce.reason, 'not-threatened');
+});
+
+test('NetworkTensionRuntime abandon gives component-wide relief on threatened links', () => {
+  const a = createTestNode('aa', 'quantum', {
+    synergy: 0.52,
+    harmony: 0.4,
+    stability: 0.34,
+    corruption: 0.46,
+    loadPressure: 0.82
+  });
+  const b = createTestNode('ab', 'control', {
+    synergy: 0.5,
+    harmony: 0.38,
+    stability: 0.35,
+    corruption: 0.42,
+    loadPressure: 0.78
+  });
+  const c = createTestNode('ac', 'storage', {
+    synergy: 0.47,
+    harmony: 0.56,
+    stability: 0.6,
+    corruption: 0.16,
+    loadPressure: 0.22
+  });
+
+  const hotspotLink = createTensionLink(a, b, 0.18);
+  const supportLink = createTensionLink(b, c, 0.7);
+  const links = [hotspotLink, supportLink];
+  const runtime = new NetworkTensionRuntime_v1({
+    linkSystem: createTensionLinkingSystem(links),
+    getWorldId: () => 'default'
+  });
+
+  runtime.update(0.1, 0);
+
+  const beforeStabilityA = a.userData.metrics.stability;
+  const beforeCorruptionA = a.userData.metrics.corruption;
+
+  const abandon = runtime.tryAbandonCorridor(hotspotLink);
+  assert.strictEqual(abandon.applied, true, 'abandon should apply on threatened hotspot link');
+  assert.strictEqual(abandon.reason, 'abandoned');
+
+  // Nodes should receive stability boost and corruption reduction
+  assert(a.userData.metrics.stability > beforeStabilityA, 'abandon should boost source node stability');
+  assert(a.userData.metrics.corruption < beforeCorruptionA, 'abandon should reduce source node corruption');
+
+  // Second abandon should be on cooldown
+  const secondAbandon = runtime.tryAbandonCorridor(hotspotLink);
+  assert.strictEqual(secondAbandon.applied, false);
+  assert.strictEqual(secondAbandon.reason, 'cooldown');
+});
+
+test('NetworkTensionRuntime reroute relief scale is at least 0.72', () => {
+  const profile = NETWORK_TENSION_WORLD_PROFILES?.default || {};
+  assert(profile.rerouteReliefScale >= 0.72, `default rerouteReliefScale should be >= 0.72, got ${profile.rerouteReliefScale}`);
 });
 
 test('Menu release metadata exposes only Quantum and Dream Desert publicly', () => {
