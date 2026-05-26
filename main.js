@@ -586,6 +586,8 @@ import { RunIdentityDirector } from './HUD/RunIdentityDirector.js';
 import { createEmptyCoreMetricsViewModel, updateCoreMetricsViewModel } from './HUD/CoreMetricsViewModel.js';
 import { loadMenuProfile, saveMenuProfile } from './MainMenu.js';
 import { composeRunIdentitySelection, isRunIdentityWorld } from './RunIdentityProfiles.js';
+import { DoctrineRuntime } from './src/doctrine/DoctrineRuntime.js';
+import { integrateMilestoneUnlocks, describeDoctrineUnlock } from './src/doctrine/DoctrineIntegration.js';
 import { SystemStateOverlay } from './SystemStateOverlay.js';
 import { ZoneAudioReactivity } from './ZoneAudioReactivity.js';
 // DISABLED: Legacy metric reactive system (replaced by Phase 5-7 architecture)
@@ -4231,10 +4233,11 @@ class AtomaGame {
         this._hintRewindStartShown = false;
         this.firstRunGuidanceDirector = null;
         this.runIdentityDirector = null;
-        this.activeRunIdentitySelection = null;
+        this.doctrineRuntime = null;
         this._runIdentityPendingSelection = null;
         this._setupFirstRunGuidanceDirector();
         this._setupRunIdentityDirector();
+        this._setupDoctrineRuntime();
         
         // ========================================================================
         // PHASE MMD-1: MATERIAL MUTATION DETECTOR
@@ -5967,7 +5970,13 @@ this.setHudDirty('nodeInspect');
         // Extraction Pack v1.0 — Runtime Orchestration
         this.metricsRuntime_v1 = null;
         this.networkStressAggregator = null;
-        // REMOVED: personalityRuntime_v1 — moved to LEGACY/april (2026-04-22)
+
+        // Doctrine Layer — Runtime Orchestration
+        if (this.doctrineRuntime && typeof this.doctrineRuntime.dispose === 'function') {
+            this.doctrineRuntime.dispose();
+            console.log('[main.js] DoctrineRuntime disposed');
+        }
+        this.doctrineRuntime = null;
 
         // Extraction Pack v1.1 — Runtime Orchestration (World & FX)
         this.worldRuntime_v1 = null;
@@ -12271,6 +12280,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         });
         regGuard('nodeInteraction', 'realtime.nodeInteraction', (dt) => this.nodeInteractionEngine?.update?.(dt));
         regGuard('metricsRuntime_v1', 'simulation.metricsRuntime_v1', (dt) => this.metricsRuntime_v1?.update?.(dt));
+        regGuard('doctrineRuntime', 'simulation.doctrineRuntime', (dt) => this.doctrineRuntime?.update?.(dt));
         regGuard('aiHudReports', 'simulation.aiHudReports', () => this._refreshAIHudReports?.());
         // REMOVED: personalityRuntime_v1 regGuard — moved to LEGACY/april (2026-04-22)
         // REMOVED: personalityShaderBridge + advancedShaderFX regGuard — moved to LEGACY/ (2026-05-14)
@@ -14360,6 +14370,29 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         });
     }
 
+    _setupDoctrineRuntime() {
+        if (this.doctrineRuntime) {
+            this.doctrineRuntime.bind({
+                game: this,
+                metricsRuntime: this.metricsRuntime_v1,
+                runIdentityDirector: this.runIdentityDirector
+            });
+            return;
+        }
+        this.doctrineRuntime = new DoctrineRuntime({
+            game: this,
+            metricsRuntime: this.metricsRuntime_v1,
+            runIdentityDirector: this.runIdentityDirector
+        });
+        this.doctrineRuntime.onCrisis((event, data) => {
+            this.semanticBus?.emit?.(`doctrine.${event}`, data);
+        });
+        if (typeof window !== 'undefined') {
+            window.__ATOMA_DOCTRINE__ = () => this.doctrineRuntime?.getState?.() || null;
+            window.__ATOMA_DOCTRINE_MODS__ = () => this.doctrineRuntime?.getModifiers?.() || null;
+        }
+    }
+
     _prepareRunIdentityForWorld(worldId) {
         if (!this.runIdentityDirector || !isRunIdentityWorld(worldId)) {
             this.activeRunIdentitySelection = null;
@@ -14374,6 +14407,9 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
             title: this._runIdentityPendingSelection?.hudTitle,
             detail: this._runIdentityPendingSelection?.hudDetail
         });
+
+        this.doctrineRuntime?.initializeForWorld?.(worldId);
+
         return this._runIdentityPendingSelection;
     }
 
@@ -14436,26 +14472,49 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
 
     _applyRunIdentityMetricsOverlay(rawMetrics = null) {
         const identity = this.activeRunIdentitySelection || this._runIdentityPendingSelection || null;
-        if (!rawMetrics || !identity?.metricsOverlay) {
-            return rawMetrics || {};
+        if (!rawMetrics) {
+            return {};
         }
 
-        const overlay = identity.metricsOverlay;
-        const nextMetrics = { ...rawMetrics };
-        const scaleMetric = (key, scale) => {
-            if (!Number.isFinite(Number(scale))) return;
-            const current = Number(nextMetrics[key]);
-            if (!Number.isFinite(current)) return;
-            nextMetrics[key] = Math.max(0, Math.min(1, current * Number(scale)));
-        };
+        let nextMetrics = { ...rawMetrics };
 
-        scaleMetric('networkSynergy', overlay.networkSynergyScale);
-        scaleMetric('avgLinkQuality', overlay.avgLinkQualityScale);
-        scaleMetric('loadPressure', overlay.loadPressureScale);
-        scaleMetric('corruption', overlay.corruptionScale);
-        scaleMetric('corruptionLevel', overlay.corruptionScale);
-        scaleMetric('harmonyFlow', overlay.harmonyScale);
-        scaleMetric('networkStress', overlay.stabilityScale);
+        if (identity?.metricsOverlay) {
+            const overlay = identity.metricsOverlay;
+            const scaleMetric = (key, scale) => {
+                if (!Number.isFinite(Number(scale))) return;
+                const current = Number(nextMetrics[key]);
+                if (!Number.isFinite(current)) return;
+                nextMetrics[key] = Math.max(0, Math.min(1, current * Number(scale)));
+            };
+
+            scaleMetric('networkSynergy', overlay.networkSynergyScale);
+            scaleMetric('avgLinkQuality', overlay.avgLinkQualityScale);
+            scaleMetric('loadPressure', overlay.loadPressureScale);
+            scaleMetric('corruption', overlay.corruptionScale);
+            scaleMetric('corruptionLevel', overlay.corruptionScale);
+            scaleMetric('harmonyFlow', overlay.harmonyScale);
+            scaleMetric('networkStress', overlay.stabilityScale);
+        }
+
+        const doctrineModifiers = this.doctrineRuntime?.getModifiers?.();
+        if (doctrineModifiers) {
+            const applyMod = (key, mod) => {
+                if (nextMetrics[key] === undefined) return;
+                const val = Number(nextMetrics[key]);
+                if (!Number.isFinite(val)) return;
+                let result = val;
+                if (mod.scale && mod.scale !== 1) result *= mod.scale;
+                if (mod.drift) result += mod.drift;
+                nextMetrics[key] = Math.max(0, Math.min(1, result));
+            };
+
+            applyMod('networkSynergy', doctrineModifiers.synergy);
+            applyMod('harmonyFlow', doctrineModifiers.harmony);
+            applyMod('networkStress', doctrineModifiers.stability);
+            applyMod('corruptionLevel', doctrineModifiers.corruption);
+            applyMod('loadPressure', doctrineModifiers.loadPressure);
+        }
+
         return nextMetrics;
     }
 
@@ -14505,6 +14564,23 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
 
     _handleRunIdentityMilestone(milestone, world = this.currentMode) {
         this.runIdentityDirector?.handleMilestone?.(milestone, world);
+
+        const unlocks = integrateMilestoneUnlocks(
+            this.runIdentityDirector?._metaProgression || {},
+            milestone,
+            world,
+            []
+        );
+        for (const unlock of unlocks) {
+            if (unlock.type === 'doctrine') {
+                const desc = describeDoctrineUnlock(unlock);
+                this.runIdentityDirector?._showUnlockToast?.(desc.title, desc.detail);
+            }
+        }
+    }
+
+    triggerMidrunDoctrineDraft() {
+        return this.doctrineRuntime?.triggerMidrunDraft?.() || false;
     }
 
     _showSoftFailureHint(key, context = {}, { cooldownMs = 9000, fingerprint = key } = {}) {
